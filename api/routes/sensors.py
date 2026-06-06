@@ -114,12 +114,65 @@ def export_device_telemetry(
 
 @router.post("/device/{device_id}/mock", response_model=MessageResponse)
 def set_mock_state(
-    device_id: str, req: MockControlRequest
+    device_id: str, req: MockControlRequest, db: Session = Depends(get_db)
 ):
     valid_states = ["normal", "ice", "warm", "failover"]
     if req.mode not in valid_states:
         raise HTTPException(status_code=400, detail=f"Invalid mode. Must be one of {valid_states}")
+    
     WorkerState.MOCK_STATE = req.mode
+    
+    # Generate and insert simulated data immediately for instant UI feedback
+    import random
+    if req.mode != "failover":
+        if req.mode == "ice":
+            temp_val = round(random.uniform(-5.0, -2.0), 2)
+        elif req.mode == "warm":
+            temp_val = round(random.uniform(5.0, 10.0), 2)
+        else:
+            temp_val = round(random.uniform(2.0, 3.5), 2)
+            
+        hum_val = round(random.uniform(40.0, 60.0), 2)
+        bat_val = 98.0
+        
+        # 1. Raw Telemetry
+        telemetry = DeviceTelemetry(
+            device_id=device_id,
+            temperature=temp_val,
+            humidity=hum_val,
+            battery_level=bat_val
+        )
+        db.add(telemetry)
+        
+        # 2. Map to logical sensors
+        sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+        for s in sensors:
+            val = temp_val if s.type == "temperature" else hum_val
+            reading = SensorReading(sensor_id=s.id, value=val)
+            db.add(reading)
+            
+            # 3. Check thresholds
+            if s.max_threshold is not None and val > s.max_threshold:
+                recent_alert = db.query(Alert).filter(Alert.sensor_id == s.id, Alert.resolved == False).first()
+                if not recent_alert:
+                    new_alert = Alert(
+                        sensor_id=s.id,
+                        value=val,
+                        message=f"{s.type.capitalize()} threshold exceeded: {val} > {s.max_threshold}"
+                    )
+                    db.add(new_alert)
+                    
+            if s.min_threshold is not None and val < s.min_threshold:
+                recent_alert = db.query(Alert).filter(Alert.sensor_id == s.id, Alert.resolved == False).first()
+                if not recent_alert:
+                    new_alert = Alert(
+                        sensor_id=s.id,
+                        value=val,
+                        message=f"{s.type.capitalize()} threshold dropped below minimum: {val} < {s.min_threshold}"
+                    )
+                    db.add(new_alert)
+        db.commit()
+        
     return MessageResponse(message=f"Mock state set to {req.mode}")
 
 @router.get("/device/{device_id}/sensors")

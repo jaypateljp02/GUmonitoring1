@@ -9,153 +9,291 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Inter', -apple-system, sans-serif;
-      background: #111827;
-      color: #fff;
-      min-height: 100vh;
+      background: #F3F4F6; color: #111827; min-height: 100vh;
     }
-
     .page { padding: 20px; max-width: 500px; margin: 0 auto; }
 
-    .header { font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 4px; }
-    .subheader { font-size: 14px; color: #9CA3AF; margin-bottom: 20px; }
+    /* Header */
+    .header { font-size: 30px; font-weight: bold; color: #111827; margin-bottom: 2px; }
+    .subheader { font-size: 14px; color: #6B7280; margin-bottom: 24px; }
+    .section-title { font-size: 16px; font-weight: bold; color: #4B5563; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
 
-    /* Card */
+    /* Sensor List Card */
+    .sensor-card {
+      background: #FFFFFF; border-radius: 16px; padding: 18px; margin-bottom: 12px;
+      border: 1px solid #E5E7EB; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: transform 0.15s, background 0.2s;
+      shadow-color: #000;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+    .sensor-card:hover { background: #F9FAFB; }
+    .sensor-card:active { transform: scale(0.98); }
+    .sensor-card.alert-border { border-color: #EF4444; background: #FEF2F2; }
+    .sensor-left { display: flex; align-items: center; gap: 12px; }
+    .sensor-icon { font-size: 32px; }
+    .sensor-name { font-size: 18px; font-weight: bold; color: #111827; }
+    .sensor-id-text { font-size: 11px; color: #2563EB; font-family: monospace; margin-top: 2px; }
+    .sensor-right { text-align: right; }
+    .sensor-temp { font-size: 28px; font-weight: bold; color: #111827; }
+    .sensor-temp.alert { color: #EF4444; }
+    .sensor-badge {
+      font-size: 11px; font-weight: bold; margin-top: 4px;
+      padding: 2px 8px; border-radius: 6px; display: inline-block;
+    }
+    .badge-ok { background: #D1FAE5; color: #065F46; }
+    .badge-alert { background: #FEE2E2; color: #991B1B; }
+    .footer-text { text-align: center; color: #9CA3AF; font-size: 12px; margin-top: 20px; }
+
+    /* ─── Detail View ─── */
+    .detail-view { display: none; }
+    .detail-view.active { display: block; }
+    .list-view.hidden { display: none; }
+
+    .back-btn {
+      background: none; border: none; color: #2563EB; font-size: 14px;
+      font-weight: bold; cursor: pointer; margin-bottom: 16px;
+      font-family: 'Inter', sans-serif; padding: 0;
+    }
+    .detail-header { font-size: 28px; font-weight: bold; color: #111827; margin-bottom: 20px; }
+
     .card {
-      border-radius: 16px; padding: 20px; margin-bottom: 16px;
-      border: 1px solid #374151;
-      background: #1F2937;
+      border-radius: 16px; padding: 20px; margin-bottom: 20px;
+      border: 1px solid #E5E7EB; background: #FFFFFF;
       transition: background 0.5s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     }
-    .card.alarm {
-      animation: flash 1s infinite;
-    }
-    @keyframes flash {
-      0%, 100% { background: #1F2937; }
-      50% { background: #7F1D1D; }
-    }
+    .card.alarm { animation: flash 1s infinite; }
+    @keyframes flash { 0%,100% { background:#FFFFFF; } 50% { background:#FEE2E2; } }
 
-    .card-title { color: #fff; font-size: 18px; font-weight: bold; margin-bottom: 2px; }
-    .sensor-id { color: #60A5FA; font-size: 11px; font-family: monospace; margin-bottom: 16px; }
-
+    .card-title { color: #6B7280; font-size: 14px; margin-bottom: 16px; font-weight: bold; }
     .row { display: flex; justify-content: space-between; }
     .row + .row { margin-top: 16px; }
-
     .metric-box { flex: 1; }
-    .metric-label { color: #9CA3AF; font-size: 12px; margin-bottom: 4px; }
-    .metric-value { color: #fff; font-size: 24px; font-weight: bold; }
+    .metric-label { color: #6B7280; font-size: 12px; margin-bottom: 4px; }
+    .metric-value { color: #111827; font-size: 24px; font-weight: bold; }
     .metric-value.small { font-size: 14px; }
 
     .warning-text {
-      color: #FECACA; font-weight: bold; margin-top: 16px;
-      text-align: center; background: #991B1B;
+      color: #991B1B; font-weight: bold; margin-top: 16px;
+      text-align: center; background: #FEE2E2;
       padding: 8px; border-radius: 8px; font-size: 13px;
       display: none;
     }
     .warning-text.show { display: block; }
 
-    .export-btn {
-      margin-top: 16px; background: #374151; border-radius: 10px;
-      padding: 10px; text-align: center; cursor: pointer;
-      color: #9CA3AF; font-size: 13px; font-weight: bold;
-      text-decoration: none; display: block;
-      transition: background 0.2s;
-    }
-    .export-btn:hover { background: #4B5563; }
-
     .action-btn {
-      background: #3B82F6; border-radius: 12px; padding: 16px;
+      display: block; border-radius: 12px; padding: 16px;
       text-align: center; margin-bottom: 12px; cursor: pointer;
       color: #fff; font-size: 16px; font-weight: bold;
-      text-decoration: none; display: block;
-      transition: background 0.2s;
+      text-decoration: none; transition: opacity 0.2s;
     }
-    .action-btn:hover { background: #2563EB; }
+    .action-btn:hover { opacity: 0.85; }
+    .action-btn.blue { background: #3B82F6; }
     .action-btn.green { background: #10B981; }
-    .action-btn.green:hover { background: #059669; }
+
+    /* Developer Simulator Panel Styles */
+    .dev-panel {
+      margin-top: 30px; padding: 16px; background: #FFFFFF;
+      border-radius: 16px; border: 1px dashed #D1D5DB;
+    }
+    .dev-panel-title { color: #6B7280; font-size: 12px; font-weight: bold; margin-bottom: 12px; }
+    .dev-row { display: flex; justify-content: space-between; gap: 10px; }
+    .dev-btn {
+      flex: 1; background: #6B7280; padding: 12px; border: none; border-radius: 8px;
+      align-items: center; color: #fff; font-weight: bold; font-family: 'Inter', sans-serif;
+      cursor: pointer; font-size: 14px; transition: opacity 0.2s;
+    }
+    .dev-btn:hover { opacity: 0.9; }
+    .dev-btn.blue { background: #3B82F6; }
+    .dev-btn.red { background: #EF4444; }
+    .dev-btn.orange { background: #F59E0B; }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="header">🏭 Ground Up Monitor</div>
-    <div class="subheader">3 devices · Threshold 4.0°C</div>
+  <!-- LIST VIEW -->
+  <div class="page list-view" id="listView">
+    <div class="header">🏭 Ground Up</div>
+    <div class="subheader">Cold Room Monitoring</div>
+    <div class="section-title">All Sensors (3)</div>
+    <div id="sensorList"></div>
+    <div class="footer-text">Tap a sensor to view live details</div>
+  </div>
 
-    <div id="cards"></div>
+  <!-- DETAIL VIEW -->
+  <div class="page detail-view" id="detailView">
+    <button class="back-btn" onclick="showList()">← Back to Sensors</button>
+    <div class="detail-header" id="detailHeader"></div>
+    <div class="card" id="detailCard">
+      <div class="card-title" id="detailTitle"></div>
+      <div class="row">
+        <div class="metric-box">
+          <div class="metric-label">Temperature</div>
+          <div class="metric-value" id="dTemp">--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Humidity</div>
+          <div class="metric-value" id="dHum">--</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="metric-box">
+          <div class="metric-label">Battery</div>
+          <div class="metric-value" id="dBat">--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Last Updated</div>
+          <div class="metric-value small" id="dTime">--</div>
+        </div>
+      </div>
+      <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</div>
+    </div>
+    <a class="action-btn blue" id="dJsonLink" target="_blank">View 7-Day Analytics</a>
+    <a class="action-btn green" id="dCsvLink" target="_blank">Export CSV Audit Log</a>
 
-    <a class="action-btn" href="/sensors/device/a4b002884e/telemetry?days=7" target="_blank">📊 View 7-Day Analytics</a>
+    <!-- Simulator Panel -->
+    <div class="dev-panel">
+      <div class="dev-panel-title">Developer Simulator Panel</div>
+      <div class="dev-row">
+        <button class="dev-btn" onclick="setMockMode('normal')">Normal</button>
+        <button class="dev-btn blue" onclick="setMockMode('ice')">Ice (-3°C)</button>
+      </div>
+      <div class="dev-row" style="margin-top: 10px;">
+        <button class="dev-btn red" onclick="setMockMode('warm')">Warm (8°C)</button>
+        <button class="dev-btn orange" onclick="setMockMode('failover')">Failover</button>
+      </div>
+    </div>
   </div>
 
   <script>
     const DEVICES = [
-      { id: 'a4b002884e', name: 'Device 1',     icon: '❄️' },
-      { id: 'a4b002898f', name: 'Miso Room',     icon: '🍶' },
-      { id: 'a4b0028991', name: 'Vinegar Room',  icon: '🫗' },
+      { id:'a4b002884e', name:'Device 1',     icon:'❄️' },
+      { id:'a4b002898f', name:'Miso Room',     icon:'🍶' },
+      { id:'a4b0028991', name:'Vinegar Room',  icon:'🫗' },
     ];
     const API = window.location.origin;
+    let currentDevice = null;
+    let detailInterval = null;
 
-    function buildCard(d) {
+    // Build sensor list cards
+    function buildSensorCard(d) {
       return `
-      <div class="card" id="card-${d.id}">
-        <div class="card-title">${d.icon} ${d.name} — Live</div>
-        <div class="sensor-id">Sensor: ${d.id}</div>
-        <div class="row">
-          <div class="metric-box">
-            <div class="metric-label">Temperature</div>
-            <div class="metric-value" id="temp-${d.id}">--</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Humidity</div>
-            <div class="metric-value" id="hum-${d.id}">--</div>
+      <div class="sensor-card" id="sc-${d.id}" onclick="showDetail('${d.id}')">
+        <div class="sensor-left">
+          <div class="sensor-icon">${d.icon}</div>
+          <div>
+            <div class="sensor-name">${d.name}</div>
+            <div class="sensor-id-text">${d.id}</div>
           </div>
         </div>
-        <div class="row">
-          <div class="metric-box">
-            <div class="metric-label">Battery</div>
-            <div class="metric-value" id="bat-${d.id}">--</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Last Updated</div>
-            <div class="metric-value small" id="time-${d.id}">--</div>
-          </div>
+        <div class="sensor-right">
+          <div class="sensor-temp" id="st-${d.id}">--</div>
+          <div class="sensor-badge badge-ok" id="sb-${d.id}">✅ OK</div>
         </div>
-        <div class="warning-text" id="warn-${d.id}">⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</div>
-        <a class="export-btn" href="/sensors/device/${d.id}/export?days=7" target="_blank">📥 Export CSV</a>
       </div>`;
     }
+    document.getElementById('sensorList').innerHTML = DEVICES.map(buildSensorCard).join('');
 
-    document.getElementById('cards').innerHTML = DEVICES.map(buildCard).join('');
+    // Poll list view
+    async function pollList() {
+      for (const d of DEVICES) {
+        try {
+          const res = await fetch(`${API}/sensors/device/${d.id}/telemetry?days=1`);
+          const data = await res.json();
+          if (data && data.length > 0) {
+            const temp = parseFloat(data[0].temperature);
+            const el = document.getElementById(`st-${d.id}`);
+            const badge = document.getElementById(`sb-${d.id}`);
+            const card = document.getElementById(`sc-${d.id}`);
+            el.textContent = temp + '°C';
+            if (temp > 4.0) {
+              el.classList.add('alert');
+              badge.className = 'sensor-badge badge-alert';
+              badge.textContent = '⚠️ ALERT';
+              card.classList.add('alert-border');
+            } else {
+              el.classList.remove('alert');
+              badge.className = 'sensor-badge badge-ok';
+              badge.textContent = '✅ OK';
+              card.classList.remove('alert-border');
+            }
+          }
+        } catch(e) {}
+      }
+    }
+    pollList();
+    const listInterval = setInterval(pollList, 10000);
 
-    async function poll(d) {
+    // Show detail
+    function showDetail(deviceId) {
+      currentDevice = DEVICES.find(d => d.id === deviceId);
+      document.getElementById('listView').classList.add('hidden');
+      document.getElementById('detailView').classList.add('active');
+      document.getElementById('detailHeader').textContent = currentDevice.icon + ' ' + currentDevice.name + ' Monitor';
+      document.getElementById('detailTitle').textContent = 'Live Metrics (Sensor: ' + currentDevice.id + ')';
+      document.getElementById('dJsonLink').href = `/sensors/device/${currentDevice.id}/telemetry?days=7`;
+      document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=7`;
+      pollDetail();
+      detailInterval = setInterval(pollDetail, 5000);
+    }
+
+    function showList() {
+      document.getElementById('listView').classList.remove('hidden');
+      document.getElementById('detailView').classList.remove('active');
+      if (detailInterval) clearInterval(detailInterval);
+      pollList();
+    }
+
+    async function pollDetail() {
+      if (!currentDevice) return;
       try {
-        const res = await fetch(`${API}/sensors/device/${d.id}/telemetry?days=1`);
-        if (!res.ok) return;
+        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=1`);
         const data = await res.json();
-        if (!data || data.length === 0) return;
-        const latest = data[0];
-        const temp = parseFloat(latest.temperature);
-        const hum = parseFloat(latest.humidity);
-        const bat = parseFloat(latest.battery_level);
-        const ts = new Date(latest.timestamp.endsWith('Z') ? latest.timestamp : latest.timestamp + 'Z');
+        if (data && data.length > 0) {
+          const d = data[0];
+          const temp = parseFloat(d.temperature);
+          document.getElementById('dTemp').textContent = temp + '°C';
+          document.getElementById('dHum').textContent = parseFloat(d.humidity) + '%';
+          document.getElementById('dBat').textContent = parseFloat(d.battery_level) + '%';
+          const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
+          document.getElementById('dTime').textContent = ts.toLocaleTimeString();
 
-        document.getElementById(`temp-${d.id}`).textContent = temp + '°C';
-        document.getElementById(`hum-${d.id}`).textContent = hum + '%';
-        document.getElementById(`bat-${d.id}`).textContent = bat + '%';
-        document.getElementById(`time-${d.id}`).textContent = ts.toLocaleTimeString();
-
-        const card = document.getElementById(`card-${d.id}`);
-        const warn = document.getElementById(`warn-${d.id}`);
-        if (temp > 4.0) {
-          card.classList.add('alarm');
-          warn.classList.add('show');
+          const card = document.getElementById('detailCard');
+          const warn = document.getElementById('dWarn');
+          if (temp > 4.0) {
+            card.classList.add('alarm');
+            warn.classList.add('show');
+          } else {
+            card.classList.remove('alarm');
+            warn.classList.remove('show');
+          }
         } else {
-          card.classList.remove('alarm');
-          warn.classList.remove('show');
+          // No recent data (e.g. failover simulation)
+          document.getElementById('dTemp').textContent = '--';
+          document.getElementById('dHum').textContent = '--';
+          document.getElementById('dBat').textContent = '--';
+          document.getElementById('dTime').textContent = 'Offline';
+          document.getElementById('detailCard').classList.remove('alarm');
+          document.getElementById('dWarn').classList.remove('show');
         }
       } catch(e) {}
     }
 
-    function refresh() { DEVICES.forEach(poll); }
-    refresh();
-    setInterval(refresh, 5000);
+    // Set mock mode for active device
+    async function setMockMode(mode) {
+      if (!currentDevice) return;
+      try {
+        await fetch(`${API}/sensors/device/${currentDevice.id}/mock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode })
+        });
+        // Immediately fetch detail metrics to reflect change instantly
+        pollDetail();
+      } catch (e) {
+        console.error('Failed to set mock mode', e);
+      }
+    }
   </script>
 </body>
 </html>

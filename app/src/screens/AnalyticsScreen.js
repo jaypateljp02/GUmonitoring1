@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } fro
 import { api } from '../services/api';
 import { LineChart } from 'react-native-chart-kit';
 
-export default function AnalyticsScreen() {
+export default function AnalyticsScreen({ route }) {
+  const device = route?.params?.device || { id: 'a4b002884e', name: 'Device 1', icon: '❄️' };
+  const SENSOR_ID = device.id;
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const SENSOR_ID = 'a4b002884e';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,7 +22,7 @@ export default function AnalyticsScreen() {
       }
     };
     fetchData();
-  }, []);
+  }, [SENSOR_ID]);
 
   if (loading) {
     return (
@@ -67,10 +68,10 @@ export default function AnalyticsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>7-Day Analytics</Text>
+      <Text style={styles.header}>{device.icon} {device.name} Analytics</Text>
       
       <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Temperature Trend</Text>
+        <Text style={styles.chartTitle}>7-Day Temperature Trend</Text>
         <LineChart
           data={data}
           width={Dimensions.get('window').width - 40}
@@ -78,19 +79,19 @@ export default function AnalyticsScreen() {
           yAxisSuffix="°C"
           yAxisInterval={1}
           chartConfig={{
-            backgroundColor: '#1F2937',
-            backgroundGradientFrom: '#1F2937',
-            backgroundGradientTo: '#111827',
+            backgroundColor: '#FFFFFF',
+            backgroundGradientFrom: '#FFFFFF',
+            backgroundGradientTo: '#F9FAFB',
             decimalPlaces: 1,
-            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(156, 163, 175, ${opacity})`,
+            color: (opacity = 1) => `rgba(17, 24, 39, ${opacity})`,
+            labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
             style: {
               borderRadius: 16
             },
             propsForDots: {
               r: "4",
               strokeWidth: "2",
-              stroke: "#2563eb"
+              stroke: "#3B82F6"
             }
           }}
           bezier
@@ -112,26 +113,33 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111827' },
-  header: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 20 },
+  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  header: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
   chartContainer: { 
-    backgroundColor: '#1F2937', 
+    backgroundColor: '#FFFFFF', 
     borderRadius: 16, 
     padding: 10, 
     borderWidth: 1, 
-    borderColor: '#374151',
-    alignItems: 'center'
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  chartTitle: { color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 10, alignSelf: 'flex-start' },
-  errorText: { color: '#9CA3AF', fontSize: 16 },
+  chartTitle: { color: '#6B7280', fontSize: 14, fontWeight: 'bold', marginBottom: 10, alignSelf: 'flex-start' },
+  errorText: { color: '#6B7280', fontSize: 16 },
   infoBox: {
     marginTop: 20,
-    backgroundColor: '#374151',
+    backgroundColor: '#EFF6FF',
     padding: 16,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
   infoText: {
-    color: '#D1D5DB',
+    color: '#1E40AF',
     fontSize: 14,
     lineHeight: 20,
   }

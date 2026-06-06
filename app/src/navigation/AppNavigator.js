@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
+import SensorListScreen from '../screens/SensorListScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 
@@ -24,8 +25,13 @@ export default function AppNavigator() {
       />
       <Stack.Screen 
         name="Main" 
+        component={SensorListScreen} 
+        options={{ title: 'Ground Up Monitor', headerBackVisible: false }} 
+      />
+      <Stack.Screen 
+        name="DeviceDetail" 
         component={DashboardScreen} 
-        options={{ title: 'Devinme Dashboard', headerBackVisible: false }} 
+        options={{ title: 'Sensor Details' }} 
       />
       <Stack.Screen 
         name="Analytics" 
