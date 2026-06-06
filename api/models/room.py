@@ -10,7 +10,7 @@ class Room(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
-    type = Column(Enum("room", "fridge", "freezer", name="room_type", schema="monitoring"), nullable=False)
+    type = Column(Enum("room", "fridge", "freezer", name="room_type", schema="monitoring", create_type=False), nullable=False)
     description = Column(Text)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
