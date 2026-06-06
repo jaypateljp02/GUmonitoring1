@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput, Alert } from 'react-native';
 import { api } from '../services/api';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -91,11 +91,11 @@ export default function DashboardScreen({ route, navigation }) {
     };
     try {
       await api.put(`/sensors/device/${device.id}/thresholds`, body);
-      alert('Thresholds updated successfully!');
+      Alert.alert('Success', 'Thresholds updated successfully!');
       fetchThresholds();
       fetchTelemetry();
     } catch (e) {
-      alert('Failed to update thresholds');
+      Alert.alert('Error', 'Failed to update thresholds');
     }
   };
 
