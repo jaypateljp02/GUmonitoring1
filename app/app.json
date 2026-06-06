@@ -29,6 +29,12 @@
     "owner": "groundup",
     "plugins": [
       "expo-sharing"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/74cd7512-2e25-443d-84eb-47c871f1a397"
+    }
   }
 }
