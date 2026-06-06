@@ -83,14 +83,6 @@ export default function DashboardScreen({ route, navigation }) {
     }
   };
 
-  const setMockMode = async (mode) => {
-    try {
-      await api.post(`/sensors/device/${device.id}/mock`, { mode });
-      fetchTelemetry();
-    } catch (e) {
-      console.log('Failed to set mock mode', e);
-    }
-  };
 
   const handleSaveThresholds = async () => {
     const body = {
@@ -194,26 +186,6 @@ export default function DashboardScreen({ route, navigation }) {
           <Text style={styles.saveButtonText}>Save Thresholds</Text>
         </TouchableOpacity>
       </View>
-
-      <View style={styles.devPanel}>
-        <Text style={styles.devPanelTitle}>Developer Simulator Panel</Text>
-        <View style={styles.devRow}>
-          <TouchableOpacity style={styles.devButton} onPress={() => setMockMode('normal')}>
-            <Text style={styles.devButtonText}>Normal</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.devButton, {backgroundColor: '#3B82F6'}]} onPress={() => setMockMode('ice')}>
-            <Text style={styles.devButtonText}>Ice (-3°C)</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={[styles.devRow, {marginTop: 10}]}>
-          <TouchableOpacity style={[styles.devButton, {backgroundColor: '#EF4444'}]} onPress={() => setMockMode('warm')}>
-            <Text style={styles.devButtonText}>Warm (8°C)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.devButton, {backgroundColor: '#F59E0B'}]} onPress={() => setMockMode('failover')}>
-            <Text style={styles.devButtonText}>Failover</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </ScrollView>
   );
 }
@@ -246,10 +218,5 @@ const styles = StyleSheet.create({
   inputLabel: { color: '#6B7280', fontSize: 11, marginBottom: 4 },
   textInput: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, color: '#111827', fontSize: 14 },
   saveButton: { backgroundColor: '#3B82F6', borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 12 },
-  saveButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  devPanel: { marginTop: 10, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: 20 },
-  devPanelTitle: { color: '#6B7280', fontSize: 12, fontWeight: 'bold', marginBottom: 12 },
-  devRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  devButton: { flex: 1, backgroundColor: '#6B7280', padding: 12, borderRadius: 8, alignItems: 'center' },
-  devButtonText: { color: '#fff', fontWeight: 'bold' }
+  saveButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' }
 });

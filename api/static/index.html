@@ -91,22 +91,7 @@
     .action-btn.blue { background: #3B82F6; }
     .action-btn.green { background: #10B981; }
 
-    /* Developer Simulator Panel Styles */
-    .dev-panel {
-      margin-top: 20px; padding: 16px; background: #FFFFFF;
-      border-radius: 16px; border: 1px dashed #D1D5DB;
-    }
-    .dev-panel-title { color: #6B7280; font-size: 12px; font-weight: bold; margin-bottom: 12px; }
-    .dev-row { display: flex; justify-content: space-between; gap: 10px; }
-    .dev-btn {
-      flex: 1; background: #6B7280; padding: 12px; border: none; border-radius: 8px;
-      align-items: center; color: #fff; font-weight: bold; font-family: 'Inter', sans-serif;
-      cursor: pointer; font-size: 14px; transition: opacity 0.2s;
-    }
-    .dev-btn:hover { opacity: 0.9; }
-    .dev-btn.blue { background: #3B82F6; }
-    .dev-btn.red { background: #EF4444; }
-    .dev-btn.orange { background: #F59E0B; }
+
 
     /* Inputs styling */
     .input-field {
@@ -177,18 +162,7 @@
       <button class="action-btn blue" style="margin-top: 16px; padding: 12px; font-size: 14px; margin-bottom: 0;" onclick="saveThresholds()">Save Thresholds</button>
     </div>
 
-    <!-- Simulator Panel -->
-    <div class="dev-panel">
-      <div class="dev-panel-title">Developer Simulator Panel</div>
-      <div class="dev-row">
-        <button class="dev-btn" onclick="setMockMode('normal')">Normal</button>
-        <button class="dev-btn blue" onclick="setMockMode('ice')">Ice (-3°C)</button>
-      </div>
-      <div class="dev-row" style="margin-top: 10px;">
-        <button class="dev-btn red" onclick="setMockMode('warm')">Warm (8°C)</button>
-        <button class="dev-btn orange" onclick="setMockMode('failover')">Failover</button>
-      </div>
-    </div>
+
   </div>
 
   <script>
@@ -374,20 +348,7 @@
       } catch(e) {}
     }
 
-    // Set mock mode for active device
-    async function setMockMode(mode) {
-      if (!currentDevice) return;
-      try {
-        await fetch(`${API}/sensors/device/${currentDevice.id}/mock`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode })
-        });
-        pollDetail();
-      } catch (e) {
-        console.error('Failed to set mock mode', e);
-      }
-    }
+
   </script>
 </body>
 </html>
