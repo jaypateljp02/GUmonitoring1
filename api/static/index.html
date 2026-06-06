@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Devinme Monitor — Ground Up</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0a0e1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(20px);
+    }
+    .header h1 {
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; margin-right: 6px;
+      animation: pulse-green 2s infinite;
+    }
+    .status-dot.error { background: #ef4444; animation: pulse-red 1s infinite; }
+    @keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+    /* Live Card */
+    .live-card {
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1px solid #334155;
+      border-radius: 20px; padding: 24px; margin-bottom: 16px;
+      transition: all 0.5s ease;
+      position: relative; overflow: hidden;
+    }
+    .live-card::before {
+      content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
+      border-radius: 22px; z-index: -1;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6, #3b82f6);
+      background-size: 200% 200%;
+      animation: gradient-border 3s ease infinite;
+      opacity: 0.3;
+    }
+    @keyframes gradient-border { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+    .live-card.alarm {
+      border-color: #ef4444;
+      animation: alarm-flash 1s infinite;
+    }
+    .live-card.alarm::before { background: #ef4444; opacity: 0.4; }
+    @keyframes alarm-flash {
+      0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); }
+    }
+
+    .card-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 16px; }
+    .sensor-id { font-size: 11px; color: #3b82f6; font-family: monospace; }
+
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .metric {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid #1e293b;
+      border-radius: 14px; padding: 16px;
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+    .metric:active { transform: scale(0.97); }
+    .metric-icon { font-size: 24px; margin-bottom: 6px; }
+    .metric-value {
+      font-size: 32px; font-weight: 800; line-height: 1;
+      background: linear-gradient(135deg, #fff, #cbd5e1);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .metric-value.danger { background: linear-gradient(135deg, #fca5a5, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .metric-label { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500; }
+    .metric-unit { font-size: 16px; font-weight: 500; }
+
+    /* Alert Banner */
+    .alert-banner {
+      background: linear-gradient(135deg, #7f1d1d, #991b1b);
+      border: 1px solid #ef4444;
+      border-radius: 12px; padding: 12px 16px;
+      margin-top: 16px; text-align: center;
+      font-weight: 700; font-size: 13px; color: #fecaca;
+      display: none;
+      animation: alert-pulse 0.8s infinite alternate;
+    }
+    .alert-banner.show { display: block; }
+    @keyframes alert-pulse { from { opacity: 0.8; } to { opacity: 1; } }
+
+    /* Action Buttons */
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 20px; border-radius: 14px; border: none;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: all 0.2s ease;
+      color: #fff; text-decoration: none;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+    .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
+
+    /* Dev Panel */
+    .dev-panel {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px dashed #475569;
+      border-radius: 16px; padding: 16px; margin-bottom: 20px;
+    }
+    .dev-panel-title { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 12px; }
+    .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dev-btn {
+      padding: 10px; border-radius: 10px; border: 1px solid #334155;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 12px;
+      cursor: pointer; transition: all 0.2s ease; color: #fff;
+    }
+    .dev-btn:active { transform: scale(0.95); }
+    .dev-btn.normal { background: #334155; }
+    .dev-btn.ice { background: #1d4ed8; }
+    .dev-btn.warm { background: #dc2626; }
+    .dev-btn.failover { background: #d97706; }
+
+    /* Updated time */
+    .updated-time {
+      text-align: center; font-size: 11px; color: #475569;
+      margin-top: 16px; padding-bottom: 30px;
+    }
+
+    /* Loading shimmer */
+    .shimmer { animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Devinme Monitor</h1>
+    <div class="sub"><span class="status-dot" id="statusDot"></span><span id="statusText">Connecting...</span></div>
+  </div>
+
+  <div class="container">
+    <div class="live-card" id="liveCard">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div class="card-label">Fridge 1 — Live</div>
+        <div class="sensor-id">a4b002884e</div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric">
+          <div class="metric-icon">🌡️</div>
+          <div class="metric-value" id="tempValue">--</div>
+          <div class="metric-label">Temperature</div>
+        </div>
+        <div class="metric">
+          <div class="metric-icon">💧</div>
+          <div class="metric-value" id="humValue">--</div>
+          <div class="metric-label">Humidity</div>
+        </div>
+        <div class="metric">
+          <div class="metric-icon">🔋</div>
+          <div class="metric-value" id="batValue">--</div>
+          <div class="metric-label">Battery</div>
+        </div>
+        <div class="metric">
+          <div class="metric-icon">⏱️</div>
+          <div class="metric-value" id="timeValue" style="font-size:16px;">--</div>
+          <div class="metric-label">Last Updated</div>
+        </div>
+      </div>
+      <div class="alert-banner" id="alertBanner">⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</div>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-blue" href="/sensors/device/a4b002884e/telemetry?days=7" target="_blank">📊 View 7-Day Telemetry JSON</a>
+      <a class="btn btn-green" href="/sensors/device/a4b002884e/export?days=7" target="_blank">📥 Export CSV Audit Log</a>
+    </div>
+
+    <div class="dev-panel">
+      <div class="dev-panel-title">🧪 Developer Simulator</div>
+      <div class="dev-grid">
+        <button class="dev-btn normal" onclick="setMock('normal')">✅ Normal</button>
+        <button class="dev-btn ice" onclick="setMock('ice')">🧊 Ice (-3°C)</button>
+        <button class="dev-btn warm" onclick="setMock('warm')">🔥 Warm (8°C)</button>
+        <button class="dev-btn failover" onclick="setMock('failover')">⚡ Failover</button>
+      </div>
+    </div>
+
+    <div class="updated-time" id="updatedTime">Waiting for first reading...</div>
+  </div>
+
+  <script>
+    const SENSOR_ID = 'a4b002884e';
+    const API_BASE = window.location.origin;
+
+    async function fetchTelemetry() {
+      try {
+        const res = await fetch(`${API_BASE}/sensors/device/${SENSOR_ID}/telemetry?days=1`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const latest = data[0];
+          const temp = parseFloat(latest.temperature);
+          const hum = parseFloat(latest.humidity);
+          const bat = parseFloat(latest.battery_level);
+
+          document.getElementById('tempValue').innerHTML = `${temp}<span class="metric-unit">°C</span>`;
+          document.getElementById('humValue').innerHTML = `${hum}<span class="metric-unit">%</span>`;
+          document.getElementById('batValue').innerHTML = `${bat}<span class="metric-unit">%</span>`;
+
+          const ts = new Date(latest.timestamp.endsWith('Z') ? latest.timestamp : latest.timestamp + 'Z');
+          document.getElementById('timeValue').textContent = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          document.getElementById('updatedTime').textContent = `Last sync: ${ts.toLocaleString('en-IN')}`;
+
+          // Alarm logic
+          const card = document.getElementById('liveCard');
+          const alert = document.getElementById('alertBanner');
+          const tempEl = document.getElementById('tempValue');
+          if (temp > 4.0) {
+            card.classList.add('alarm');
+            alert.classList.add('show');
+            tempEl.classList.add('danger');
+          } else {
+            card.classList.remove('alarm');
+            alert.classList.remove('show');
+            tempEl.classList.remove('danger');
+          }
+
+          document.getElementById('statusDot').classList.remove('error');
+          document.getElementById('statusText').textContent = 'Live — Real Sensor Data';
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        document.getElementById('statusDot').classList.add('error');
+        document.getElementById('statusText').textContent = 'Connection lost';
+      }
+    }
+
+    async function setMock(mode) {
+      try {
+        await fetch(`${API_BASE}/sensors/device/${SENSOR_ID}/mock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode })
+        });
+      } catch (e) { console.error(e); }
+    }
+
+    // Poll every 5 seconds for UI updates
+    fetchTelemetry();
+    setInterval(fetchTelemetry, 5000);
+  </script>
+</body>
+</html>
