@@ -3,258 +3,301 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ground Up — Cold Room Monitor</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ground Up Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #000000;
+      --card: #1c1c1e;
+      --card-elevated: #2c2c2e;
+      --separator: rgba(255,255,255,0.08);
+      --label: rgba(255,255,255,0.55);
+      --white: #ffffff;
+      --blue: #0a84ff;
+      --green: #30d158;
+      --red: #ff453a;
+      --orange: #ff9f0a;
+      --teal: #64d2ff;
+      --safe-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background: #0a0e1a;
-      color: #e2e8f0;
-      min-height: 100vh;
-      overflow-x: hidden;
+      font-family: 'Inter', -apple-system, 'SF Pro Display', sans-serif;
+      background: var(--bg); color: var(--white);
+      min-height: 100vh; overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Header */
-    .header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      padding: 20px 24px;
-      border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+    /* ─── Nav Bar ─── */
+    .navbar {
       position: sticky; top: 0; z-index: 100;
-      backdrop-filter: blur(20px);
+      padding: 12px 20px 10px;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+      border-bottom: 0.5px solid var(--separator);
     }
-    .header h1 {
-      font-size: 20px; font-weight: 800;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    .nav-top { display: flex; justify-content: space-between; align-items: center; }
+    .nav-title { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; }
+    .nav-status {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600; color: var(--green);
     }
-    .header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
-    .status-dot {
-      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-      background: #22c55e; margin-right: 6px;
-      animation: pulse-green 2s infinite;
+    .nav-status .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      animation: blink 2s ease infinite;
     }
-    .status-dot.error { background: #ef4444; animation: pulse-red 1s infinite; }
-    @keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .nav-status.offline { color: var(--red); }
+    .nav-status.offline .dot { background: var(--red); }
+    @keyframes blink { 0%,100%{opacity:1;}50%{opacity:0.3;} }
 
-    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+    /* ─── Content ─── */
+    .content { padding: 8px 16px 100px; max-width: 500px; margin: 0 auto; }
 
-    /* Live Card */
-    .live-card {
-      background: linear-gradient(145deg, #1e293b, #0f172a);
-      border: 1px solid #334155;
-      border-radius: 20px; padding: 24px; margin-bottom: 16px;
-      transition: all 0.5s ease;
-      position: relative; overflow: hidden;
+    /* ─── Room Card ─── */
+    .room-card {
+      background: var(--card);
+      border-radius: 16px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: transform 0.15s ease;
     }
-    .live-card::before {
-      content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
-      border-radius: 22px; z-index: -1;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6, #3b82f6);
-      background-size: 200% 200%;
-      animation: gradient-border 3s ease infinite;
-      opacity: 0.3;
-    }
-    @keyframes gradient-border { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .room-card:active { transform: scale(0.985); }
 
-    .live-card.alarm {
-      border-color: #ef4444;
-      animation: alarm-flash 1s infinite;
+    .room-header {
+      padding: 16px 18px 0;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .live-card.alarm::before { background: #ef4444; opacity: 0.4; }
-    @keyframes alarm-flash {
-      0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
-      50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); }
+    .room-name {
+      font-size: 17px; font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
     }
+    .room-badge {
+      font-size: 11px; font-weight: 700;
+      padding: 3px 8px; border-radius: 6px;
+    }
+    .badge-ok { background: rgba(48,209,88,0.15); color: var(--green); }
+    .badge-alert { background: rgba(255,69,58,0.15); color: var(--red); animation: badge-pulse 1s infinite alternate; }
+    @keyframes badge-pulse { from{opacity:0.7;} to{opacity:1;} }
 
-    .card-header {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+    /* Big Temp Display */
+    .big-temp {
+      padding: 20px 18px 6px;
+      display: flex; align-items: baseline; gap: 4px;
     }
-    .card-label { font-size: 16px; font-weight: 800; color: #f1f5f9; }
-    .card-label .emoji { margin-right: 6px; }
-    .sensor-id { font-size: 11px; color: #3b82f6; font-family: monospace; }
+    .big-temp .value {
+      font-size: 56px; font-weight: 900; letter-spacing: -3px; line-height: 1;
+    }
+    .big-temp .unit {
+      font-size: 24px; font-weight: 600; color: var(--label);
+    }
+    .big-temp .value.ok { color: var(--white); }
+    .big-temp .value.alert { color: var(--red); }
 
-    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .metric {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid #1e293b;
-      border-radius: 14px; padding: 16px;
-      text-align: center;
-      transition: transform 0.2s ease;
+    /* Detail Row */
+    .detail-row {
+      padding: 4px 18px 16px;
+      display: flex; gap: 0;
     }
-    .metric:active { transform: scale(0.97); }
-    .metric-icon { font-size: 24px; margin-bottom: 6px; }
-    .metric-value {
-      font-size: 32px; font-weight: 800; line-height: 1;
-      background: linear-gradient(135deg, #fff, #cbd5e1);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .metric-value.danger { background: linear-gradient(135deg, #fca5a5, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .metric-label { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500; }
-    .metric-unit { font-size: 16px; font-weight: 500; }
-
-    /* Alert Banner */
-    .alert-banner {
-      background: linear-gradient(135deg, #7f1d1d, #991b1b);
-      border: 1px solid #ef4444;
-      border-radius: 12px; padding: 12px 16px;
-      margin-top: 16px; text-align: center;
-      font-weight: 700; font-size: 13px; color: #fecaca;
-      display: none;
-      animation: alert-pulse 0.8s infinite alternate;
-    }
-    .alert-banner.show { display: block; }
-    @keyframes alert-pulse { from { opacity: 0.8; } to { opacity: 1; } }
-
-    .card-time {
-      text-align: right; font-size: 11px; color: #475569; margin-top: 12px;
-    }
-
-    /* Action Buttons */
-    .actions { display: flex; gap: 10px; margin-bottom: 16px; }
-    .btn {
+    .detail-item {
       flex: 1;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 14px 20px; border-radius: 14px; border: none;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13px;
-      cursor: pointer; transition: all 0.2s ease;
-      color: #fff; text-decoration: none;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 10px 0;
+      position: relative;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn-blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
-    .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
+    .detail-item:not(:last-child)::after {
+      content: ''; position: absolute; right: 0; top: 15%; height: 70%;
+      width: 0.5px; background: var(--separator);
+    }
+    .detail-item .d-icon { font-size: 16px; margin-bottom: 4px; }
+    .detail-item .d-value {
+      font-size: 17px; font-weight: 800; color: var(--white);
+    }
+    .detail-item .d-label {
+      font-size: 10px; font-weight: 600; color: var(--label);
+      text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+    }
 
-    /* Updated time */
-    .updated-time {
-      text-align: center; font-size: 11px; color: #475569;
-      margin-top: 16px; padding-bottom: 30px;
+    /* Alert Strip inside card */
+    .card-alert {
+      padding: 10px 18px;
+      background: rgba(255,69,58,0.1);
+      border-top: 0.5px solid rgba(255,69,58,0.2);
+      font-size: 12px; font-weight: 700; color: var(--red);
+      display: none; text-align: center;
+    }
+    .card-alert.show { display: block; }
+
+    /* Timestamp */
+    .card-footer {
+      padding: 0 18px 14px;
+      font-size: 11px; color: var(--label); font-weight: 500;
+    }
+
+    /* ─── Tab Bar ─── */
+    .tabbar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.92);
+      backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+      border-top: 0.5px solid var(--separator);
+      padding: 8px 0 var(--safe-bottom);
+      display: flex; justify-content: space-around;
+      z-index: 100;
+    }
+    .tab {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      text-decoration: none; color: var(--label);
+      font-size: 10px; font-weight: 600;
+      transition: color 0.2s;
+    }
+    .tab.active { color: var(--blue); }
+    .tab .tab-icon { font-size: 22px; }
+
+    /* Pull indicator */
+    .sync-bar {
+      text-align: center; padding: 10px; font-size: 11px;
+      color: var(--label); font-weight: 500;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🏭 Ground Up — Cold Room Monitor</h1>
-    <div class="sub"><span class="status-dot" id="statusDot"></span><span id="statusText">Connecting...</span></div>
+
+  <div class="navbar">
+    <div class="nav-top">
+      <div class="nav-title">Monitor</div>
+      <div class="nav-status" id="navStatus">
+        <div class="dot"></div>
+        <span id="statusLabel">Connecting</span>
+      </div>
+    </div>
   </div>
 
-  <div class="container" id="devicesContainer"></div>
+  <div class="content">
+    <div class="sync-bar" id="syncBar">Syncing...</div>
+    <div id="roomCards"></div>
+  </div>
 
-  <div class="container">
-    <div class="actions">
-      <a class="btn btn-blue" href="/sensors/device/a4b002884e/telemetry?days=7" target="_blank">📊 7-Day JSON</a>
-      <a class="btn btn-green" href="/sensors/device/a4b002884e/export?days=7" target="_blank">📥 Export CSV</a>
-    </div>
-    <div class="updated-time" id="updatedTime">Waiting for first reading...</div>
+  <div class="tabbar">
+    <a class="tab active" href="#">
+      <div class="tab-icon">🏠</div>
+      <div>Rooms</div>
+    </a>
+    <a class="tab" href="/sensors/device/a4b002884e/export?days=7">
+      <div class="tab-icon">📊</div>
+      <div>Export</div>
+    </a>
+    <a class="tab" href="/docs" target="_blank">
+      <div class="tab-icon">⚙️</div>
+      <div>API</div>
+    </a>
   </div>
 
   <script>
-    const DEVICES = [
-      { id: 'a4b002884e', name: 'Device 1',      icon: '❄️' },
-      { id: 'a4b002898f', name: 'Miso Room',      icon: '🍶' },
-      { id: 'a4b0028991', name: 'Vinegar Room',   icon: '🫗' },
+    const ROOMS = [
+      { id:'a4b002884e', name:'Device 1',     icon:'❄️' },
+      { id:'a4b002898f', name:'Miso Room',     icon:'🍶' },
+      { id:'a4b0028991', name:'Vinegar Room',  icon:'🫗' },
     ];
-    const API_BASE = window.location.origin;
-    const TEMP_THRESHOLD = 4.0;
+    const API = window.location.origin;
+    const THRESHOLD = 4.0;
 
-    function buildCard(d) {
+    function buildRoom(r) {
       return `
-        <div class="live-card" id="card-${d.id}">
-          <div class="card-header">
-            <div>
-              <div class="card-label"><span class="emoji">${d.icon}</span>${d.name}</div>
-              <div class="sensor-id">${d.id}</div>
-            </div>
+      <div class="room-card" id="room-${r.id}">
+        <div class="room-header">
+          <div class="room-name">${r.icon} ${r.name}</div>
+          <div class="room-badge badge-ok" id="badge-${r.id}">OK</div>
+        </div>
+        <div class="big-temp">
+          <div class="value ok" id="bigtemp-${r.id}">--</div>
+          <div class="unit">°C</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-item">
+            <div class="d-icon">💧</div>
+            <div class="d-value" id="hum-${r.id}">--%</div>
+            <div class="d-label">Humidity</div>
           </div>
-          <div class="metrics-grid">
-            <div class="metric">
-              <div class="metric-icon">🌡️</div>
-              <div class="metric-value" id="temp-${d.id}">--</div>
-              <div class="metric-label">Temperature</div>
-            </div>
-            <div class="metric">
-              <div class="metric-icon">💧</div>
-              <div class="metric-value" id="hum-${d.id}">--</div>
-              <div class="metric-label">Humidity</div>
-            </div>
-            <div class="metric">
-              <div class="metric-icon">🔋</div>
-              <div class="metric-value" id="bat-${d.id}">--</div>
-              <div class="metric-label">Battery</div>
-            </div>
-            <div class="metric">
-              <div class="metric-icon">⏱️</div>
-              <div class="metric-value" id="time-${d.id}" style="font-size:16px;">--</div>
-              <div class="metric-label">Last Updated</div>
-            </div>
+          <div class="detail-item">
+            <div class="d-icon">🔋</div>
+            <div class="d-value" id="bat-${r.id}">--%</div>
+            <div class="d-label">Battery</div>
           </div>
-          <div class="alert-banner" id="alert-${d.id}">⚠️ TEMPERATURE ALERT: EXCEEDS ${TEMP_THRESHOLD}°C</div>
-        </div>`;
+          <div class="detail-item">
+            <div class="d-icon">🎯</div>
+            <div class="d-value">${THRESHOLD}°C</div>
+            <div class="d-label">Max Limit</div>
+          </div>
+        </div>
+        <div class="card-alert" id="alert-${r.id}">⚠️ Temperature exceeds ${THRESHOLD}°C</div>
+        <div class="card-footer" id="footer-${r.id}">Waiting for data...</div>
+      </div>`;
     }
 
-    document.getElementById('devicesContainer').innerHTML = DEVICES.map(buildCard).join('');
+    document.getElementById('roomCards').innerHTML = ROOMS.map(buildRoom).join('');
 
-    async function fetchDevice(device) {
+    async function poll(room) {
       try {
-        const res = await fetch(`${API_BASE}/sensors/device/${device.id}/telemetry?days=1`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(`${API}/sensors/device/${room.id}/telemetry?days=1`);
+        if (!res.ok) throw new Error(res.status);
         const data = await res.json();
-        if (data && data.length > 0) {
-          const latest = data[0];
-          const temp = parseFloat(latest.temperature);
-          const hum = parseFloat(latest.humidity);
-          const bat = parseFloat(latest.battery_level);
+        if (!data || data.length === 0) return false;
 
-          document.getElementById(`temp-${device.id}`).innerHTML = `${temp}<span class="metric-unit">°C</span>`;
-          document.getElementById(`hum-${device.id}`).innerHTML = `${hum}<span class="metric-unit">%</span>`;
-          document.getElementById(`bat-${device.id}`).innerHTML = `${bat}<span class="metric-unit">%</span>`;
+        const d = data[0];
+        const t = parseFloat(d.temperature);
+        const h = parseFloat(d.humidity);
+        const b = parseFloat(d.battery_level);
+        const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
 
-          const ts = new Date(latest.timestamp.endsWith('Z') ? latest.timestamp : latest.timestamp + 'Z');
-          document.getElementById(`time-${device.id}`).textContent = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById(`bigtemp-${room.id}`).textContent = t.toFixed(1);
+        document.getElementById(`hum-${room.id}`).textContent = h.toFixed(0)+'%';
+        document.getElementById(`bat-${room.id}`).textContent = b.toFixed(0)+'%';
+        document.getElementById(`footer-${room.id}`).textContent =
+          'Updated ' + ts.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
 
-          const card = document.getElementById(`card-${device.id}`);
-          const alertEl = document.getElementById(`alert-${device.id}`);
-          const tempEl = document.getElementById(`temp-${device.id}`);
+        const bigTemp = document.getElementById(`bigtemp-${room.id}`);
+        const badge = document.getElementById(`badge-${room.id}`);
+        const alertEl = document.getElementById(`alert-${room.id}`);
 
-          if (temp > TEMP_THRESHOLD) {
-            card.classList.add('alarm');
-            alertEl.textContent = `⚠️ TEMPERATURE ${temp}°C EXCEEDS ${TEMP_THRESHOLD}°C`;
-            alertEl.classList.add('show');
-            tempEl.classList.add('danger');
-            return { online: true, alarm: true };
-          } else {
-            card.classList.remove('alarm');
-            alertEl.classList.remove('show');
-            tempEl.classList.remove('danger');
-            return { online: true, alarm: false };
-          }
+        if (t > THRESHOLD) {
+          bigTemp.className = 'value alert';
+          badge.className = 'room-badge badge-alert';
+          badge.textContent = 'ALERT';
+          alertEl.textContent = `⚠️ Temperature ${t.toFixed(1)}°C exceeds ${THRESHOLD}°C limit`;
+          alertEl.classList.add('show');
+        } else {
+          bigTemp.className = 'value ok';
+          badge.className = 'room-badge badge-ok';
+          badge.textContent = 'OK';
+          alertEl.classList.remove('show');
         }
-        return { online: false, alarm: false };
-      } catch (err) {
-        console.error(`Error fetching ${device.name}:`, err);
-        return { online: false, alarm: false };
+        return true;
+      } catch(e) {
+        document.getElementById(`footer-${room.id}`).textContent = 'Connection error';
+        return false;
       }
     }
 
-    async function fetchAll() {
+    async function refresh() {
       let online = 0;
-      for (const d of DEVICES) {
-        const r = await fetchDevice(d);
-        if (r.online) online++;
-      }
+      for (const r of ROOMS) { if (await poll(r)) online++; }
+
+      const nav = document.getElementById('navStatus');
+      const label = document.getElementById('statusLabel');
       if (online > 0) {
-        document.getElementById('statusDot').classList.remove('error');
-        document.getElementById('statusText').textContent = `Live — ${online}/${DEVICES.length} sensors online`;
+        nav.classList.remove('offline');
+        label.textContent = `${online} of ${ROOMS.length} Live`;
       } else {
-        document.getElementById('statusDot').classList.add('error');
-        document.getElementById('statusText').textContent = 'Connection lost';
+        nav.classList.add('offline');
+        label.textContent = 'Offline';
       }
-      document.getElementById('updatedTime').textContent = `Last sync: ${new Date().toLocaleString('en-IN')}`;
+      document.getElementById('syncBar').textContent =
+        'Last sync · ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
     }
 
-    fetchAll();
-    setInterval(fetchAll, 5000);
+    refresh();
+    setInterval(refresh, 5000);
   </script>
 </body>
 </html>
