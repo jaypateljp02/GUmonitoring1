@@ -120,7 +120,7 @@ def set_mock_state(
     if req.mode not in valid_states:
         raise HTTPException(status_code=400, detail=f"Invalid mode. Must be one of {valid_states}")
     
-    WorkerState.MOCK_STATE = req.mode
+    WorkerState.MOCK_STATES[device_id] = req.mode
     
     # Generate and insert simulated data immediately for instant UI feedback
     import random

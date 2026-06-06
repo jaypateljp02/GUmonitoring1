@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 class WorkerState:
-    MOCK_STATE = "normal"  # 'normal', 'ice', 'warm', 'failover'
+    MOCK_STATES = {}  # dict mapping device_id -> mode ('normal', 'ice', 'warm', 'failover')
 
 async def ingestion_loop():
     email = os.getenv("EWELINK_EMAIL")
@@ -41,21 +41,23 @@ async def ingestion_loop():
         use_live = True
     else:
         logger.warning("No EWELINK_EMAIL in .env. Starting Simulator Mode.")
-
+ 
     while True:
         for device in DEVICES:
             target_device = device["id"]
             device_name = device["name"]
             try:
-                if WorkerState.MOCK_STATE == "failover":
-                    logger.info("Simulator in failover mode. No data ingested.")
-                    continue
+                mode = WorkerState.MOCK_STATES.get(target_device, "normal")
 
+                if mode == "failover":
+                    logger.info(f"Simulator in failover mode for {device_name}. No data ingested.")
+                    continue
+ 
                 temp_val = None
                 hum_val = None
                 bat_val = 100.0
-
-                if use_live and WorkerState.MOCK_STATE == "normal":
+ 
+                if use_live and mode == "normal":
                     status = await client.get_device_status(target_device)
                     if status:
                         temp_val = status.get("temperature")
@@ -63,9 +65,9 @@ async def ingestion_loop():
                         bat_val = status.get("battery", 100.0)
                 else:
                     # Simulator mode logic
-                    if WorkerState.MOCK_STATE == "ice":
+                    if mode == "ice":
                         temp_val = round(random.uniform(-5.0, -2.0), 2)
-                    elif WorkerState.MOCK_STATE == "warm":
+                    elif mode == "warm":
                         temp_val = round(random.uniform(5.0, 10.0), 2)
                     else:
                         temp_val = round(random.uniform(2.0, 3.5), 2)
