@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Devinme Monitor — Ground Up</title>
+  <title>Ground Up — Cold Room Monitor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -16,7 +16,6 @@
       overflow-x: hidden;
     }
 
-    /* Header */
     .header {
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       padding: 20px 24px;
@@ -41,174 +40,183 @@
 
     .container { padding: 16px; max-width: 600px; margin: 0 auto; }
 
-    /* Live Card */
-    .live-card {
+    /* Summary Bar */
+    .summary-bar {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .summary-item {
       background: linear-gradient(145deg, #1e293b, #0f172a);
       border: 1px solid #334155;
-      border-radius: 20px; padding: 24px; margin-bottom: 16px;
+      border-radius: 14px; padding: 14px; text-align: center;
+    }
+    .summary-item .count {
+      font-size: 28px; font-weight: 800; line-height: 1;
+      background: linear-gradient(135deg, #fff, #cbd5e1);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .summary-item .label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; font-weight: 600; }
+
+    /* Device Card */
+    .device-card {
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1px solid #334155;
+      border-radius: 20px; padding: 20px; margin-bottom: 14px;
       transition: all 0.5s ease;
       position: relative; overflow: hidden;
     }
-    .live-card::before {
+    .device-card::before {
       content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
       border-radius: 22px; z-index: -1;
       background: linear-gradient(135deg, #3b82f6, #8b5cf6, #3b82f6);
       background-size: 200% 200%;
       animation: gradient-border 3s ease infinite;
-      opacity: 0.3;
+      opacity: 0.2;
     }
     @keyframes gradient-border { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
-    .live-card.alarm {
+    .device-card.alarm {
       border-color: #ef4444;
       animation: alarm-flash 1s infinite;
     }
-    .live-card.alarm::before { background: #ef4444; opacity: 0.4; }
+    .device-card.alarm::before { background: #ef4444; opacity: 0.4; }
     @keyframes alarm-flash {
       0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
       50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); }
     }
 
-    .card-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 16px; }
-    .sensor-id { font-size: 11px; color: #3b82f6; font-family: monospace; }
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+    }
+    .room-name { font-size: 16px; font-weight: 800; color: #f1f5f9; }
+    .room-icon { font-size: 22px; }
+    .sensor-id { font-size: 10px; color: #3b82f6; font-family: monospace; }
 
-    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .metrics-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .metric {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid #1e293b;
-      border-radius: 14px; padding: 16px;
+      border-radius: 12px; padding: 12px 8px;
       text-align: center;
-      transition: transform 0.2s ease;
     }
-    .metric:active { transform: scale(0.97); }
-    .metric-icon { font-size: 24px; margin-bottom: 6px; }
+    .metric-icon { font-size: 18px; margin-bottom: 4px; }
     .metric-value {
-      font-size: 32px; font-weight: 800; line-height: 1;
+      font-size: 24px; font-weight: 800; line-height: 1;
       background: linear-gradient(135deg, #fff, #cbd5e1);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .metric-value.danger { background: linear-gradient(135deg, #fca5a5, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .metric-label { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500; }
-    .metric-unit { font-size: 16px; font-weight: 500; }
+    .metric-value.danger {
+      background: linear-gradient(135deg, #fca5a5, #ef4444);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .metric-label { font-size: 9px; color: #64748b; margin-top: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-unit { font-size: 14px; font-weight: 500; }
 
-    /* Alert Banner */
     .alert-banner {
       background: linear-gradient(135deg, #7f1d1d, #991b1b);
       border: 1px solid #ef4444;
-      border-radius: 12px; padding: 12px 16px;
-      margin-top: 16px; text-align: center;
-      font-weight: 700; font-size: 13px; color: #fecaca;
+      border-radius: 10px; padding: 8px 12px;
+      margin-top: 12px; text-align: center;
+      font-weight: 700; font-size: 11px; color: #fecaca;
       display: none;
       animation: alert-pulse 0.8s infinite alternate;
     }
     .alert-banner.show { display: block; }
     @keyframes alert-pulse { from { opacity: 0.8; } to { opacity: 1; } }
 
-    /* Action Buttons */
-    .actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-    .btn {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 14px 20px; border-radius: 14px; border: none;
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px;
-      cursor: pointer; transition: all 0.2s ease;
-      color: #fff; text-decoration: none;
+    .card-time {
+      text-align: right; font-size: 10px; color: #475569; margin-top: 10px;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn-blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
-    .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
 
-    /* Dev Panel */
-    .dev-panel {
-      background: rgba(30, 41, 59, 0.5);
-      border: 1px dashed #475569;
-      border-radius: 16px; padding: 16px; margin-bottom: 20px;
-    }
-    .dev-panel-title { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 12px; }
-    .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .dev-btn {
-      padding: 10px; border-radius: 10px; border: 1px solid #334155;
-      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 12px;
-      cursor: pointer; transition: all 0.2s ease; color: #fff;
-    }
-    .dev-btn:active { transform: scale(0.95); }
-    .dev-btn.normal { background: #334155; }
-    .dev-btn.ice { background: #1d4ed8; }
-    .dev-btn.warm { background: #dc2626; }
-    .dev-btn.failover { background: #d97706; }
-
-    /* Updated time */
     .updated-time {
       text-align: center; font-size: 11px; color: #475569;
       margin-top: 16px; padding-bottom: 30px;
     }
 
-    /* Loading shimmer */
     .shimmer { animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>Devinme Monitor</h1>
+    <h1>🏭 Ground Up — Cold Room Monitor</h1>
     <div class="sub"><span class="status-dot" id="statusDot"></span><span id="statusText">Connecting...</span></div>
   </div>
 
   <div class="container">
-    <div class="live-card" id="liveCard">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <div class="card-label">Fridge 1 — Live</div>
-        <div class="sensor-id">a4b002884e</div>
+    <!-- Summary -->
+    <div class="summary-bar">
+      <div class="summary-item">
+        <div class="count" id="totalDevices">3</div>
+        <div class="label">Devices</div>
       </div>
-      <div class="metrics-grid">
-        <div class="metric">
-          <div class="metric-icon">🌡️</div>
-          <div class="metric-value" id="tempValue">--</div>
-          <div class="metric-label">Temperature</div>
-        </div>
-        <div class="metric">
-          <div class="metric-icon">💧</div>
-          <div class="metric-value" id="humValue">--</div>
-          <div class="metric-label">Humidity</div>
-        </div>
-        <div class="metric">
-          <div class="metric-icon">🔋</div>
-          <div class="metric-value" id="batValue">--</div>
-          <div class="metric-label">Battery</div>
-        </div>
-        <div class="metric">
-          <div class="metric-icon">⏱️</div>
-          <div class="metric-value" id="timeValue" style="font-size:16px;">--</div>
-          <div class="metric-label">Last Updated</div>
-        </div>
+      <div class="summary-item">
+        <div class="count" id="onlineCount">-</div>
+        <div class="label">Online</div>
       </div>
-      <div class="alert-banner" id="alertBanner">⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</div>
+      <div class="summary-item">
+        <div class="count" id="alertCount" style="background: linear-gradient(135deg, #fca5a5, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">-</div>
+        <div class="label">Alerts</div>
+      </div>
     </div>
 
-    <div class="actions">
-      <a class="btn btn-blue" href="/sensors/device/a4b002884e/telemetry?days=7" target="_blank">📊 View 7-Day Telemetry JSON</a>
-      <a class="btn btn-green" href="/sensors/device/a4b002884e/export?days=7" target="_blank">📥 Export CSV Audit Log</a>
-    </div>
-
-    <div class="dev-panel">
-      <div class="dev-panel-title">🧪 Developer Simulator</div>
-      <div class="dev-grid">
-        <button class="dev-btn normal" onclick="setMock('normal')">✅ Normal</button>
-        <button class="dev-btn ice" onclick="setMock('ice')">🧊 Ice (-3°C)</button>
-        <button class="dev-btn warm" onclick="setMock('warm')">🔥 Warm (8°C)</button>
-        <button class="dev-btn failover" onclick="setMock('failover')">⚡ Failover</button>
-      </div>
-    </div>
+    <!-- Device Cards will be injected here -->
+    <div id="devicesContainer"></div>
 
     <div class="updated-time" id="updatedTime">Waiting for first reading...</div>
   </div>
 
   <script>
-    const SENSOR_ID = 'a4b002884e';
+    const DEVICES = [
+      { id: 'a4b002884e', name: 'Device 1', icon: '❄️' },
+      { id: 'a4b002898f', name: 'Miso Room', icon: '🍶' },
+      { id: 'a4b0028991', name: 'Vinegar Room', icon: '🫗' },
+    ];
     const API_BASE = window.location.origin;
+    const TEMP_ALERT_THRESHOLD = 4.0;
 
-    async function fetchTelemetry() {
+    // Create card HTML for each device
+    function createDeviceCard(device) {
+      return `
+        <div class="device-card" id="card-${device.id}">
+          <div class="card-header">
+            <div>
+              <div class="room-name">${device.icon} ${device.name}</div>
+              <div class="sensor-id">${device.id}</div>
+            </div>
+            <div class="room-icon shimmer" id="status-icon-${device.id}">📡</div>
+          </div>
+          <div class="metrics-row">
+            <div class="metric">
+              <div class="metric-icon">🌡️</div>
+              <div class="metric-value" id="temp-${device.id}">--</div>
+              <div class="metric-label">Temp</div>
+            </div>
+            <div class="metric">
+              <div class="metric-icon">💧</div>
+              <div class="metric-value" id="hum-${device.id}">--</div>
+              <div class="metric-label">Humidity</div>
+            </div>
+            <div class="metric">
+              <div class="metric-icon">🔋</div>
+              <div class="metric-value" id="bat-${device.id}">--</div>
+              <div class="metric-label">Battery</div>
+            </div>
+          </div>
+          <div class="alert-banner" id="alert-${device.id}">⚠️ TEMPERATURE ALERT: EXCEEDS ${TEMP_ALERT_THRESHOLD}°C</div>
+          <div class="card-time" id="time-${device.id}">Waiting...</div>
+        </div>
+      `;
+    }
+
+    // Inject all device cards
+    const container = document.getElementById('devicesContainer');
+    container.innerHTML = DEVICES.map(d => createDeviceCard(d)).join('');
+
+    // Fetch telemetry for a single device
+    async function fetchDeviceTelemetry(device) {
       try {
-        const res = await fetch(`${API_BASE}/sensors/device/${SENSOR_ID}/telemetry?days=1`);
+        const res = await fetch(`${API_BASE}/sensors/device/${device.id}/telemetry?days=1`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data && data.length > 0) {
@@ -217,51 +225,66 @@
           const hum = parseFloat(latest.humidity);
           const bat = parseFloat(latest.battery_level);
 
-          document.getElementById('tempValue').innerHTML = `${temp}<span class="metric-unit">°C</span>`;
-          document.getElementById('humValue').innerHTML = `${hum}<span class="metric-unit">%</span>`;
-          document.getElementById('batValue').innerHTML = `${bat}<span class="metric-unit">%</span>`;
+          document.getElementById(`temp-${device.id}`).innerHTML = `${temp}<span class="metric-unit">°C</span>`;
+          document.getElementById(`hum-${device.id}`).innerHTML = `${hum}<span class="metric-unit">%</span>`;
+          document.getElementById(`bat-${device.id}`).innerHTML = `${bat}<span class="metric-unit">%</span>`;
 
           const ts = new Date(latest.timestamp.endsWith('Z') ? latest.timestamp : latest.timestamp + 'Z');
-          document.getElementById('timeValue').textContent = ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          document.getElementById('updatedTime').textContent = `Last sync: ${ts.toLocaleString('en-IN')}`;
+          document.getElementById(`time-${device.id}`).textContent = `Updated: ${ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
 
           // Alarm logic
-          const card = document.getElementById('liveCard');
-          const alert = document.getElementById('alertBanner');
-          const tempEl = document.getElementById('tempValue');
-          if (temp > 4.0) {
+          const card = document.getElementById(`card-${device.id}`);
+          const alertEl = document.getElementById(`alert-${device.id}`);
+          const tempEl = document.getElementById(`temp-${device.id}`);
+
+          if (temp > TEMP_ALERT_THRESHOLD) {
             card.classList.add('alarm');
-            alert.classList.add('show');
+            alertEl.classList.add('show');
             tempEl.classList.add('danger');
+            return { online: true, alarm: true };
           } else {
             card.classList.remove('alarm');
-            alert.classList.remove('show');
+            alertEl.classList.remove('show');
             tempEl.classList.remove('danger');
+            return { online: true, alarm: false };
           }
-
-          document.getElementById('statusDot').classList.remove('error');
-          document.getElementById('statusText').textContent = 'Live — Real Sensor Data';
         }
+        return { online: false, alarm: false };
       } catch (err) {
-        console.error('Fetch error:', err);
-        document.getElementById('statusDot').classList.add('error');
-        document.getElementById('statusText').textContent = 'Connection lost';
+        console.error(`Error fetching ${device.name}:`, err);
+        document.getElementById(`time-${device.id}`).textContent = 'Connection lost';
+        return { online: false, alarm: false };
       }
     }
 
-    async function setMock(mode) {
-      try {
-        await fetch(`${API_BASE}/sensors/device/${SENSOR_ID}/mock`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode })
-        });
-      } catch (e) { console.error(e); }
+    // Fetch all devices
+    async function fetchAll() {
+      let onlineCount = 0;
+      let alertCount = 0;
+
+      for (const device of DEVICES) {
+        const result = await fetchDeviceTelemetry(device);
+        if (result.online) onlineCount++;
+        if (result.alarm) alertCount++;
+      }
+
+      document.getElementById('onlineCount').textContent = onlineCount;
+      document.getElementById('alertCount').textContent = alertCount;
+
+      if (onlineCount > 0) {
+        document.getElementById('statusDot').classList.remove('error');
+        document.getElementById('statusText').textContent = `Live — ${onlineCount} of ${DEVICES.length} devices online`;
+      } else {
+        document.getElementById('statusDot').classList.add('error');
+        document.getElementById('statusText').textContent = 'Connection lost';
+      }
+
+      document.getElementById('updatedTime').textContent = `Last sync: ${new Date().toLocaleString('en-IN')}`;
     }
 
-    // Poll every 5 seconds for UI updates
-    fetchTelemetry();
-    setInterval(fetchTelemetry, 5000);
+    // Poll every 10 seconds
+    fetchAll();
+    setInterval(fetchAll, 10000);
   </script>
 </body>
 </html>
