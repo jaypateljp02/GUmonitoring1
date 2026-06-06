@@ -2,6 +2,7 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
 .env
 *.sqlite3
 
@@ -14,7 +15,12 @@ yarn-error.log
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Misc
+AGENTS.md
+CLAUDE.md

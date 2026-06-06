@@ -121,3 +121,39 @@ def set_mock_state(
         raise HTTPException(status_code=400, detail=f"Invalid mode. Must be one of {valid_states}")
     WorkerState.MOCK_STATE = req.mode
     return MessageResponse(message=f"Mock state set to {req.mode}")
+
+@router.get("/device/{device_id}/sensors")
+def list_device_sensors(device_id: str, db: Session = Depends(get_db)):
+    """Public endpoint: list all sensors for a device with their thresholds."""
+    sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+    return [
+        {
+            "id": str(s.id),
+            "name": s.name,
+            "type": s.type,
+            "min_threshold": float(s.min_threshold) if s.min_threshold is not None else None,
+            "max_threshold": float(s.max_threshold) if s.max_threshold is not None else None,
+        }
+        for s in sensors
+    ]
+
+@router.put("/device/{device_id}/thresholds")
+def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(get_db)):
+    """Public endpoint: update thresholds for a device's sensors."""
+    sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+    if not sensors:
+        raise HTTPException(status_code=404, detail="Device not found")
+    for s in sensors:
+        if s.type == "temperature":
+            if "temp_min" in req:
+                s.min_threshold = req["temp_min"]
+            if "temp_max" in req:
+                s.max_threshold = req["temp_max"]
+        elif s.type == "humidity":
+            if "hum_min" in req:
+                s.min_threshold = req["hum_min"]
+            if "hum_max" in req:
+                s.max_threshold = req["hum_max"]
+    db.commit()
+    return {"message": "Thresholds updated"}
+
