@@ -47,7 +47,11 @@ async def ingestion_loop():
             target_device = device["id"]
             device_name = device["name"]
             try:
-                mode = WorkerState.MOCK_STATES.get(target_device, "normal")
+                mode = "normal"
+                with SessionLocal() as db:
+                    sensor = db.query(Sensor).filter(Sensor.device_id == target_device, Sensor.active == True).first()
+                    if sensor:
+                        mode = sensor.mock_mode
 
                 if mode == "failover":
                     logger.info(f"Simulator in failover mode for {device_name}. No data ingested.")

@@ -47,14 +47,15 @@ def ensure_db_ready():
     # Now create all tables
     Base.metadata.create_all(bind=engine)
     
-    # Ensure columns name and device_id exist on sensors table for backwards compatibility
+    # Ensure columns name, device_id, and mock_mode exist on sensors table for backwards compatibility
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS name VARCHAR(200)"))
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS device_id VARCHAR(50)"))
+            conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS mock_mode VARCHAR(50) DEFAULT 'normal'"))
             conn.commit()
-            logger.info("Checked/added name and device_id columns to sensors table.")
+            logger.info("Checked/added name, device_id, and mock_mode columns to sensors table.")
         except Exception as e:
-            logger.error(f"Failed to check/add name and device_id columns: {e}")
+            logger.error(f"Failed to check/add columns: {e}")
             
     logger.info("Database schemas, enums, and tables are ready.")

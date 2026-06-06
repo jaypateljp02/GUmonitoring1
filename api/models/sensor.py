@@ -15,6 +15,7 @@ class Sensor(Base):
     min_threshold = Column(Numeric)
     max_threshold = Column(Numeric)
     device_id = Column(String(50), nullable=True)
+    mock_mode = Column(String(50), default="normal", server_default="normal", nullable=False)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

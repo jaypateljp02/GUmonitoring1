@@ -120,7 +120,11 @@ def set_mock_state(
     if req.mode not in valid_states:
         raise HTTPException(status_code=400, detail=f"Invalid mode. Must be one of {valid_states}")
     
-    WorkerState.MOCK_STATES[device_id] = req.mode
+    # 1. Update mock mode in database for this device's sensors
+    sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+    for s in sensors:
+        s.mock_mode = req.mode
+    db.commit()
     
     # Generate and insert simulated data immediately for instant UI feedback
     import random
@@ -135,7 +139,7 @@ def set_mock_state(
         hum_val = round(random.uniform(40.0, 60.0), 2)
         bat_val = 98.0
         
-        # 1. Raw Telemetry
+        # 2. Raw Telemetry
         telemetry = DeviceTelemetry(
             device_id=device_id,
             temperature=temp_val,
@@ -144,14 +148,13 @@ def set_mock_state(
         )
         db.add(telemetry)
         
-        # 2. Map to logical sensors
-        sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+        # 3. Map to logical sensors
         for s in sensors:
             val = temp_val if s.type == "temperature" else hum_val
             reading = SensorReading(sensor_id=s.id, value=val)
             db.add(reading)
             
-            # 3. Check thresholds
+            # 4. Check thresholds
             if s.max_threshold is not None and val > s.max_threshold:
                 recent_alert = db.query(Alert).filter(Alert.sensor_id == s.id, Alert.resolved == False).first()
                 if not recent_alert:
