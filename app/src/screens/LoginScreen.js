@@ -32,7 +32,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Devinme Monitor</Text>
+      <Text style={styles.title}>Ground Up Monitor</Text>
       <Text style={styles.subtitle}>Sign in to your account</Text>
       
       {error ? <Text style={styles.error}>{error}</Text> : null}

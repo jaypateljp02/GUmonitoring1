@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput } from 'react-native';
 import { api } from '../services/api';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -8,7 +8,20 @@ export default function DashboardScreen({ route, navigation }) {
   const device = route.params.device;
   const [telemetry, setTelemetry] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [minThreshold, setMinThreshold] = useState('');
+  const [maxThreshold, setMaxThreshold] = useState('');
   const flashAnim = useRef(new Animated.Value(0)).current;
+
+  const fetchThresholds = async () => {
+    try {
+      const res = await api.get(`/sensors/device/${device.id}/sensors`);
+      const tempSensor = res.data.find(s => s.type === 'temperature');
+      if (tempSensor) {
+        setMinThreshold(tempSensor.min_threshold !== null ? String(tempSensor.min_threshold) : '');
+        setMaxThreshold(tempSensor.max_threshold !== null ? String(tempSensor.max_threshold) : '');
+      }
+    } catch (e) {}
+  };
 
   const fetchTelemetry = async () => {
     try {
@@ -24,13 +37,22 @@ export default function DashboardScreen({ route, navigation }) {
   };
 
   useEffect(() => {
+    fetchThresholds();
     fetchTelemetry();
     const interval = setInterval(fetchTelemetry, 5000);
     return () => clearInterval(interval);
   }, []);
 
+  const tMin = minThreshold !== '' ? parseFloat(minThreshold) : null;
+  const tMax = maxThreshold !== '' ? parseFloat(maxThreshold) : null;
+  const temp = telemetry ? parseFloat(telemetry.temperature) : null;
+  const isAlert = temp !== null && (
+    (tMin !== null && temp < tMin) ||
+    (tMax !== null && temp > tMax)
+  );
+
   useEffect(() => {
-    if (telemetry && telemetry.temperature > 4.0) {
+    if (isAlert) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(flashAnim, { toValue: 1, duration: 500, useNativeDriver: false }),
@@ -41,7 +63,7 @@ export default function DashboardScreen({ route, navigation }) {
       flashAnim.stopAnimation();
       flashAnim.setValue(0);
     }
-  }, [telemetry]);
+  }, [isAlert]);
 
   const handleExportCSV = async () => {
     try {
@@ -70,6 +92,21 @@ export default function DashboardScreen({ route, navigation }) {
     }
   };
 
+  const handleSaveThresholds = async () => {
+    const body = {
+      temp_min: minThreshold !== '' ? parseFloat(minThreshold) : null,
+      temp_max: maxThreshold !== '' ? parseFloat(maxThreshold) : null
+    };
+    try {
+      await api.put(`/sensors/device/${device.id}/thresholds`, body);
+      alert('Thresholds updated successfully!');
+      fetchThresholds();
+      fetchTelemetry();
+    } catch (e) {
+      alert('Failed to update thresholds');
+    }
+  };
+
   const warningBackgroundColor = flashAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['#FFFFFF', '#FEE2E2']
@@ -79,7 +116,7 @@ export default function DashboardScreen({ route, navigation }) {
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.header}>{device.icon} {device.name} Monitor</Text>
       
-      <Animated.View style={[styles.card, { backgroundColor: (telemetry && telemetry.temperature > 4.0) ? warningBackgroundColor : '#FFFFFF' }]}>
+      <Animated.View style={[styles.card, { backgroundColor: isAlert ? warningBackgroundColor : '#FFFFFF' }]}>
         <Text style={styles.cardTitle}>Live Metrics (Sensor: {device.id})</Text>
         
         <View style={styles.row}>
@@ -112,8 +149,10 @@ export default function DashboardScreen({ route, navigation }) {
           </View>
         </View>
 
-        {telemetry && telemetry.temperature > 4.0 && (
-          <Text style={styles.warningText}>⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</Text>
+        {isAlert && (
+          <Text style={styles.warningText}>
+            {tMin !== null && temp < tMin ? `⚠️ TEMPERATURE ALERT: BELOW ${tMin}°C` : `⚠️ TEMPERATURE ALERT: EXCEEDS ${tMax}°C`}
+          </Text>
         )}
       </Animated.View>
 
@@ -124,6 +163,37 @@ export default function DashboardScreen({ route, navigation }) {
       <TouchableOpacity style={[styles.actionButton, styles.exportButton]} onPress={handleExportCSV}>
         <Text style={styles.buttonText}>Export CSV Audit Log</Text>
       </TouchableOpacity>
+
+      <View style={styles.thresholdPanel}>
+        <Text style={styles.thresholdPanelTitle}>Thresholds Configuration</Text>
+        <View style={styles.thresholdRow}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Min Temp (°C)</Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={minThreshold}
+              onChangeText={setMinThreshold}
+              placeholder="None"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Max Temp (°C)</Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={maxThreshold}
+              onChangeText={setMaxThreshold}
+              placeholder="None"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSaveThresholds}>
+          <Text style={styles.saveButtonText}>Save Thresholds</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.devPanel}>
         <Text style={styles.devPanelTitle}>Developer Simulator Panel</Text>
@@ -169,7 +239,15 @@ const styles = StyleSheet.create({
   actionButton: { backgroundColor: '#3B82F6', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   exportButton: { backgroundColor: '#10B981' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  devPanel: { marginTop: 30, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed' },
+  thresholdPanel: { padding: 16, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, marginBottom: 20 },
+  thresholdPanelTitle: { color: '#6B7280', fontSize: 14, fontWeight: 'bold', marginBottom: 12 },
+  thresholdRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  inputContainer: { flex: 1 },
+  inputLabel: { color: '#6B7280', fontSize: 11, marginBottom: 4 },
+  textInput: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, color: '#111827', fontSize: 14 },
+  saveButton: { backgroundColor: '#3B82F6', borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 12 },
+  saveButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+  devPanel: { marginTop: 10, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: 20 },
   devPanelTitle: { color: '#6B7280', fontSize: 12, fontWeight: 'bold', marginBottom: 12 },
   devRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   devButton: { flex: 1, backgroundColor: '#6B7280', padding: 12, borderRadius: 8, alignItems: 'center' },

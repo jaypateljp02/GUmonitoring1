@@ -24,7 +24,6 @@
       border: 1px solid #E5E7EB; cursor: pointer;
       display: flex; justify-content: space-between; align-items: center;
       transition: transform 0.15s, background 0.2s;
-      shadow-color: #000;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     }
     .sensor-card:hover { background: #F9FAFB; }
@@ -94,7 +93,7 @@
 
     /* Developer Simulator Panel Styles */
     .dev-panel {
-      margin-top: 30px; padding: 16px; background: #FFFFFF;
+      margin-top: 20px; padding: 16px; background: #FFFFFF;
       border-radius: 16px; border: 1px dashed #D1D5DB;
     }
     .dev-panel-title { color: #6B7280; font-size: 12px; font-weight: bold; margin-bottom: 12px; }
@@ -108,6 +107,14 @@
     .dev-btn.blue { background: #3B82F6; }
     .dev-btn.red { background: #EF4444; }
     .dev-btn.orange { background: #F59E0B; }
+
+    /* Inputs styling */
+    .input-field {
+      width: 100%; padding: 10px; border: 1px solid #E5E7EB;
+      border-radius: 8px; font-family: 'Inter', sans-serif;
+      font-size: 14px; color: #111827; background: #F3F4F6;
+      outline: none; margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -124,6 +131,8 @@
   <div class="page detail-view" id="detailView">
     <button class="back-btn" onclick="showList()">← Back to Sensors</button>
     <div class="detail-header" id="detailHeader"></div>
+    
+    <!-- Metrics Card -->
     <div class="card" id="detailCard">
       <div class="card-title" id="detailTitle"></div>
       <div class="row">
@@ -146,10 +155,27 @@
           <div class="metric-value small" id="dTime">--</div>
         </div>
       </div>
-      <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT: EXCEEDS 4.0°C</div>
+      <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT</div>
     </div>
+    
     <a class="action-btn blue" id="dJsonLink" target="_blank">View 7-Day Analytics</a>
     <a class="action-btn green" id="dCsvLink" target="_blank">Export CSV Audit Log</a>
+
+    <!-- Thresholds Configuration Panel -->
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-title">Thresholds Configuration</div>
+      <div class="row">
+        <div class="metric-box" style="margin-right: 12px;">
+          <div class="metric-label">Min Temp (°C)</div>
+          <input type="number" step="0.5" id="minInput" class="input-field" placeholder="None" />
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Max Temp (°C)</div>
+          <input type="number" step="0.5" id="maxInput" class="input-field" placeholder="None" />
+        </div>
+      </div>
+      <button class="action-btn blue" style="margin-top: 16px; padding: 12px; font-size: 14px; margin-bottom: 0;" onclick="saveThresholds()">Save Thresholds</button>
+    </div>
 
     <!-- Simulator Panel -->
     <div class="dev-panel">
@@ -174,6 +200,8 @@
     const API = window.location.origin;
     let currentDevice = null;
     let detailInterval = null;
+    let tempMin = null;
+    let tempMax = null;
 
     // Build sensor list cards
     function buildSensorCard(d) {
@@ -198,6 +226,14 @@
     async function pollList() {
       for (const d of DEVICES) {
         try {
+          // Fetch thresholds
+          const threshRes = await fetch(`${API}/sensors/device/${d.id}/sensors`);
+          const sensors = await threshRes.json();
+          const tempSensor = sensors.find(s => s.type === 'temperature');
+          const tMin = tempSensor ? tempSensor.min_threshold : null;
+          const tMax = tempSensor ? tempSensor.max_threshold : null;
+
+          // Fetch telemetry
           const res = await fetch(`${API}/sensors/device/${d.id}/telemetry?days=1`);
           const data = await res.json();
           if (data && data.length > 0) {
@@ -206,7 +242,12 @@
             const badge = document.getElementById(`sb-${d.id}`);
             const card = document.getElementById(`sc-${d.id}`);
             el.textContent = temp + '°C';
-            if (temp > 4.0) {
+
+            let isAlert = false;
+            if (tMin !== null && temp < tMin) isAlert = true;
+            if (tMax !== null && temp > tMax) isAlert = true;
+
+            if (isAlert) {
               el.classList.add('alert');
               badge.className = 'sensor-badge badge-alert';
               badge.textContent = '⚠️ ALERT';
@@ -224,8 +265,48 @@
     pollList();
     const listInterval = setInterval(pollList, 10000);
 
+    // Fetch thresholds for detail view
+    async function fetchActiveThresholds(deviceId) {
+      try {
+        const res = await fetch(`${API}/sensors/device/${deviceId}/sensors`);
+        const sensors = await res.json();
+        const tempSensor = sensors.find(s => s.type === 'temperature');
+        if (tempSensor) {
+          tempMin = tempSensor.min_threshold;
+          tempMax = tempSensor.max_threshold;
+          document.getElementById('minInput').value = tempMin !== null ? tempMin : '';
+          document.getElementById('maxInput').value = tempMax !== null ? tempMax : '';
+        }
+      } catch (e) {}
+    }
+
+    // Save thresholds
+    async function saveThresholds() {
+      if (!currentDevice) return;
+      const minVal = document.getElementById('minInput').value;
+      const maxVal = document.getElementById('maxInput').value;
+      const body = {
+        temp_min: minVal !== '' ? parseFloat(minVal) : null,
+        temp_max: maxVal !== '' ? parseFloat(maxVal) : null
+      };
+      try {
+        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/thresholds`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          alert('Thresholds saved successfully!');
+          await fetchActiveThresholds(currentDevice.id);
+          pollDetail();
+        }
+      } catch (e) {
+        alert('Failed to save thresholds');
+      }
+    }
+
     // Show detail
-    function showDetail(deviceId) {
+    async function showDetail(deviceId) {
       currentDevice = DEVICES.find(d => d.id === deviceId);
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
@@ -233,6 +314,8 @@
       document.getElementById('detailTitle').textContent = 'Live Metrics (Sensor: ' + currentDevice.id + ')';
       document.getElementById('dJsonLink').href = `/sensors/device/${currentDevice.id}/telemetry?days=7`;
       document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=7`;
+      
+      await fetchActiveThresholds(currentDevice.id);
       pollDetail();
       detailInterval = setInterval(pollDetail, 5000);
     }
@@ -260,15 +343,27 @@
 
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
-          if (temp > 4.0) {
+          
+          let isAlert = false;
+          let alertMsg = "";
+          if (tempMin !== null && temp < tempMin) {
+            isAlert = true;
+            alertMsg = `⚠️ TEMPERATURE ALERT: BELOW ${tempMin}°C`;
+          } else if (tempMax !== null && temp > tempMax) {
+            isAlert = true;
+            alertMsg = `⚠️ TEMPERATURE ALERT: EXCEEDS ${tempMax}°C`;
+          }
+
+          if (isAlert) {
             card.classList.add('alarm');
+            warn.textContent = alertMsg;
             warn.classList.add('show');
           } else {
             card.classList.remove('alarm');
             warn.classList.remove('show');
           }
         } else {
-          // No recent data (e.g. failover simulation)
+          // No recent data
           document.getElementById('dTemp').textContent = '--';
           document.getElementById('dHum').textContent = '--';
           document.getElementById('dBat').textContent = '--';
@@ -288,7 +383,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode })
         });
-        // Immediately fetch detail metrics to reflect change instantly
         pollDetail();
       } catch (e) {
         console.error('Failed to set mock mode', e);

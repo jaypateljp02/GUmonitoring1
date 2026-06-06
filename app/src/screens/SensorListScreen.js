@@ -10,21 +10,39 @@ const DEVICES = [
 
 function SensorCard({ device, onPress }) {
   const [telemetry, setTelemetry] = useState(null);
+  const [thresholds, setThresholds] = useState({ min: null, max: 4.0 });
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchThresholds = async () => {
+      try {
+        const res = await api.get(`/sensors/device/${device.id}/sensors`);
+        const tempSensor = res.data.find(s => s.type === 'temperature');
+        if (tempSensor) {
+          setThresholds({
+            min: tempSensor.min_threshold !== null ? parseFloat(tempSensor.min_threshold) : null,
+            max: tempSensor.max_threshold !== null ? parseFloat(tempSensor.max_threshold) : null
+          });
+        }
+      } catch (e) {}
+    };
+    fetchThresholds();
+
+    const fetchTelemetry = async () => {
       try {
         const res = await api.get(`/sensors/device/${device.id}/telemetry?days=1`);
         if (res.data && res.data.length > 0) setTelemetry(res.data[0]);
       } catch (e) {}
     };
-    fetch();
-    const interval = setInterval(fetch, 10000);
+    fetchTelemetry();
+    const interval = setInterval(fetchTelemetry, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const temp = telemetry ? parseFloat(telemetry.temperature) : null;
-  const isAlert = temp !== null && temp > 4.0;
+  const isAlert = temp !== null && (
+    (thresholds.min !== null && temp < thresholds.min) ||
+    (thresholds.max !== null && temp > thresholds.max)
+  );
 
   return (
     <TouchableOpacity style={[styles.sensorCard, isAlert && styles.sensorCardAlert]} onPress={onPress} activeOpacity={0.7}>
