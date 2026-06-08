@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { api } from '../services/api';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { api, clearAuthToken } from '../services/api';
 
 const DEVICES = [
   { id: 'a4b002884e', name: 'Device 1',      icon: '❄️' },
@@ -70,10 +70,35 @@ function SensorCard({ device, onPress }) {
 }
 
 export default function SensorListScreen({ navigation }) {
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAuthToken();
+            navigation.replace('Login');
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>🏭 Ground Up</Text>
-      <Text style={styles.subheader}>Cold Room Monitoring</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.header}>🏭 Ground Up</Text>
+          <Text style={styles.subheader}>Cold Room Monitoring</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.sectionTitle}>All Sensors ({DEVICES.length})</Text>
 
       {DEVICES.map(device => (
@@ -121,5 +146,8 @@ const styles = StyleSheet.create({
   badgeOk: { backgroundColor: '#D1FAE5', color: '#065F46' },
   badgeAlert: { backgroundColor: '#FEE2E2', color: '#991B1B' },
 
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  logoutBtn: { backgroundColor: '#FEE2E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, marginTop: 4 },
+  logoutText: { color: '#991B1B', fontWeight: 'bold', fontSize: 13 },
   footerText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 20 },
 });

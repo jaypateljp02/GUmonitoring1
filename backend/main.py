@@ -1,7 +1,10 @@
 """Monitoring API main entry point."""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+import subprocess
+import json
+from datetime import datetime, timedelta
 from backend.config import APP_NAME, APP_VERSION
 from backend.routes import rooms, sensors, alerts
 from backend.database import SessionLocal, ensure_db_ready
@@ -70,17 +73,63 @@ def dashboard():
     return FileResponse(html_path, media_type="text/html")
 
 
-@app.get("/download/apk", tags=["App"])
-def download_apk():
-    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
-    if not os.path.exists(apk_path):
-        raise HTTPException(
-            status_code=404,
-            detail="APK file not found. Please place your compiled 'app.apk' file inside the 'web/' directory."
+# Cache for dynamic EAS build APK URL redirect
+APK_CACHE = {
+    "url": None,
+    "last_fetched": datetime.min
+}
+
+def update_apk_url_cache():
+    global APK_CACHE
+    try:
+        mobile_dir = os.path.join(os.path.dirname(__file__), "..", "mobile-shared")
+        res = subprocess.run(
+            ["npx", "eas", "build:list", "--platform", "android", "--limit", "1", "--json", "--non-interactive"],
+            cwd=mobile_dir,
+            capture_output=True,
+            text=True,
+            shell=True
         )
-    return FileResponse(
-        apk_path,
-        media_type="application/vnd.android.package-archive",
-        filename="GUMonitoring.apk"
+        if res.returncode == 0:
+            stdout = res.stdout
+            if "[" in stdout:
+                stdout = stdout[stdout.index("["):]
+            data = json.loads(stdout)
+            if data and data[0].get("status") == "FINISHED":
+                url = data[0].get("artifacts", {}).get("buildUrl")
+                if url:
+                    APK_CACHE["url"] = url
+                    APK_CACHE["last_fetched"] = datetime.utcnow()
+                    logger.info(f"Updated APK cache URL from EAS: {url}")
+    except Exception as e:
+        logger.error(f"Failed to update APK cache from EAS: {e}")
+
+@app.get("/download/apk", tags=["App"])
+def download_apk(background_tasks: BackgroundTasks):
+    global APK_CACHE
+    # Refresh cache in background if older than 5 minutes
+    if datetime.utcnow() - APK_CACHE["last_fetched"] > timedelta(minutes=5):
+        background_tasks.add_task(update_apk_url_cache)
+        
+    if APK_CACHE["url"]:
+        return RedirectResponse(url=APK_CACHE["url"])
+        
+    # Fallback to local compiled file
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    if os.path.exists(apk_path):
+        return FileResponse(
+            apk_path,
+            media_type="application/vnd.android.package-archive",
+            filename="GUMonitoring.apk"
+        )
+        
+    # If no cache and no local file, attempt synchronous fetch
+    update_apk_url_cache()
+    if APK_CACHE["url"]:
+        return RedirectResponse(url=APK_CACHE["url"])
+        
+    raise HTTPException(
+        status_code=404,
+        detail="APK file not found. Cloud compilation may still be in progress."
     )
 

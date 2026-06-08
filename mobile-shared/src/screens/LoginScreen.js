@@ -16,11 +16,11 @@ export default function LoginScreen({ navigation }) {
       // strict auth checks for the monitoring endpoints yet, so we just set a dummy token
       // and navigate to Main.
       if (email === 'grounduppune89@gmail.com' && password === 'Groundup') {
-        setAuthToken('dummy-token');
+        await setAuthToken('dummy-token');
         navigation.replace('Main');
       } else {
         // Fallback for demo testing
-        setAuthToken('demo-token');
+        await setAuthToken('demo-token');
         navigation.replace('Main');
       }
     } catch (err) {
