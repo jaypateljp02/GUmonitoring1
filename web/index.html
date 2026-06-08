@@ -153,6 +153,7 @@
   <div class="page list-view" id="listView">
     <div class="header">🏭 Ground Up</div>
     <div class="subheader">Cold Room Monitoring</div>
+    <div id="liveClock" style="font-size: 16px; font-weight: bold; color: #3B82F6; margin-bottom: 24px;"></div>
     
     <div class="section-title">All Sensors (3)</div>
     <div id="sensorList"></div>
@@ -183,10 +184,12 @@
         <div class="metric-box">
           <div class="metric-label">Temperature</div>
           <div class="metric-value" id="dTemp">--</div>
+          <div class="metric-label" id="dTempAvg" style="margin-top: 4px; font-size: 11px;">--</div>
         </div>
         <div class="metric-box">
           <div class="metric-label">Humidity</div>
           <div class="metric-value" id="dHum">--</div>
+          <div class="metric-label" id="dHumAvg" style="margin-top: 4px; font-size: 11px;">--</div>
         </div>
       </div>
       <div class="row">
@@ -213,6 +216,7 @@
             <option value="3">3 Days</option>
             <option value="7" selected>7 Days</option>
             <option value="30">30 Days</option>
+            <option value="Monthly">Monthly</option>
           </select>
         </div>
         <div class="metric-box">
@@ -292,7 +296,10 @@
     document.getElementById('sensorList').innerHTML = DEVICES.map(buildSensorCard).join('');
 
     // Poll list view
-    async function pollList() {
+      // Update live clock
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
       for (const d of DEVICES) {
         try {
           // Fetch thresholds
@@ -380,6 +387,48 @@
       if (!currentDevice) return;
       const days = document.getElementById('daysSelect').value;
       const interval = document.getElementById('intervalSelect').value;
+
+      if (days === 'Monthly') {
+        document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=30&interval_minutes=1440`;
+        document.getElementById('chartCardTitle').textContent = `Monthly Temperature Extremes`;
+        
+        try {
+          const res = await fetch(`${API}/sensors/device/${currentDevice.id}/metrics/monthly`);
+          const data = await res.json();
+          
+          if (data && data.daily_metrics && data.daily_metrics.length > 0) {
+            document.getElementById('chartCard').style.display = 'block';
+            
+            const labels = data.daily_metrics.map(d => {
+              const dt = new Date(d.date);
+              return `${dt.getMonth()+1}/${dt.getDate()}`;
+            });
+            const maxes = data.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
+            const mins = data.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
+            
+            if (chartInstance) chartInstance.destroy();
+            const ctx = document.getElementById('telemetryChart').getContext('2d');
+            
+            chartInstance = new Chart(ctx, {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [
+                  { label: 'Max Temp (°C)', data: maxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
+                  { label: 'Min Temp (°C)', data: mins, borderColor: '#3B82F6', tension: 0.3, fill: false, borderWidth: 2 }
+                ]
+              },
+              options: { responsive: true, maintainAspectRatio: false }
+            });
+          } else {
+            document.getElementById('chartCard').style.display = 'none';
+          }
+        } catch (e) {
+          console.error(e);
+          document.getElementById('chartCard').style.display = 'none';
+        }
+        return;
+      }
 
       // Update static links
       document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${days}&interval_minutes=${interval}`;
@@ -558,10 +607,22 @@
             card.classList.remove('alarm');
             warn.classList.remove('show');
           }
+          // Fetch 24h metrics
+          try {
+            const res24h = await fetch(`${API}/sensors/device/${currentDevice.id}/metrics/24h`);
+            const data24h = await res24h.json();
+            if (data24h) {
+              document.getElementById('dTempAvg').textContent = `24h Avg: ${data24h.temp_avg}°C | Min: ${data24h.temp_min}°C | Max: ${data24h.temp_max}°C`;
+              document.getElementById('dHumAvg').textContent = `24h Avg: ${data24h.hum_avg}% | Min: ${data24h.hum_min}% | Max: ${data24h.hum_max}%`;
+            }
+          } catch(e) {}
+          
         } else {
           // No recent data
           document.getElementById('dTemp').textContent = '--';
           document.getElementById('dHum').textContent = '--';
+          document.getElementById('dTempAvg').textContent = '--';
+          document.getElementById('dHumAvg').textContent = '--';
           document.getElementById('dBat').textContent = '--';
           document.getElementById('dTime').textContent = 'Offline';
           document.getElementById('detailCard').classList.remove('alarm');
