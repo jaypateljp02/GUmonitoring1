@@ -296,6 +296,7 @@
     document.getElementById('sensorList').innerHTML = DEVICES.map(buildSensorCard).join('');
 
     // Poll list view
+    async function pollList() {
       // Update live clock
       const now = new Date();
       document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
