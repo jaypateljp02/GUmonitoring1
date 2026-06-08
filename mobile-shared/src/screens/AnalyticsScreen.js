@@ -12,8 +12,9 @@ export default function AnalyticsScreen({ route }) {
   const [loading, setLoading] = useState(true);
   
   // Custom selection states
-  const [days, setDays] = useState(7);
+  const [timeFrame, setTimeFrame] = useState('7D');
   const [intervalMinutes, setIntervalMinutes] = useState(30);
+  const [monthlyData, setMonthlyData] = useState([]);
   
   // Dynamic threshold states
   const [tempMin, setTempMin] = useState(null);
@@ -41,11 +42,17 @@ export default function AnalyticsScreen({ route }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await api.get(`/sensors/device/${SENSOR_ID}/telemetry`, {
-          params: { days, interval_minutes: intervalMinutes }
-        });
-        // Reverse because backend sorts by descending (newest first)
-        setTelemetryLogs(response.data.reverse());
+        if (timeFrame === 'Monthly') {
+          const response = await api.get(`/sensors/device/${SENSOR_ID}/metrics/monthly`);
+          setMonthlyData(response.data.daily_metrics || []);
+        } else {
+          const numDays = parseInt(timeFrame.replace('D', ''));
+          const response = await api.get(`/sensors/device/${SENSOR_ID}/telemetry`, {
+            params: { days: numDays, interval_minutes: intervalMinutes }
+          });
+          // Reverse because backend sorts by descending (newest first)
+          setTelemetryLogs(response.data.reverse());
+        }
       } catch (err) {
         console.log('Error fetching analytics', err);
       } finally {
@@ -53,14 +60,15 @@ export default function AnalyticsScreen({ route }) {
       }
     };
     fetchData();
-  }, [SENSOR_ID, days, intervalMinutes]);
+  }, [SENSOR_ID, timeFrame, intervalMinutes]);
 
   const handleExportCSV = async () => {
     try {
+      const exportDays = timeFrame === 'Monthly' ? 30 : parseInt(timeFrame.replace('D', ''));
       const response = await api.get(`/sensors/device/${SENSOR_ID}/export`, {
-        params: { days, interval_minutes: intervalMinutes }
+        params: { days: exportDays, interval_minutes: intervalMinutes }
       });
-      const fileUri = `${FileSystem.documentDirectory}telemetry_${SENSOR_ID}_${days}d_${intervalMinutes}m.csv`;
+      const fileUri = `${FileSystem.documentDirectory}telemetry_${SENSOR_ID}_${timeFrame}_${intervalMinutes}m.csv`;
       await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri);
@@ -104,7 +112,7 @@ export default function AnalyticsScreen({ route }) {
     
     // Group dynamically depending on interval: e.g. every hour or every day
     let labelGroup;
-    if (days >= 7) {
+    if (timeFrame === '7D' || timeFrame === '30D') {
       labelGroup = d.getDate(); // group by day
     } else {
       labelGroup = d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0); // group by 30 mins
@@ -113,7 +121,7 @@ export default function AnalyticsScreen({ route }) {
     // Label first point, last point, and whenever group changes
     if (index === 0 || index === sampledLogs.length - 1 || lastLabelTime !== labelGroup) {
       lastLabelTime = labelGroup;
-      if (days >= 7) {
+      if (timeFrame === '7D' || timeFrame === '30D') {
         return `${d.getMonth() + 1}/${d.getDate()}`;
       }
       return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -154,11 +162,34 @@ export default function AnalyticsScreen({ route }) {
   }
 
   const timeFrameOptions = [
-    { label: '1D', value: 1 },
-    { label: '3D', value: 3 },
-    { label: '7D', value: 7 },
-    { label: '30D', value: 30 }
+    { label: '1D', value: '1D' },
+    { label: '3D', value: '3D' },
+    { label: '7D', value: '7D' },
+    { label: 'Monthly', value: 'Monthly' }
   ];
+
+  // Prepare Monthly Data for Chart
+  const monthlyLabels = monthlyData.map(d => {
+    const date = new Date(d.date);
+    return `${date.getMonth()+1}/${date.getDate()}`;
+  });
+  
+  const monthlyChartData = {
+    labels: monthlyLabels.length > 0 ? monthlyLabels : ["No Data"],
+    datasets: [
+      {
+        data: monthlyData.length > 0 ? monthlyData.map(d => d.temp_max !== null ? parseFloat(d.temp_max) : 0) : [0],
+        color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // Red (Max)
+        strokeWidth: 2
+      },
+      {
+        data: monthlyData.length > 0 ? monthlyData.map(d => d.temp_min !== null ? parseFloat(d.temp_min) : 0) : [0],
+        color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // Blue (Min)
+        strokeWidth: 2
+      }
+    ],
+    legend: ["Max Temp (°C)", "Min Temp (°C)"]
+  };
 
   const intervalOptions = [
     { label: 'Raw', value: 1 },
@@ -178,10 +209,10 @@ export default function AnalyticsScreen({ route }) {
         {timeFrameOptions.map(option => (
           <TouchableOpacity
             key={option.value}
-            style={[styles.selectorButton, days === option.value && styles.selectorButtonActive]}
-            onPress={() => setDays(option.value)}
+            style={[styles.selectorButton, timeFrame === option.value && styles.selectorButtonActive]}
+            onPress={() => setTimeFrame(option.value)}
           >
-            <Text style={[styles.selectorButtonText, days === option.value && styles.selectorButtonTextActive]}>
+            <Text style={[styles.selectorButtonText, timeFrame === option.value && styles.selectorButtonTextActive]}>
               {option.label}
             </Text>
           </TouchableOpacity>
@@ -208,6 +239,33 @@ export default function AnalyticsScreen({ route }) {
         <View style={styles.chartLoadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
+      ) : timeFrame === 'Monthly' ? (
+        <View style={styles.chartContainer}>
+          <Text style={styles.chartTitle}>Monthly Temperature Extremes</Text>
+          {monthlyData.length > 0 ? (
+            <LineChart
+              data={monthlyChartData}
+              width={Dimensions.get('window').width - 40}
+              height={220}
+              yAxisSuffix="°C"
+              yAxisInterval={1}
+              chartConfig={{
+                backgroundColor: '#FFFFFF',
+                backgroundGradientFrom: '#FFFFFF',
+                backgroundGradientTo: '#F9FAFB',
+                decimalPlaces: 1,
+                color: (opacity = 1) => `rgba(17, 24, 39, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: { borderRadius: 16 },
+                propsForDots: { r: "3", strokeWidth: "1", stroke: "#3B82F6" }
+              }}
+              bezier
+              style={{ marginVertical: 8, borderRadius: 16 }}
+            />
+          ) : (
+            <Text style={styles.errorText}>No data for this month.</Text>
+          )}
+        </View>
       ) : cleanedLogs.length < 2 ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No analytics data available yet.</Text>
@@ -215,7 +273,7 @@ export default function AnalyticsScreen({ route }) {
         </View>
       ) : (
         <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>{days}-Day Temperature Trend</Text>
+          <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
           <LineChart
             data={chartData}
             width={Dimensions.get('window').width - 40}

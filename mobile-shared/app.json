@@ -28,7 +28,13 @@
     },
     "owner": "groundup",
     "plugins": [
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Ground Up to use your location to record exactly where jars are when taking photos."
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

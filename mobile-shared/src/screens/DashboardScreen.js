@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 export default function DashboardScreen({ route, navigation }) {
   const device = route.params.device;
   const [telemetry, setTelemetry] = useState(null);
+  const [metrics24h, setMetrics24h] = useState(null);
   const [loading, setLoading] = useState(true);
   const [minThreshold, setMinThreshold] = useState('');
   const [maxThreshold, setMaxThreshold] = useState('');
@@ -28,6 +29,11 @@ export default function DashboardScreen({ route, navigation }) {
       const response = await api.get(`/sensors/device/${device.id}/telemetry?days=1`);
       if (response.data && response.data.length > 0) {
         setTelemetry(response.data[0]);
+      }
+      
+      const metricsRes = await api.get(`/sensors/device/${device.id}/metrics/24h`);
+      if (metricsRes.data) {
+        setMetrics24h(metricsRes.data);
       }
     } catch (err) {
       console.log('Error fetching telemetry', err);
@@ -113,12 +119,24 @@ export default function DashboardScreen({ route, navigation }) {
             <Text style={styles.metricValue}>
               {telemetry ? `${telemetry.temperature}°C` : '--'}
             </Text>
+            {metrics24h && metrics24h.temp_avg !== null && (
+              <Text style={styles.metricSub}>
+                24h Avg: {metrics24h.temp_avg}°C | Min: {metrics24h.temp_min}°C | Max: {metrics24h.temp_max}°C
+              </Text>
+            )}
           </View>
+        </View>
+        <View style={[styles.row, { marginTop: 12 }]}>
           <View style={styles.metricBox}>
             <Text style={styles.metricLabel}>Humidity</Text>
             <Text style={styles.metricValue}>
               {telemetry ? `${telemetry.humidity}%` : '--'}
             </Text>
+            {metrics24h && metrics24h.hum_avg !== null && (
+              <Text style={styles.metricSub}>
+                24h Avg: {metrics24h.hum_avg}% | Min: {metrics24h.hum_min}% | Max: {metrics24h.hum_max}%
+              </Text>
+            )}
           </View>
         </View>
 
@@ -203,6 +221,7 @@ const styles = StyleSheet.create({
   metricBox: { flex: 1 },
   metricLabel: { color: '#6B7280', fontSize: 12, marginBottom: 4 },
   metricValue: { color: '#111827', fontSize: 24, fontWeight: 'bold' },
+  metricSub: { color: '#6B7280', fontSize: 11, marginTop: 4 },
   warningText: { color: '#991B1B', fontWeight: 'bold', marginTop: 16, textAlign: 'center', backgroundColor: '#FEE2E2', padding: 8, borderRadius: 8 },
   actionButton: { backgroundColor: '#3B82F6', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   exportButton: { backgroundColor: '#10B981' },

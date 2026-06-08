@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
+import * as Location from 'expo-location';
 
 async function checkForOTAUpdate() {
   // OTA updates only work in production builds, not in dev/Expo Go
@@ -29,6 +30,14 @@ async function checkForOTAUpdate() {
 export default function App() {
   useEffect(() => {
     checkForOTAUpdate();
+    
+    // Request GPS permissions on app launch
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+      }
+    })();
   }, []);
 
   return (

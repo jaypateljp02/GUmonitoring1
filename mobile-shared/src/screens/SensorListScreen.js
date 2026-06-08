@@ -70,6 +70,13 @@ function SensorCard({ device, onPress }) {
 }
 
 export default function SensorListScreen({ navigation }) {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -94,6 +101,9 @@ export default function SensorListScreen({ navigation }) {
         <View>
           <Text style={styles.header}>🏭 Ground Up</Text>
           <Text style={styles.subheader}>Cold Room Monitoring</Text>
+          <Text style={styles.timeText}>
+            {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
@@ -117,7 +127,8 @@ export default function SensorListScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: { fontSize: 30, fontWeight: 'bold', color: '#111827', marginBottom: 2 },
-  subheader: { fontSize: 14, color: '#6B7280', marginBottom: 24 },
+  subheader: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
+  timeText: { fontSize: 16, fontWeight: 'bold', color: '#3B82F6', marginBottom: 24 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#4B5563', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
 
   sensorCard: {

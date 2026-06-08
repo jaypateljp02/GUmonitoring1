@@ -10,12 +10,14 @@ from backend.models.sensor import Sensor
 from backend.models.reading import SensorReading
 from backend.models.alert import Alert
 from backend.middleware.jwt_verify import get_current_user, require_admin, TokenUser
-from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest
+from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest, DeviceMetrics24hResponse, MonthlyAnalyticsResponse, DailyMetric
 from backend.models.device_telemetry import DeviceTelemetry
 from fastapi.responses import StreamingResponse
 import csv
 from io import StringIO
 from backend.worker import WorkerState
+from sqlalchemy import func, cast, Date
+import calendar
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
@@ -173,6 +175,79 @@ def get_device_telemetry(
     ).order_by(DeviceTelemetry.timestamp.desc()).all()
     
     return aggregate_telemetry(logs, interval_minutes=interval_minutes)
+
+@router.get("/device/{device_id}/metrics/24h", response_model=DeviceMetrics24hResponse)
+def get_24h_metrics(device_id: str, db: Session = Depends(get_db)):
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    stats = db.query(
+        func.avg(DeviceTelemetry.temperature).label('t_avg'),
+        func.min(DeviceTelemetry.temperature).label('t_min'),
+        func.max(DeviceTelemetry.temperature).label('t_max'),
+        func.avg(DeviceTelemetry.humidity).label('h_avg'),
+        func.min(DeviceTelemetry.humidity).label('h_min'),
+        func.max(DeviceTelemetry.humidity).label('h_max')
+    ).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= cutoff
+    ).first()
+    
+    return DeviceMetrics24hResponse(
+        device_id=device_id,
+        temp_avg=round(stats.t_avg, 2) if stats.t_avg is not None else None,
+        temp_min=round(stats.t_min, 2) if stats.t_min is not None else None,
+        temp_max=round(stats.t_max, 2) if stats.t_max is not None else None,
+        hum_avg=round(stats.h_avg, 2) if stats.h_avg is not None else None,
+        hum_min=round(stats.h_min, 2) if stats.h_min is not None else None,
+        hum_max=round(stats.h_max, 2) if stats.h_max is not None else None,
+    )
+
+@router.get("/device/{device_id}/metrics/monthly", response_model=MonthlyAnalyticsResponse)
+def get_monthly_analytics(
+    device_id: str, 
+    year: int = None, 
+    month: int = None, 
+    db: Session = Depends(get_db)
+):
+    now = datetime.utcnow()
+    year = year or now.year
+    month = month or now.month
+    
+    num_days = calendar.monthrange(year, month)[1]
+    start_date = datetime(year, month, 1)
+    end_date = datetime(year, month, num_days, 23, 59, 59)
+    
+    stats = db.query(
+        cast(DeviceTelemetry.timestamp, Date).label('day'),
+        func.min(DeviceTelemetry.temperature).label('t_min'),
+        func.max(DeviceTelemetry.temperature).label('t_max'),
+        func.min(DeviceTelemetry.humidity).label('h_min'),
+        func.max(DeviceTelemetry.humidity).label('h_max')
+    ).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= start_date,
+        DeviceTelemetry.timestamp <= end_date
+    ).group_by(
+        cast(DeviceTelemetry.timestamp, Date)
+    ).order_by(
+        cast(DeviceTelemetry.timestamp, Date)
+    ).all()
+    
+    daily_metrics = []
+    for row in stats:
+        daily_metrics.append(DailyMetric(
+            date=row.day.strftime("%Y-%m-%d"),
+            temp_min=round(row.t_min, 2) if row.t_min is not None else None,
+            temp_max=round(row.t_max, 2) if row.t_max is not None else None,
+            hum_min=round(row.h_min, 2) if row.h_min is not None else None,
+            hum_max=round(row.h_max, 2) if row.h_max is not None else None,
+        ))
+        
+    return MonthlyAnalyticsResponse(
+        device_id=device_id,
+        year=year,
+        month=month,
+        daily_metrics=daily_metrics
+    )
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(

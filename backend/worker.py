@@ -43,6 +43,7 @@ async def ingestion_loop():
         logger.warning("No EWELINK_EMAIL in .env. Starting Simulator Mode.")
  
     while True:
+        start_time = time.time()
         for device in DEVICES:
             target_device = device["id"]
             device_name = device["name"]
@@ -125,7 +126,9 @@ async def ingestion_loop():
             except Exception as e:
                 logger.error(f"Error polling {device_name} ({target_device}): {e}")
             
-        await asyncio.sleep(60) # 1-minute polling interval
+        elapsed = time.time() - start_time
+        sleep_time = max(0, 60.0 - elapsed)
+        await asyncio.sleep(sleep_time) # Exact 1-minute polling interval
 
 def start_worker():
     loop = asyncio.new_event_loop()

@@ -82,3 +82,24 @@ class DeviceTelemetryResponse(BaseModel):
 class MockControlRequest(BaseModel):
     mode: str  # 'normal', 'ice', 'warm', 'failover'
 
+class DailyMetric(BaseModel):
+    date: str
+    temp_min: Optional[Decimal] = None
+    temp_max: Optional[Decimal] = None
+    hum_min: Optional[Decimal] = None
+    hum_max: Optional[Decimal] = None
+
+class MonthlyAnalyticsResponse(BaseModel):
+    device_id: str
+    month: int
+    year: int
+    daily_metrics: List[DailyMetric]
+
+class DeviceMetrics24hResponse(BaseModel):
+    device_id: str
+    temp_avg: Optional[Decimal] = None
+    temp_min: Optional[Decimal] = None
+    temp_max: Optional[Decimal] = None
+    hum_avg: Optional[Decimal] = None
+    hum_min: Optional[Decimal] = None
+    hum_max: Optional[Decimal] = None
