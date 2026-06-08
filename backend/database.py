@@ -53,8 +53,10 @@ def ensure_db_ready():
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS name VARCHAR(200)"))
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS device_id VARCHAR(50)"))
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS mock_mode VARCHAR(50) DEFAULT 'normal'"))
+            # Fix room_id to be nullable (model says nullable=True, but old DB may have NOT NULL)
+            conn.execute(text("ALTER TABLE monitoring.sensors ALTER COLUMN room_id DROP NOT NULL"))
             conn.commit()
-            logger.info("Checked/added name, device_id, and mock_mode columns to sensors table.")
+            logger.info("Checked/added columns and fixed constraints on sensors table.")
         except Exception as e:
             logger.error(f"Failed to check/add columns: {e}")
             
