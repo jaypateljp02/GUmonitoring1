@@ -103,3 +103,15 @@ class DeviceMetrics24hResponse(BaseModel):
     hum_avg: Optional[Decimal] = None
     hum_min: Optional[Decimal] = None
     hum_max: Optional[Decimal] = None
+
+class BatchContextResponse(BaseModel):
+    device_id: str
+    start_time: datetime
+    end_time: datetime
+    temp_avg: Optional[Decimal] = None
+    temp_min: Optional[Decimal] = None
+    temp_max: Optional[Decimal] = None
+    hum_avg: Optional[Decimal] = None
+    hum_min: Optional[Decimal] = None
+    hum_max: Optional[Decimal] = None
+    telemetry_logs: List[DeviceTelemetryResponse] = []

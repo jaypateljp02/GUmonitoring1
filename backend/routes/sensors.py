@@ -10,7 +10,7 @@ from backend.models.sensor import Sensor
 from backend.models.reading import SensorReading
 from backend.models.alert import Alert
 from backend.middleware.jwt_verify import get_current_user, require_admin, TokenUser
-from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest, DeviceMetrics24hResponse, MonthlyAnalyticsResponse, DailyMetric
+from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest, DeviceMetrics24hResponse, MonthlyAnalyticsResponse, DailyMetric, BatchContextResponse
 from backend.models.device_telemetry import DeviceTelemetry
 from fastapi.responses import StreamingResponse
 import csv
@@ -373,4 +373,50 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
                 s.max_threshold = req["hum_max"]
     db.commit()
     return {"message": "Thresholds updated"}
+
+@router.get("/device/{device_id}/batch-context", response_model=BatchContextResponse)
+def get_batch_context(
+    device_id: str,
+    start_time: datetime,
+    end_time: datetime,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch exact historical data for the timeframe a batch was inside this room/fridge.
+    Provides total averages, min, max, and all the raw telemetry logs during that time.
+    """
+    logs = db.query(DeviceTelemetry).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= start_time,
+        DeviceTelemetry.timestamp <= end_time
+    ).order_by(DeviceTelemetry.timestamp.desc()).all()
+    
+    stats = db.query(
+        func.avg(DeviceTelemetry.temperature).label('t_avg'),
+        func.min(DeviceTelemetry.temperature).label('t_min'),
+        func.max(DeviceTelemetry.temperature).label('t_max'),
+        func.avg(DeviceTelemetry.humidity).label('h_avg'),
+        func.min(DeviceTelemetry.humidity).label('h_min'),
+        func.max(DeviceTelemetry.humidity).label('h_max')
+    ).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= start_time,
+        DeviceTelemetry.timestamp <= end_time
+    ).first()
+    
+    # Send aggregated logs (30min) instead of strictly raw if the timeframe is long
+    aggregated_logs = aggregate_telemetry(logs, interval_minutes=30)
+    
+    return BatchContextResponse(
+        device_id=device_id,
+        start_time=start_time,
+        end_time=end_time,
+        temp_avg=round(stats.t_avg, 2) if stats.t_avg is not None else None,
+        temp_min=round(stats.t_min, 2) if stats.t_min is not None else None,
+        temp_max=round(stats.t_max, 2) if stats.t_max is not None else None,
+        hum_avg=round(stats.h_avg, 2) if stats.h_avg is not None else None,
+        hum_min=round(stats.h_min, 2) if stats.h_min is not None else None,
+        hum_max=round(stats.h_max, 2) if stats.h_max is not None else None,
+        telemetry_logs=aggregated_logs
+    )
 
