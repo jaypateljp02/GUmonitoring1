@@ -199,7 +199,7 @@
     <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
 
     <!-- Premium APK Download Card -->
-    <div class="download-container" style="border-top: 1px dashed #E5E7EB; padding-top: 24px;">
+    <div class="download-container" id="downloadCard" style="border-top: 1px dashed #E5E7EB; padding-top: 24px; display: none;">
       <a href="/download/apk" class="apk-download-card">
         <span class="apk-icon">📲</span>
         <div class="apk-text-group">
@@ -732,6 +732,20 @@
         }
       } catch(e) {}
     }
+
+    // Only show Android APK download card on Android devices
+    function checkAndroidUserAgent() {
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const downloadCard = document.getElementById('downloadCard');
+      if (downloadCard) {
+        if (isAndroid) {
+          downloadCard.style.display = 'block';
+        } else {
+          downloadCard.style.display = 'none';
+        }
+      }
+    }
+    checkAndroidUserAgent();
   </script>
 </body>
 </html>

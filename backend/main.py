@@ -74,6 +74,14 @@ def dashboard():
     return FileResponse(html_path, media_type="text/html")
 
 
+@app.get("/floorplan.jpg", tags=["Dashboard"])
+def get_floorplan():
+    img_path = os.path.join(os.path.dirname(__file__), "..", "web", "floorplan.jpg")
+    if os.path.exists(img_path):
+        return FileResponse(img_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Floor plan image not found")
+
+
 # Cache for dynamic EAS build APK URL redirect
 APK_CACHE = {
     "url": None,
