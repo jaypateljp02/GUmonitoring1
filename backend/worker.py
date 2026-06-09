@@ -42,11 +42,15 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
 
         # 1. Find or create Room
         existing_sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
-        if existing_sensor:
-            room_id = existing_sensor.room_id
-            room = db.query(Room).filter(Room.id == room_id).first()
-            if room and room.name != device_name:
+        room = None
+        if existing_sensor and existing_sensor.room_id:
+            room = db.query(Room).filter(Room.id == existing_sensor.room_id).first()
+
+        if room:
+            if room.name != device_name:
                 room.name = device_name
+            room.active = True
+            room_id = room.id
         else:
             # Determine room type
             room_type = "room"
@@ -56,44 +60,67 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
             elif "freezer" in name_lower:
                 room_type = "freezer"
                 
-            room = Room(
-                name=device_name,
-                type=room_type,
-                active=True
-            )
-            db.add(room)
-            db.flush() # Populate room.id
+            # Check if a room with the same name already exists
+            room = db.query(Room).filter(Room.name == device_name).first()
+            if not room:
+                room = Room(
+                    name=device_name,
+                    type=room_type,
+                    active=True
+                )
+                db.add(room)
+                db.flush() # Populate room.id
+            else:
+                room.active = True
+                room.type = room_type
+                
             room_id = room.id
+            
+            # Update room_id for any existing sensors with this device_id
+            if existing_sensor:
+                db.query(Sensor).filter(Sensor.device_id == device_id).update({"room_id": room_id}, synchronize_session=False)
 
         # 2. Find or create Temperature Sensor
         temp_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "temperature").first()
         if not temp_sensor:
-            temp_sensor = Sensor(
-                room_id=room_id,
-                name=f"{device_name} Temp",
-                type="temperature",
-                device_id=device_id,
-                min_threshold=2.0 if room.type in ["fridge", "freezer"] else 18.0,
-                max_threshold=6.0 if room.type == "fridge" else (-5.0 if room.type == "freezer" else 28.0),
-                active=True
-            )
-            db.add(temp_sensor)
+            # Check if there's a temp sensor with device_id but null room_id
+            temp_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "temperature").first()
+            if temp_sensor:
+                temp_sensor.room_id = room_id
+                temp_sensor.active = True
+            else:
+                temp_sensor = Sensor(
+                    room_id=room_id,
+                    name=f"{device_name} Temp",
+                    type="temperature",
+                    device_id=device_id,
+                    min_threshold=2.0 if room.type in ["fridge", "freezer"] else 18.0,
+                    max_threshold=6.0 if room.type == "fridge" else (-5.0 if room.type == "freezer" else 28.0),
+                    active=True
+                )
+                db.add(temp_sensor)
         else:
             temp_sensor.active = True
 
         # 3. Find or create Humidity Sensor
         hum_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "humidity").first()
         if not hum_sensor:
-            hum_sensor = Sensor(
-                room_id=room_id,
-                name=f"{device_name} Hum",
-                type="humidity",
-                device_id=device_id,
-                min_threshold=40.0,
-                max_threshold=65.0,
-                active=True
-            )
-            db.add(hum_sensor)
+            # Check if there's a hum sensor with device_id but null room_id
+            hum_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "humidity").first()
+            if hum_sensor:
+                hum_sensor.room_id = room_id
+                hum_sensor.active = True
+            else:
+                hum_sensor = Sensor(
+                    room_id=room_id,
+                    name=f"{device_name} Hum",
+                    type="humidity",
+                    device_id=device_id,
+                    min_threshold=40.0,
+                    max_threshold=65.0,
+                    active=True
+                )
+                db.add(hum_sensor)
         else:
             hum_sensor.active = True
 
