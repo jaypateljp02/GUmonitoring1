@@ -12,5 +12,7 @@ class Room(Base):
     name = Column(String(100), nullable=False)
     type = Column(Enum("room", "fridge", "freezer", name="room_type", schema="monitoring", create_type=False), nullable=False)
     description = Column(Text)
+    map_x = Column(String(20), nullable=True)  # Percentage string like '45%'
+    map_y = Column(String(20), nullable=True)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

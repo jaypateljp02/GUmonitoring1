@@ -6,7 +6,7 @@ import subprocess
 import json
 from datetime import datetime, timedelta
 from backend.config import APP_NAME, APP_VERSION
-from backend.routes import rooms, sensors, alerts
+from backend.routes import auth, products, recipes, tasks, sensors, rooms, alerts, monitoring
 from backend.database import SessionLocal, ensure_db_ready
 from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry
 import threading
@@ -63,11 +63,12 @@ def startup_event():
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-app.include_router(rooms.router)
 app.include_router(sensors.router)
+app.include_router(rooms.router)
 app.include_router(alerts.router)
+app.include_router(monitoring.router)
 
-@app.get("/", tags=["Dashboard"])
+@app.get("/health", tags=["Dashboard"])
 def dashboard():
     html_path = os.path.join(os.path.dirname(__file__), "..", "web", "index.html")
     return FileResponse(html_path, media_type="text/html")

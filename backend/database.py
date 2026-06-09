@@ -55,8 +55,13 @@ def ensure_db_ready():
             conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS mock_mode VARCHAR(50) DEFAULT 'normal'"))
             # Fix room_id to be nullable (model says nullable=True, but old DB may have NOT NULL)
             conn.execute(text("ALTER TABLE monitoring.sensors ALTER COLUMN room_id DROP NOT NULL"))
+            
+            # Add map coordinates to rooms table
+            conn.execute(text("ALTER TABLE monitoring.rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)"))
+            conn.execute(text("ALTER TABLE monitoring.rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)"))
+            
             conn.commit()
-            logger.info("Checked/added columns and fixed constraints on sensors table.")
+            logger.info("Checked/added columns and fixed constraints on sensors and rooms tables.")
         except Exception as e:
             logger.error(f"Failed to check/add columns: {e}")
             

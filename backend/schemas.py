@@ -47,6 +47,8 @@ class RoomResponse(BaseModel):
     name: str
     type: str
     description: Optional[str] = None
+    map_x: Optional[str] = None
+    map_y: Optional[str] = None
     active: bool
     created_at: datetime
     sensors: List[SensorResponse] = []
