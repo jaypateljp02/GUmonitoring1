@@ -26,6 +26,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
     total_rooms = db.query(Room).filter(Room.type == 'room').count()
     total_fridges = db.query(Room).filter(Room.type == 'fridge').count()
     total_freezers = db.query(Room).filter(Room.type == 'freezer').count()
+    total_sensors = db.query(Sensor).count()
     
     active_alerts = db.query(Alert).filter(Alert.resolved == False).count()
     
@@ -60,6 +61,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
             "total_rooms": total_rooms,
             "total_fridges": total_fridges,
             "total_freezers": total_freezers,
+            "total_sensors": total_sensors,
             "active_alerts": active_alerts,
             "last_updated": last_updated.isoformat() if last_updated else None
         },

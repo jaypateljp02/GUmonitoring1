@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ground Up Monitor</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -17,87 +16,82 @@
     /* Header */
     .header { font-size: 30px; font-weight: bold; color: #111827; margin-bottom: 2px; }
     .subheader { font-size: 14px; color: #6B7280; margin-bottom: 24px; }
-    .section-title { font-size: 16px; font-weight: bold; color: #4B5563; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .section-title { font-size: 14px; font-weight: 800; color: #4B5563; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
 
-    /* Sensor List Card */
-    .sensor-card {
-      background: #FFFFFF; border-radius: 16px; padding: 18px; margin-bottom: 12px;
-      border: 1px solid #E5E7EB; cursor: pointer;
-      display: flex; justify-content: space-between; align-items: center;
-      transition: transform 0.15s, background 0.2s;
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid #E5E7EB;
+      display: flex;
+      align-items: center;
+      gap: 12px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     }
-    .sensor-card:hover { background: #F9FAFB; }
-    .sensor-card:active { transform: scale(0.98); }
-    .sensor-card.alert-border { border-color: #EF4444; background: #FEF2F2; }
-    .sensor-left { display: flex; align-items: center; gap: 12px; }
-    .sensor-icon { font-size: 32px; }
-    .sensor-name { font-size: 18px; font-weight: bold; color: #111827; }
-    .sensor-id-text { font-size: 11px; color: #2563EB; font-family: monospace; margin-top: 2px; }
-    .sensor-right { text-align: right; }
-    .sensor-temp { font-size: 28px; font-weight: bold; color: #111827; }
-    .sensor-temp.alert { color: #EF4444; }
-    .sensor-badge {
-      font-size: 11px; font-weight: bold; margin-top: 4px;
-      padding: 2px 8px; border-radius: 6px; display: inline-block;
+    .stat-icon {
+      font-size: 28px;
+      background: #F3F4F6;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
     }
-    .badge-ok { background: #D1FAE5; color: #065F46; }
-    .badge-alert { background: #FEE2E2; color: #991B1B; }
-    .footer-text { text-align: center; color: #9CA3AF; font-size: 12px; margin-top: 20px; }
-
-    /* ─── Detail View ─── */
-    .detail-view { display: none; }
-    .detail-view.active { display: block; }
-    .list-view.hidden { display: none; }
-
-    .back-btn {
-      background: none; border: none; color: #2563EB; font-size: 14px;
-      font-weight: bold; cursor: pointer; margin-bottom: 16px;
-      font-family: 'Inter', sans-serif; padding: 0;
+    .stat-info {
+      display: flex;
+      flex-direction: column;
     }
-    .detail-header { font-size: 28px; font-weight: bold; color: #111827; margin-bottom: 20px; }
-
-    .card {
-      border-radius: 16px; padding: 20px; margin-bottom: 20px;
-      border: 1px solid #E5E7EB; background: #FFFFFF;
-      transition: background 0.5s ease;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    .stat-label {
+      font-size: 11px;
+      color: #6B7280;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .card.alarm { animation: flash 1s infinite; }
-    @keyframes flash { 0%,100% { background:#FFFFFF; } 50% { background:#FEE2E2; } }
-
-    .card-title { color: #6B7280; font-size: 14px; margin-bottom: 16px; font-weight: bold; }
-    .row { display: flex; justify-content: space-between; }
-    .row + .row { margin-top: 16px; }
-    .metric-box { flex: 1; }
-    .metric-label { color: #6B7280; font-size: 12px; margin-bottom: 4px; }
-    .metric-value { color: #111827; font-size: 24px; font-weight: bold; }
-    .metric-value.small { font-size: 14px; }
-
-    .warning-text {
-      color: #991B1B; font-weight: bold; margin-top: 16px;
-      text-align: center; background: #FEE2E2;
-      padding: 8px; border-radius: 8px; font-size: 13px;
-      display: none;
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111827;
+      margin-top: 2px;
     }
-    .warning-text.show { display: block; }
-
-    .action-btn {
-      display: block; border-radius: 12px; padding: 16px;
-      text-align: center; margin-bottom: 12px; cursor: pointer;
-      color: #fff; font-size: 16px; font-weight: bold;
-      text-decoration: none; transition: opacity 0.2s;
+    
+    /* System status card */
+    .system-status-card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 14px 18px;
+      border: 1px solid #E5E7EB;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
-    .action-btn:hover { opacity: 0.85; }
-    .action-btn.blue { background: #3B82F6; }
-    .action-btn.green { background: #10B981; }
-
-    /* Inputs styling */
-    .input-field {
-      width: 100%; padding: 10px; border: 1px solid #E5E7EB;
-      border-radius: 8px; font-family: 'Inter', sans-serif;
-      font-size: 14px; color: #111827; background: #F3F4F6;
-      outline: none; margin-top: 4px;
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background-color: #10B981;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    .status-indicator-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #059669;
+      display: flex;
+      align-items: center;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
     /* APK Download Card styling */
@@ -149,15 +143,51 @@
   </style>
 </head>
 <body>
-  <!-- LIST VIEW -->
-  <div class="page list-view" id="listView">
+  <div class="page" id="listView">
     <div class="header">🏭 Ground Up</div>
-    <div class="subheader">Cold Room Monitoring</div>
+    <div class="subheader">Cold Storage & Room Telemetry System Overview</div>
     <div id="liveClock" style="font-size: 16px; font-weight: bold; color: #3B82F6; margin-bottom: 24px;"></div>
     
-    <div class="section-title">All Sensors (3)</div>
-    <div id="sensorList"></div>
-    <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view live details</div>
+    <div class="section-title">Facility Device Summary</div>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-info">
+          <div class="stat-label">Monitored Rooms</div>
+          <div class="stat-value" id="roomsCount">--</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">❄️</div>
+        <div class="stat-info">
+          <div class="stat-label">Active Fridges</div>
+          <div class="stat-value" id="fridgesCount">--</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🧊</div>
+        <div class="stat-info">
+          <div class="stat-label">Deep Freezers</div>
+          <div class="stat-value" id="freezersCount">--</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔌</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Sensors</div>
+          <div class="stat-value" id="sensorsCount">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Status info -->
+    <div class="system-status-card">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span class="status-indicator-text"><span class="status-dot"></span> System Connected</span>
+        <span style="font-size: 11px; color: #6B7280; font-weight: 500;" id="lastUpdatedText">Last Poll: --</span>
+      </div>
+    </div>
 
     <!-- Premium APK Download Card at Bottom -->
     <div class="download-container" style="border-top: 1px dashed #E5E7EB; padding-top: 24px;">
@@ -172,503 +202,39 @@
     </div>
   </div>
 
-  <!-- DETAIL VIEW -->
-  <div class="page detail-view" id="detailView">
-    <button class="back-btn" onclick="showList()">← Back to Sensors</button>
-    <div class="detail-header" id="detailHeader"></div>
-    
-    <!-- Metrics Card -->
-    <div class="card" id="detailCard">
-      <div class="card-title" id="detailTitle"></div>
-      <div class="row">
-        <div class="metric-box">
-          <div class="metric-label">Temperature</div>
-          <div class="metric-value" id="dTemp">--</div>
-          <div class="metric-label" id="dTempAvg" style="margin-top: 4px; font-size: 11px;">--</div>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Humidity</div>
-          <div class="metric-value" id="dHum">--</div>
-          <div class="metric-label" id="dHumAvg" style="margin-top: 4px; font-size: 11px;">--</div>
-        </div>
-      </div>
-      <div class="row">
-        <div class="metric-box">
-          <div class="metric-label">Battery</div>
-          <div class="metric-value" id="dBat">--</div>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Last Updated</div>
-          <div class="metric-value small" id="dTime">--</div>
-        </div>
-      </div>
-      <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT</div>
-    </div>
-    
-    <!-- Analytics Config Panel -->
-    <div class="card" style="margin-top: 20px;">
-      <div class="card-title">Analytics & Export Options</div>
-      <div class="row">
-        <div class="metric-box" style="margin-right: 12px;">
-          <div class="metric-label">Time Frame</div>
-          <select id="daysSelect" class="input-field" onchange="updateAnalyticsOptions()">
-            <option value="1">1 Day</option>
-            <option value="3">3 Days</option>
-            <option value="7" selected>7 Days</option>
-            <option value="30">30 Days</option>
-            <option value="Monthly">Monthly</option>
-          </select>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Data Interval</div>
-          <select id="intervalSelect" class="input-field" onchange="updateAnalyticsOptions()">
-            <option value="1">Raw (1 min)</option>
-            <option value="15">15 Minutes</option>
-            <option value="30" selected>30 Minutes</option>
-            <option value="60">1 Hour</option>
-            <option value="120">2 Hours</option>
-            <option value="720">12 Hours</option>
-            <option value="1440">24 Hours</option>
-          </select>
-        </div>
-      </div>
-      <div style="margin-top: 16px;">
-        <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 12px; font-size: 14px; text-decoration: none; display: block;">Export CSV Log</a>
-      </div>
-    </div>
-
-    <!-- Chart Card -->
-    <div class="card" id="chartCard" style="margin-top: 20px; display: none;">
-      <div class="card-title" id="chartCardTitle">7-Day Temperature Trend</div>
-      <div style="position: relative; height: 260px; width: 100%;">
-        <canvas id="telemetryChart"></canvas>
-      </div>
-    </div>
-
-    <!-- Thresholds Configuration Panel -->
-    <div class="card" style="margin-top: 20px;">
-      <div class="card-title">Thresholds Configuration</div>
-      <div class="row">
-        <div class="metric-box" style="margin-right: 12px;">
-          <div class="metric-label">Min Temp (°C)</div>
-          <input type="number" step="0.5" id="minInput" class="input-field" placeholder="None" />
-        </div>
-        <div class="metric-box">
-          <div class="metric-label">Max Temp (°C)</div>
-          <input type="number" step="0.5" id="maxInput" class="input-field" placeholder="None" />
-        </div>
-      </div>
-      <button class="action-btn blue" style="margin-top: 16px; padding: 12px; font-size: 14px; margin-bottom: 0;" onclick="saveThresholds()">Save Thresholds</button>
-    </div>
-
-  </div>
-
   <script>
-    let rooms = [];
-    let liveData = {};
     const API = window.location.origin;
-    let currentDevice = null;
-    let detailInterval = null;
-    let tempMin = null;
-    let tempMax = null;
-    let chartInstance = null;
 
-    // Get icon based on room type
-    function getRoomIcon(type) {
-      if (type === 'fridge') return '❄️';
-      if (type === 'freezer') return '🧊';
-      return '🏢';
-    }
-
-    // Build sensor list cards
-    function buildSensorCard(room) {
-      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-      return `
-      <div class="sensor-card" id="sc-${room.id}" onclick="showDetail('${room.id}')">
-        <div class="sensor-left">
-          <div class="sensor-icon">${getRoomIcon(room.type)}</div>
-          <div>
-            <div class="sensor-name">${room.name}</div>
-            <div class="sensor-id-text">${tempSensor?.device_id || 'No Device'}</div>
-          </div>
-        </div>
-        <div class="sensor-right">
-          <div class="sensor-temp" id="st-${room.id}">--</div>
-          <div class="sensor-badge badge-ok" id="sb-${room.id}">✅ OK</div>
-        </div>
-      </div>`;
-    }
-
-    // Poll list view
-    async function pollList() {
+    async function pollDashboard() {
       // Update live clock
       const now = new Date();
       document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
       try {
-        // Fetch rooms dynamically
-        const roomsRes = await fetch(`${API}/rooms`);
-        if (roomsRes.ok) {
-          const data = await roomsRes.json();
-          rooms = Array.isArray(data) ? data : [];
-        } else {
-          rooms = [];
-        }
-        
-        document.querySelector('.section-title').textContent = `Locations (${rooms.length})`;
-        document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
-
-        // Fetch dashboard live telemetry
-        const dashRes = await fetch(`${API}/monitoring/dashboard`);
-        const dashData = await dashRes.json();
-        liveData = {};
-        if (dashData && dashData.live_devices) {
-          dashData.live_devices.forEach(d => {
-            liveData[d.sensor_id] = d;
-          });
-        }
-
-        // Update readings for all rooms
-        for (const room of rooms) {
-          const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-          if (tempSensor && liveData[tempSensor.id]) {
-            const data = liveData[tempSensor.id];
-            const temp = parseFloat(data.temperature);
-            
-            const el = document.getElementById(`st-${room.id}`);
-            const badge = document.getElementById(`sb-${room.id}`);
-            const card = document.getElementById(`sc-${room.id}`);
-            
-            if (el) el.textContent = temp + '°C';
-
-            let isAlert = false;
-            if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-            if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-
-            if (badge && card) {
-              if (isAlert) {
-                el.classList.add('alert');
-                badge.className = 'sensor-badge badge-alert';
-                badge.textContent = '⚠️ ALERT';
-                card.classList.add('alert-border');
-              } else {
-                el.classList.remove('alert');
-                badge.className = 'sensor-badge badge-ok';
-                badge.textContent = '✅ OK';
-                card.classList.remove('alert-border');
-              }
-            }
+        const res = await fetch(`${API}/monitoring/dashboard`);
+        if (res.ok) {
+          const data = await res.json();
+          const summary = data.summary || {};
+          
+          document.getElementById('roomsCount').textContent = summary.total_rooms ?? 0;
+          document.getElementById('fridgesCount').textContent = summary.total_fridges ?? 0;
+          document.getElementById('freezersCount').textContent = summary.total_freezers ?? 0;
+          document.getElementById('sensorsCount').textContent = summary.total_sensors ?? 0;
+          
+          if (summary.last_updated) {
+            const lastTime = new Date(summary.last_updated);
+            document.getElementById('lastUpdatedText').textContent = 'Last Poll: ' + lastTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+          } else {
+            document.getElementById('lastUpdatedText').textContent = 'Last Poll: None';
           }
         }
       } catch(e) {
-        console.error("Error polling list:", e);
-      }
-    }
-    pollList();
-    const listInterval = setInterval(pollList, 10000);
-
-    // Fetch thresholds for detail view
-    async function fetchActiveThresholds(deviceId) {
-      try {
-        const res = await fetch(`${API}/sensors/device/${deviceId}/sensors`);
-        const sensors = await res.json();
-        const tempSensor = sensors.find(s => s.type === 'temperature');
-        if (tempSensor) {
-          tempMin = tempSensor.min_threshold;
-          tempMax = tempSensor.max_threshold;
-          document.getElementById('minInput').value = tempMin !== null ? tempMin : '';
-          document.getElementById('maxInput').value = tempMax !== null ? tempMax : '';
-        }
-      } catch (e) {}
-    }
-
-    // Save thresholds
-    async function saveThresholds() {
-      if (!currentDevice) return;
-      const minVal = document.getElementById('minInput').value;
-      const maxVal = document.getElementById('maxInput').value;
-      const body = {
-        temp_min: minVal !== '' ? parseFloat(minVal) : null,
-        temp_max: maxVal !== '' ? parseFloat(maxVal) : null
-      };
-      try {
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/thresholds`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        if (res.ok) {
-          alert('Thresholds saved successfully!');
-          await fetchActiveThresholds(currentDevice.id);
-          pollDetail();
-          updateAnalyticsOptions();
-        }
-      } catch (e) {
-        alert('Failed to save thresholds');
+        console.error("Error polling dashboard summary:", e);
       }
     }
 
-    // Update analytics, links, and render visual chart
-    async function updateAnalyticsOptions() {
-      if (!currentDevice) return;
-      const days = document.getElementById('daysSelect').value;
-      const interval = document.getElementById('intervalSelect').value;
-
-      if (days === 'Monthly') {
-        document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=30&interval_minutes=1440`;
-        document.getElementById('chartCardTitle').textContent = `Monthly Temperature Extremes`;
-        
-        try {
-          const res = await fetch(`${API}/sensors/device/${currentDevice.id}/metrics/monthly`);
-          const data = await res.json();
-          
-          if (data && data.daily_metrics && data.daily_metrics.length > 0) {
-            document.getElementById('chartCard').style.display = 'block';
-            
-            const labels = data.daily_metrics.map(d => {
-              const dt = new Date(d.date);
-              return `${dt.getMonth()+1}/${dt.getDate()}`;
-            });
-            const maxes = data.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
-            const mins = data.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
-            
-            if (chartInstance) chartInstance.destroy();
-            const ctx = document.getElementById('telemetryChart').getContext('2d');
-            
-            chartInstance = new Chart(ctx, {
-              type: 'line',
-              data: {
-                labels: labels,
-                datasets: [
-                  { label: 'Max Temp (°C)', data: maxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
-                  { label: 'Min Temp (°C)', data: mins, borderColor: '#3B82F6', tension: 0.3, fill: false, borderWidth: 2 }
-                ]
-              },
-              options: { responsive: true, maintainAspectRatio: false }
-            });
-          } else {
-            document.getElementById('chartCard').style.display = 'none';
-          }
-        } catch (e) {
-          console.error(e);
-          document.getElementById('chartCard').style.display = 'none';
-        }
-        return;
-      }
-
-      // Update static links
-      document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${days}&interval_minutes=${interval}`;
-      
-      // Update chart card title
-      document.getElementById('chartCardTitle').textContent = `${days}-Day Temperature Trend (${interval === '1' ? 'Raw' : interval + 'm'} intervals)`;
-
-      try {
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${days}&interval_minutes=${interval}`);
-        const data = await res.json();
-        
-        if (data && data.length >= 2) {
-          // Data is returned newest first, reverse it for chronological chart
-          const sortedData = [...data].reverse();
-          const labels = sortedData.map(d => {
-            const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
-            // Format label as date + time
-            return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
-          });
-          const temps = sortedData.map(d => parseFloat(d.temperature));
-
-          document.getElementById('chartCard').style.display = 'block';
-
-          // Set up datasets
-          const datasets = [
-            {
-              label: 'Temperature (°C)',
-              data: temps,
-              borderColor: '#3B82F6',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              tension: 0.3,
-              fill: true,
-              borderWidth: 2,
-              pointRadius: sortedData.length > 50 ? 0 : 3
-            }
-          ];
-
-          // Add threshold lines if they exist
-          if (tempMax !== null) {
-            datasets.push({
-              label: `Max Limit (${tempMax}°C)`,
-              data: new Array(sortedData.length).fill(tempMax),
-              borderColor: '#EF4444',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
-            });
-          }
-          if (tempMin !== null) {
-            datasets.push({
-              label: `Min Limit (${tempMin}°C)`,
-              data: new Array(sortedData.length).fill(tempMin),
-              borderColor: '#10B981',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
-            });
-          }
-
-          if (chartInstance) {
-            chartInstance.destroy();
-          }
-
-          const ctx = document.getElementById('telemetryChart').getContext('2d');
-          chartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: datasets
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  position: 'top',
-                  labels: {
-                    font: { family: 'Inter', size: 11 }
-                  }
-                }
-              },
-              scales: {
-                x: {
-                  grid: { display: false },
-                  ticks: {
-                    font: { family: 'Inter', size: 9 },
-                    maxRotation: 45,
-                    minRotation: 0,
-                    autoSkip: true,
-                    maxTicksLimit: 8
-                  }
-                },
-                y: {
-                  grid: { color: '#E5E7EB' },
-                  ticks: {
-                    font: { family: 'Inter', size: 10 }
-                  }
-                }
-              }
-            }
-          });
-        } else {
-          // Hide chart if insufficient data
-          document.getElementById('chartCard').style.display = 'none';
-        }
-      } catch (e) {
-        console.error('Error fetching analytics for chart:', e);
-        document.getElementById('chartCard').style.display = 'none';
-      }
-    }
-
-    // Show detail
-    async function showDetail(roomId) {
-      const room = rooms.find(r => r.id === roomId);
-      if (!room) return;
-      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-      if (!tempSensor) {
-        alert('This room has no temperature sensor.');
-        return;
-      }
-      currentDevice = {
-        id: tempSensor.device_id,
-        name: room.name,
-        icon: getRoomIcon(room.type)
-      };
-
-      document.getElementById('listView').classList.add('hidden');
-      document.getElementById('detailView').classList.add('active');
-      document.getElementById('detailHeader').textContent = currentDevice.icon + ' ' + currentDevice.name + ' Monitor';
-      document.getElementById('detailTitle').textContent = 'Live Metrics (Sensor: ' + currentDevice.id + ')';
-      
-      // Set selects to default values
-      document.getElementById('daysSelect').value = '7';
-      document.getElementById('intervalSelect').value = '30';
-
-      await fetchActiveThresholds(currentDevice.id);
-      await updateAnalyticsOptions();
-      
-      pollDetail();
-      detailInterval = setInterval(pollDetail, 5000);
-    }
-
-    function showList() {
-      document.getElementById('listView').classList.remove('hidden');
-      document.getElementById('detailView').classList.remove('active');
-      if (detailInterval) clearInterval(detailInterval);
-      if (chartInstance) {
-        chartInstance.destroy();
-        chartInstance = null;
-      }
-      pollList();
-    }
-
-    async function pollDetail() {
-      if (!currentDevice) return;
-      try {
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=1`);
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const d = data[0];
-          const temp = parseFloat(d.temperature);
-          document.getElementById('dTemp').textContent = temp + '°C';
-          document.getElementById('dHum').textContent = parseFloat(d.humidity) + '%';
-          document.getElementById('dBat').textContent = parseFloat(d.battery_level) + '%';
-          const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
-          document.getElementById('dTime').textContent = ts.toLocaleTimeString();
-
-          const card = document.getElementById('detailCard');
-          const warn = document.getElementById('dWarn');
-          
-          let isAlert = false;
-          let alertMsg = "";
-          if (tempMin !== null && temp < tempMin) {
-            isAlert = true;
-            alertMsg = `⚠️ TEMPERATURE ALERT: BELOW ${tempMin}°C`;
-          } else if (tempMax !== null && temp > tempMax) {
-            isAlert = true;
-            alertMsg = `⚠️ TEMPERATURE ALERT: EXCEEDS ${tempMax}°C`;
-          }
-
-          if (isAlert) {
-            card.classList.add('alarm');
-            warn.textContent = alertMsg;
-            warn.classList.add('show');
-          } else {
-            card.classList.remove('alarm');
-            warn.classList.remove('show');
-          }
-          // Fetch 24h metrics
-          try {
-            const res24h = await fetch(`${API}/sensors/device/${currentDevice.id}/metrics/24h`);
-            const data24h = await res24h.json();
-            if (data24h) {
-              document.getElementById('dTempAvg').textContent = `24h Avg: ${data24h.temp_avg}°C | Min: ${data24h.temp_min}°C | Max: ${data24h.temp_max}°C`;
-              document.getElementById('dHumAvg').textContent = `24h Avg: ${data24h.hum_avg}% | Min: ${data24h.hum_min}% | Max: ${data24h.hum_max}%`;
-            }
-          } catch(e) {}
-          
-        } else {
-          // No recent data
-          document.getElementById('dTemp').textContent = '--';
-          document.getElementById('dHum').textContent = '--';
-          document.getElementById('dTempAvg').textContent = '--';
-          document.getElementById('dHumAvg').textContent = '--';
-          document.getElementById('dBat').textContent = '--';
-          document.getElementById('dTime').textContent = 'Offline';
-          document.getElementById('detailCard').classList.remove('alarm');
-          document.getElementById('dWarn').classList.remove('show');
-        }
-      } catch(e) {}
-    }
-
+    pollDashboard();
+    setInterval(pollDashboard, 10000);
   </script>
 </body>
 </html>

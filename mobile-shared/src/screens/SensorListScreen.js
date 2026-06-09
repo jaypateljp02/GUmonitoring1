@@ -1,94 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { api, clearAuthToken } from '../services/api';
 
-function RoomCard({ room, telemetry, onPress }) {
-  // Find temperature and humidity sensors
-  const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-  const humSensor = room.sensors?.find(s => s.type === 'humidity');
-
-  const hasTemp = tempSensor && telemetry[tempSensor.id];
-  const hasHum = humSensor && telemetry[humSensor.id];
-
-  const temp = hasTemp ? parseFloat(telemetry[tempSensor.id].temperature) : null;
-  const hum = hasHum ? parseFloat(telemetry[humSensor.id].humidity) : null;
-
-  // Determine alert status based on thresholds
-  let isAlert = false;
-  if (tempSensor && temp !== null) {
-    if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-    if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-  }
-  if (humSensor && hum !== null) {
-    if (humSensor.min_threshold !== null && hum < humSensor.min_threshold) isAlert = true;
-    if (humSensor.max_threshold !== null && hum > humSensor.max_threshold) isAlert = true;
-  }
-
-  const getIcon = () => {
-    if (room.type === 'fridge') return '❄️';
-    if (room.type === 'freezer') return '🧊';
-    return '🏢';
-  };
-
+function StatCard({ icon, label, value }) {
   return (
-    <TouchableOpacity 
-      style={[styles.sensorCard, isAlert && styles.sensorCardAlert]} 
-      onPress={onPress} 
-      activeOpacity={0.8}
-    >
-      <View style={styles.sensorCardLeft}>
-        <Text style={styles.sensorIcon}>{getIcon()}</Text>
-        <View>
-          <Text style={styles.sensorName}>{room.name}</Text>
-          <Text style={styles.sensorIdText}>
-            {tempSensor?.device_id || 'No Device Linked'}
-          </Text>
-        </View>
+    <View style={styles.statCard}>
+      <Text style={styles.statIcon}>{icon}</Text>
+      <View style={styles.statTextContainer}>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>{value}</Text>
       </View>
-      
-      <View style={styles.sensorCardRight}>
-        {temp !== null ? (
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.sensorTemp, isAlert && styles.sensorTempAlert]}>{temp}°C</Text>
-            {hum !== null && <Text style={styles.sensorHum}>{hum}% RH</Text>}
-            <Text style={[styles.sensorBadge, isAlert ? styles.badgeAlert : styles.badgeOk]}>
-              {isAlert ? '⚠️ ALERT' : '✅ OK'}
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.sensorTemp}>--</Text>
-        )}
-      </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
 export default function SensorListScreen({ navigation }) {
-  const [rooms, setRooms] = useState([]);
-  const [liveData, setLiveData] = useState({});
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const fetchData = async () => {
     try {
-      const roomsRes = await api.get('/rooms');
-      if (Array.isArray(roomsRes.data)) {
-        setRooms(roomsRes.data);
-      } else {
-        setRooms([]);
+      const response = await api.get('/monitoring/dashboard');
+      if (response.data && response.data.summary) {
+        setSummary(response.data.summary);
       }
-
-      const dashboardRes = await api.get('/monitoring/dashboard');
-      const telemetryMap = {};
-      if (dashboardRes.data && dashboardRes.data.live_devices) {
-        dashboardRes.data.live_devices.forEach(d => {
-          telemetryMap[d.sensor_id] = d;
-        });
-      }
-      setLiveData(telemetryMap);
     } catch (e) {
-      console.log('Failed to fetch rooms & live telemetry in list view', e);
-      setRooms([]);
+      console.log('Failed to fetch dashboard summary in mobile list view', e);
     } finally {
       setLoading(false);
     }
@@ -97,7 +35,7 @@ export default function SensorListScreen({ navigation }) {
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 8000);
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
     return () => {
       clearInterval(interval);
       clearInterval(timer);
@@ -122,7 +60,7 @@ export default function SensorListScreen({ navigation }) {
     );
   };
 
-  if (loading && rooms.length === 0) {
+  if (loading && !summary) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3B82F6" />
@@ -130,8 +68,12 @@ export default function SensorListScreen({ navigation }) {
     );
   }
 
+  const lastPollTime = summary?.last_updated
+    ? new Date(summary.last_updated.endsWith('Z') ? summary.last_updated : summary.last_updated + 'Z')
+    : null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.header}>Ground Up</Text>
@@ -145,36 +87,55 @@ export default function SensorListScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>Locations ({rooms.length})</Text>
+      <Text style={styles.sectionTitle}>Facility Device Summary</Text>
 
-      {rooms.map(room => (
-        <RoomCard
-          key={room.id}
-          room={room}
-          telemetry={liveData}
-          onPress={() => {
-            if (room.sensors && room.sensors.length > 0) {
-              const mainSensor = room.sensors.find(s => s.type === 'temperature') || room.sensors[0];
-              const mockDevice = {
-                id: mainSensor.device_id || room.id,
-                name: room.name,
-                icon: room.type === 'fridge' ? '❄️' : (room.type === 'freezer' ? '🧊' : '🏢')
-              };
-              navigation.navigate('DeviceDetail', { device: mockDevice });
-            } else {
-              Alert.alert('No Sensors', 'This location has no linked temperature or humidity sensors.');
-            }
-          }}
-        />
-      ))}
+      <View style={styles.statsGrid}>
+        <View style={styles.statsRow}>
+          <StatCard
+            icon="🏢"
+            label="Monitored Rooms"
+            value={summary?.total_rooms ?? 0}
+          />
+          <StatCard
+            icon="❄️"
+            label="Active Fridges"
+            value={summary?.total_fridges ?? 0}
+          />
+        </View>
+        <View style={styles.statsRow}>
+          <StatCard
+            icon="🧊"
+            label="Deep Freezers"
+            value={summary?.total_freezers ?? 0}
+          />
+          <StatCard
+            icon="🔌"
+            label="Total Sensors"
+            value={summary?.total_sensors ?? 0}
+          />
+        </View>
+      </View>
 
-      <Text style={styles.footerText}>Tap a room to configure thresholds & view logs</Text>
+      <View style={styles.statusCard}>
+        <View style={styles.statusHeaderRow}>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>System Connected</Text>
+          </View>
+          <Text style={styles.pollTimeText}>
+            Last Poll: {lastPollTime ? lastPollTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--'}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.footerText}>Refactoring under new developer console App ID</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
+  contentContainer: { padding: 20 },
   loadingContainer: { flex: 1, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 40, marginBottom: 24 },
   header: { fontSize: 30, fontWeight: '800', color: '#111827', marginBottom: 2 },
@@ -185,32 +146,62 @@ const styles = StyleSheet.create({
   
   sectionTitle: { fontSize: 12, fontWeight: '800', color: '#4B5563', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 },
 
-  sensorCard: {
+  statsGrid: { marginBottom: 16 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  statCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16, padding: 18, marginBottom: 12,
-    borderWidth: 1, borderColor: '#E5E7EB',
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 2,
   },
-  sensorCardAlert: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
+  statIcon: {
+    fontSize: 24,
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+    textAlign: 'center',
+    width: 40,
+    height: 40,
+  },
+  statTextContainer: { flex: 1 },
+  statLabel: { fontSize: 10, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 2 },
 
-  sensorCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sensorIcon: { fontSize: 28 },
-  sensorName: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  sensorIdText: { fontSize: 11, color: '#2563EB', fontFamily: 'monospace', marginTop: 2 },
+  statusCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statusHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusIndicator: { flexDirection: 'row', alignItems: 'center' },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 8,
+  },
+  statusText: { fontSize: 13, fontWeight: 'bold', color: '#059669' },
+  pollTimeText: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
 
-  sensorCardRight: { alignItems: 'flex-end' },
-  sensorTemp: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
-  sensorTempAlert: { color: '#EF4444' },
-  sensorHum: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-
-  sensorBadge: { fontSize: 10, fontWeight: 'bold', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
-  badgeOk: { backgroundColor: '#D1FAE5', color: '#065F46', borderWidth: 1, borderColor: '#A7F3D0' },
-  badgeAlert: { backgroundColor: '#FEE2E2', color: '#991B1B', borderWidth: 1, borderColor: '#FCA5A5' },
-
-  footerText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 20, marginBottom: 30 },
+  footerText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 24, marginBottom: 30 },
 });
