@@ -199,6 +199,17 @@ export default function AnalyticsScreen({ route }) {
     { label: '2h', value: 120 }
   ];
 
+  const chartConfigLight = {
+    backgroundColor: '#FFFFFF',
+    backgroundGradientFrom: '#FFFFFF',
+    backgroundGradientTo: '#F9FAFB',
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(17, 24, 39, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+    style: { borderRadius: 16 },
+    propsForDots: { r: "3", strokeWidth: "1", stroke: "#3B82F6" }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.header}>{device.icon} {device.name} Analytics</Text>
@@ -249,16 +260,7 @@ export default function AnalyticsScreen({ route }) {
               height={220}
               yAxisSuffix="°C"
               yAxisInterval={1}
-              chartConfig={{
-                backgroundColor: '#FFFFFF',
-                backgroundGradientFrom: '#FFFFFF',
-                backgroundGradientTo: '#F9FAFB',
-                decimalPlaces: 1,
-                color: (opacity = 1) => `rgba(17, 24, 39, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                style: { borderRadius: 16 },
-                propsForDots: { r: "3", strokeWidth: "1", stroke: "#3B82F6" }
-              }}
+              chartConfig={chartConfigLight}
               bezier
               style={{ marginVertical: 8, borderRadius: 16 }}
             />
@@ -280,22 +282,7 @@ export default function AnalyticsScreen({ route }) {
             height={220}
             yAxisSuffix="°C"
             yAxisInterval={1}
-            chartConfig={{
-              backgroundColor: '#FFFFFF',
-              backgroundGradientFrom: '#FFFFFF',
-              backgroundGradientTo: '#F9FAFB',
-              decimalPlaces: 1,
-              color: (opacity = 1) => `rgba(17, 24, 39, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-              style: {
-                borderRadius: 16
-              },
-              propsForDots: {
-                r: "3",
-                strokeWidth: "1",
-                stroke: "#3B82F6"
-              }
-            }}
+            chartConfig={chartConfigLight}
             bezier
             style={{
               marginVertical: 8,
@@ -305,8 +292,8 @@ export default function AnalyticsScreen({ route }) {
         </View>
       )}
 
-      <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV}>
-        <Text style={styles.exportButtonText}>Export CSV Audit Log</Text>
+      <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV} activeOpacity={0.8}>
+        <Text style={styles.exportButtonText}>📥 Export CSV Audit Log</Text>
       </TouchableOpacity>
 
       <View style={styles.infoBox}>
@@ -322,45 +309,45 @@ export default function AnalyticsScreen({ route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
-  header: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 16 },
-  selectorTitle: { fontSize: 13, fontWeight: 'bold', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  selectorRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  selectorButton: { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  header: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
+  selectorTitle: { fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  selectorRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  selectorButton: { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   selectorButtonActive: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
-  selectorButtonText: { fontSize: 13, fontWeight: '600', color: '#4B5563' },
+  selectorButtonText: { fontSize: 13, fontWeight: '700', color: '#4B5563' },
   selectorButtonTextActive: { color: '#FFFFFF' },
-  chartLoadingContainer: { height: 240, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  chartLoadingContainer: { height: 240, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB' },
   chartContainer: { 
     backgroundColor: '#FFFFFF', 
-    borderRadius: 16, 
-    padding: 10, 
+    borderRadius: 24, 
+    padding: 12, 
     borderWidth: 1, 
     borderColor: '#E5E7EB',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 2,
   },
-  chartTitle: { color: '#6B7280', fontSize: 14, fontWeight: 'bold', marginBottom: 10, alignSelf: 'flex-start' },
-  errorContainer: { height: 240, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 20 },
+  chartTitle: { color: '#6B7280', fontSize: 12, fontWeight: '800', marginBottom: 14, alignSelf: 'flex-start', letterSpacing: 0.5 },
+  errorContainer: { height: 240, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB', padding: 20 },
   errorText: { color: '#6B7280', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
   errorSubText: { color: '#9CA3AF', fontSize: 13, textAlign: 'center' },
-  exportButton: { backgroundColor: '#10B981', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
-  exportButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  exportButton: { backgroundColor: '#10B981', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 24 },
+  exportButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
   infoBox: {
-    marginTop: 20,
+    marginTop: 24,
     backgroundColor: '#EFF6FF',
-    padding: 16,
-    borderRadius: 12,
+    padding: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    marginBottom: 30,
+    marginBottom: 40,
   },
   infoText: {
     color: '#1E40AF',
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
   }
 });

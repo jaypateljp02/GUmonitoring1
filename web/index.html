@@ -264,11 +264,8 @@
   </div>
 
   <script>
-    const DEVICES = [
-      { id:'a4b002884e', name:'Device 1',     icon:'❄️' },
-      { id:'a4b002898f', name:'Miso Room',     icon:'🍶' },
-      { id:'a4b0028991', name:'Vinegar Room',  icon:'🫗' },
-    ];
+    let rooms = [];
+    let liveData = {};
     const API = window.location.origin;
     let currentDevice = null;
     let detailInterval = null;
@@ -276,24 +273,31 @@
     let tempMax = null;
     let chartInstance = null;
 
+    // Get icon based on room type
+    function getRoomIcon(type) {
+      if (type === 'fridge') return '❄️';
+      if (type === 'freezer') return '🧊';
+      return '🏢';
+    }
+
     // Build sensor list cards
-    function buildSensorCard(d) {
+    function buildSensorCard(room) {
+      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
       return `
-      <div class="sensor-card" id="sc-${d.id}" onclick="showDetail('${d.id}')">
+      <div class="sensor-card" id="sc-${room.id}" onclick="showDetail('${room.id}')">
         <div class="sensor-left">
-          <div class="sensor-icon">${d.icon}</div>
+          <div class="sensor-icon">${getRoomIcon(room.type)}</div>
           <div>
-            <div class="sensor-name">${d.name}</div>
-            <div class="sensor-id-text">${d.id}</div>
+            <div class="sensor-name">${room.name}</div>
+            <div class="sensor-id-text">${tempSensor?.device_id || 'No Device'}</div>
           </div>
         </div>
         <div class="sensor-right">
-          <div class="sensor-temp" id="st-${d.id}">--</div>
-          <div class="sensor-badge badge-ok" id="sb-${d.id}">✅ OK</div>
+          <div class="sensor-temp" id="st-${room.id}">--</div>
+          <div class="sensor-badge badge-ok" id="sb-${room.id}">✅ OK</div>
         </div>
       </div>`;
     }
-    document.getElementById('sensorList').innerHTML = DEVICES.map(buildSensorCard).join('');
 
     // Poll list view
     async function pollList() {
@@ -301,42 +305,58 @@
       const now = new Date();
       document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-      for (const d of DEVICES) {
-        try {
-          // Fetch thresholds
-          const threshRes = await fetch(`${API}/sensors/device/${d.id}/sensors`);
-          const sensors = await threshRes.json();
-          const tempSensor = sensors.find(s => s.type === 'temperature');
-          const tMin = tempSensor ? tempSensor.min_threshold : null;
-          const tMax = tempSensor ? tempSensor.max_threshold : null;
+      try {
+        // Fetch rooms dynamically
+        const roomsRes = await fetch(`${API}/rooms`);
+        rooms = await roomsRes.json();
+        
+        document.querySelector('.section-title').textContent = `Locations (${rooms.length})`;
+        document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
 
-          // Fetch telemetry
-          const res = await fetch(`${API}/sensors/device/${d.id}/telemetry?days=1`);
-          const data = await res.json();
-          if (data && data.length > 0) {
-            const temp = parseFloat(data[0].temperature);
-            const el = document.getElementById(`st-${d.id}`);
-            const badge = document.getElementById(`sb-${d.id}`);
-            const card = document.getElementById(`sc-${d.id}`);
-            el.textContent = temp + '°C';
+        // Fetch dashboard live telemetry
+        const dashRes = await fetch(`${API}/monitoring/dashboard`);
+        const dashData = await dashRes.json();
+        liveData = {};
+        if (dashData && dashData.live_devices) {
+          dashData.live_devices.forEach(d => {
+            liveData[d.sensor_id] = d;
+          });
+        }
+
+        // Update readings for all rooms
+        for (const room of rooms) {
+          const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+          if (tempSensor && liveData[tempSensor.id]) {
+            const data = liveData[tempSensor.id];
+            const temp = parseFloat(data.temperature);
+            
+            const el = document.getElementById(`st-${room.id}`);
+            const badge = document.getElementById(`sb-${room.id}`);
+            const card = document.getElementById(`sc-${room.id}`);
+            
+            if (el) el.textContent = temp + '°C';
 
             let isAlert = false;
-            if (tMin !== null && temp < tMin) isAlert = true;
-            if (tMax !== null && temp > tMax) isAlert = true;
+            if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
+            if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
 
-            if (isAlert) {
-              el.classList.add('alert');
-              badge.className = 'sensor-badge badge-alert';
-              badge.textContent = '⚠️ ALERT';
-              card.classList.add('alert-border');
-            } else {
-              el.classList.remove('alert');
-              badge.className = 'sensor-badge badge-ok';
-              badge.textContent = '✅ OK';
-              card.classList.remove('alert-border');
+            if (badge && card) {
+              if (isAlert) {
+                el.classList.add('alert');
+                badge.className = 'sensor-badge badge-alert';
+                badge.textContent = '⚠️ ALERT';
+                card.classList.add('alert-border');
+              } else {
+                el.classList.remove('alert');
+                badge.className = 'sensor-badge badge-ok';
+                badge.textContent = '✅ OK';
+                card.classList.remove('alert-border');
+              }
             }
           }
-        } catch(e) {}
+        }
+      } catch(e) {
+        console.error("Error polling list:", e);
       }
     }
     pollList();
@@ -544,8 +564,20 @@
     }
 
     // Show detail
-    async function showDetail(deviceId) {
-      currentDevice = DEVICES.find(d => d.id === deviceId);
+    async function showDetail(roomId) {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room) return;
+      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+      if (!tempSensor) {
+        alert('This room has no temperature sensor.');
+        return;
+      }
+      currentDevice = {
+        id: tempSensor.device_id,
+        name: room.name,
+        icon: getRoomIcon(room.type)
+      };
+
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
       document.getElementById('detailHeader').textContent = currentDevice.icon + ' ' + currentDevice.name + ' Monitor';

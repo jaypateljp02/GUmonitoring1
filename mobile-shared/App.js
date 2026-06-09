@@ -7,8 +7,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import * as Location from 'expo-location';
 
+import { requestNotificationPermissions, triggerLocalNotification } from './src/services/notificationService';
+import { api } from './src/services/api';
+
 async function checkForOTAUpdate() {
-  // OTA updates only work in production builds, not in dev/Expo Go
   if (__DEV__) return;
 
   try {
@@ -22,7 +24,6 @@ async function checkForOTAUpdate() {
       );
     }
   } catch (e) {
-    // Silently ignore update errors — don't disrupt the user
     console.log('OTA update check failed:', e.message);
   }
 }
@@ -31,13 +32,39 @@ export default function App() {
   useEffect(() => {
     checkForOTAUpdate();
     
-    // Request GPS permissions on app launch
+    // Request GPS and Notification permissions on app launch
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         console.log('Permission to access location was denied');
       }
+
+      await requestNotificationPermissions();
     })();
+
+    // Alert polling for local notifications (runs every 15 seconds)
+    let notifiedAlertIds = new Set();
+    const checkAlerts = async () => {
+      try {
+        const res = await api.get('/alerts?resolved=false');
+        if (res.data && res.data.length > 0) {
+          res.data.forEach(alertItem => {
+            if (!notifiedAlertIds.has(alertItem.id)) {
+              notifiedAlertIds.add(alertItem.id);
+              triggerLocalNotification(
+                '🚨 Temperature Alert!',
+                alertItem.message || 'A sensor has crossed critical temperature limits.'
+              );
+            }
+          });
+        }
+      } catch (err) {
+        console.log('Error checking alerts for local notifications:', err);
+      }
+    };
+
+    const alertPollInterval = setInterval(checkAlerts, 15000);
+    return () => clearInterval(alertPollInterval);
   }, []);
 
   return (

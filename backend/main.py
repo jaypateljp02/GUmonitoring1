@@ -6,7 +6,7 @@ import subprocess
 import json
 from datetime import datetime, timedelta
 from backend.config import APP_NAME, APP_VERSION
-from backend.routes import auth, products, recipes, tasks, sensors, rooms, alerts, monitoring
+from backend.routes import sensors, rooms, alerts, monitoring
 from backend.database import SessionLocal, ensure_db_ready
 from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry
 import threading

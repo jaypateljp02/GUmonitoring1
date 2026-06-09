@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 // Import Screens
 import LoginScreen from '../screens/LoginScreen';
-import SensorListScreen from '../screens/SensorListScreen'; // We can use this as 'Lists' tab
-import DashboardScreen from '../screens/DashboardScreen'; // Detail View
+import SensorListScreen from '../screens/SensorListScreen'; 
+import DashboardScreen from '../screens/DashboardScreen'; 
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import FloorPlanScreen from '../screens/FloorPlanScreen';
-// import AlertsScreen from '../screens/AlertsScreen'; // TODO: build later
+import AlertsScreen from '../screens/AlertsScreen'; 
 
 import { getAuthToken } from '../services/api';
 
@@ -20,23 +20,46 @@ function MainTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#1F2937' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
-        tabBarStyle: { backgroundColor: '#1F2937', borderTopColor: '#374151' },
+        headerStyle: { backgroundColor: '#0F172A', borderBottomWidth: 1, borderBottomColor: '#1E293B' },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: { fontWeight: '800', fontSize: 18, letterSpacing: 0.5 },
+        tabBarStyle: { backgroundColor: '#0F172A', borderTopColor: '#1E293B', paddingBottom: 6, height: 60 },
         tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarInactiveTintColor: '#64748B',
       }}
     >
       <Tab.Screen 
         name="Map" 
         component={FloorPlanScreen} 
-        options={{ title: 'Facility Map', tabBarIcon: () => <View style={{width: 20, height: 20, backgroundColor: '#3B82F6', borderRadius: 4}} /> }} 
+        options={{ 
+          title: 'Facility Map', 
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>🗺️</Text>
+          ) 
+        }} 
       />
       <Tab.Screen 
         name="Sensors" 
         component={SensorListScreen} 
-        options={{ title: 'All Sensors', tabBarIcon: () => <View style={{width: 20, height: 20, backgroundColor: '#10B981', borderRadius: 4}} /> }} 
+        options={{ 
+          title: 'All Sensors', 
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>🌡️</Text>
+          ) 
+        }} 
+      />
+      <Tab.Screen 
+        name="Alerts" 
+        component={AlertsScreen} 
+        options={{ 
+          title: 'System Alerts', 
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>⚠️</Text>
+          ) 
+        }} 
       />
     </Tab.Navigator>
   );
@@ -56,7 +79,7 @@ export default function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111827' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
         <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
@@ -66,10 +89,10 @@ export default function AppNavigator() {
     <Stack.Navigator 
       initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}
       screenOptions={{
-        headerStyle: { backgroundColor: '#1F2937' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
-        contentStyle: { backgroundColor: '#111827' }
+        headerStyle: { backgroundColor: '#0F172A', borderBottomWidth: 1, borderBottomColor: '#1E293B' },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: { fontWeight: '800', letterSpacing: 0.5 },
+        contentStyle: { backgroundColor: '#0F172A' }
       }}
     >
       <Stack.Screen 

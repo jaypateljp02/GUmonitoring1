@@ -13,8 +13,15 @@ def seed():
     # Base.metadata.create_all(bind=engine) # Assuming migrations or manual creation exists
     db = SessionLocal()
     
-    # 1. Clear existing monitoring data (if this is safe to do during dev)
+    # 1. Clear existing monitoring data
     print("Clearing old data...")
+    from backend.models.device_telemetry import DeviceTelemetry
+    from backend.models.alert import Alert
+    from backend.models.reading import SensorReading
+    
+    db.query(DeviceTelemetry).delete()
+    db.query(Alert).delete()
+    db.query(SensorReading).delete()
     db.query(Sensor).delete()
     db.query(Room).delete()
     db.commit()

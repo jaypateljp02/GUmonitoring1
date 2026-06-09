@@ -61,4 +61,15 @@ ground-up-monitoring/
 ### 3. Mobile Shared App (`mobile-shared/`)
 * **Language**: JavaScript / React Native
 * **Framework**: Expo SDK (cross-platform deployment)
-* **Libraries**: Axios (REST requests), React Navigation
+* **Libraries**: Axios (REST requests), React Navigation, Expo Notifications
+
+---
+
+## Completed Implementations & Platform Memory
+
+1. **Dynamic Telemetry Worker (`backend/worker.py`)**: Queries the database dynamically for all active sensors, generating simulated or real telemetry updates for all 13 locations (rooms, fridges, freezers) seeded via `seed_monitoring.py`.
+2. **Session Persistence**: Fixed Login screen redirect destination to `'MainTabs'`, allowing cached login tokens to successfully bypass the credentials screen.
+3. **Local OS Notifications**: Configured `expo-notifications` in the mobile app, with a background interval to poll the `/alerts` API and show native OS alerts when limits are breached.
+4. **Dedicated Alerts Tab**: Created `AlertsScreen` to display active/resolved alarms and enable single-click database status updates.
+5. **Light-Theme Sizing Refactor**: Aligned styling across lists, details, configuration inputs, and charts to match the light theme (`#F3F4F6` background), with extra large fonts (64px temperature display) and readable input boxes.
+6. **Web Dashboard Dynamic Data**: Updated `index.html` to query rooms and live telemetry from the backend dynamically.

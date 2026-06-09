@@ -12,6 +12,7 @@
     "expo-blur": "~56.0.3",
     "expo-file-system": "^56.0.7",
     "expo-location": "~56.0.16",
+    "expo-notifications": "^56.0.16",
     "expo-sharing": "~56.0.16",
     "expo-status-bar": "~56.0.4",
     "expo-updates": "~56.0.18",
