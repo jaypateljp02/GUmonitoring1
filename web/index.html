@@ -19,23 +19,57 @@
     .subheader { font-size: 14px; color: #6B7280; margin-bottom: 20px; }
     .section-title { font-size: 13px; font-weight: 800; color: #4B5563; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
 
-    /* eWeLink Status Banner */
-    .oauth-banner {
-      background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px;
-      padding: 14px 18px; margin-bottom: 20px;
-      display: flex; justify-content: space-between; align-items: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    /* Tabs Navigation */
+    .tabs {
+      display: flex; gap: 8px; margin-bottom: 20px;
+      background: #E5E7EB; padding: 4px; border-radius: 12px;
     }
-    .oauth-status-text { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .status-dot.green { background: #10B981; animation: pulse 2s infinite; }
-    .status-dot.orange { background: #F59E0B; }
-    .link-btn {
-      background: #2563EB; color: #FFFFFF; border: none; padding: 8px 14px;
-      border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer;
-      transition: background 0.2s;
+    .tab {
+      flex: 1; padding: 8px; text-align: center; font-weight: 700;
+      font-size: 13px; cursor: pointer; border-radius: 8px;
+      color: #4B5563; transition: all 0.2s;
     }
-    .link-btn:hover { background: #1D4ED8; }
+    .tab.active {
+      background: #FFFFFF; color: #111827;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* Map View Container */
+    .map-view {
+      display: none; position: relative; background: #1F2937;
+      border-radius: 20px; border: 1px solid #374151; overflow: hidden;
+      aspect-ratio: 4/3; margin-bottom: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .map-view.active { display: block; }
+    .map-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
+    
+    .map-pin {
+      position: absolute; transform: translate(-50%, -50%);
+      z-index: 10; cursor: pointer; transition: transform 0.15s;
+    }
+    .map-pin:hover { transform: translate(-50%, -50%) scale(1.05); }
+    .pin-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(31, 41, 55, 0.9); backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,0.1); padding: 4px 8px;
+      border-radius: 8px; color: #FFFFFF; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .pin-badge.alert { background: rgba(153, 27, 27, 0.95); border-color: #EF4444; }
+    .pin-dot { width: 6px; height: 6px; border-radius: 50%; background: #3B82F6; }
+    .pin-dot.alert { background: #EF4444; }
+    .pin-name { font-size: 8px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    .pin-temp { font-size: 11px; font-weight: bold; }
+
+    .pulse-ring-web {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(239, 68, 68, 0.4); transform: translate(-50%, -50%);
+      pointer-events: none; animation: pin-pulse 1.5s infinite;
+    }
+    @keyframes pin-pulse {
+      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+    }
 
     /* Sensor List Card */
     .sensor-card {
@@ -62,31 +96,6 @@
     .badge-ok { background: #D1FAE5; color: #065F46; }
     .badge-alert { background: #FEE2E2; color: #991B1B; }
     .footer-text { text-align: center; color: #9CA3AF; font-size: 12px; margin-top: 20px; }
-
-    /* Modal Styling */
-    .modal {
-      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(17, 24, 39, 0.7); align-items: center; justify-content: center;
-      z-index: 100; padding: 20px;
-    }
-    .modal.active { display: flex; }
-    .modal-content {
-      background: #FFFFFF; border-radius: 20px; padding: 24px; max-width: 420px;
-      width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-    }
-    .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; }
-    .modal-body { font-size: 13px; color: #4B5563; line-height: 1.5; margin-bottom: 18px; }
-    .modal-input {
-      width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 8px;
-      font-size: 13px; margin-bottom: 16px; outline: none; background: #F9FAFB;
-    }
-    .modal-btn-row { display: flex; gap: 10px; justify-content: flex-end; }
-    .modal-btn {
-      padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: bold;
-      cursor: pointer; border: none;
-    }
-    .modal-btn.cancel { background: #F3F4F6; color: #4B5563; }
-    .modal-btn.confirm { background: #2563EB; color: #FFFFFF; }
 
     /* ─── Detail View ─── */
     .detail-view { display: none; }
@@ -160,32 +169,34 @@
     .apk-subtitle { font-size: 11px; opacity: 0.9; font-weight: 500; }
     .apk-arrow { font-size: 18px; font-weight: bold; transition: transform 0.2s; }
     .apk-download-card:hover .apk-arrow { transform: translateX(4px); }
-
-    @keyframes pulse {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
   </style>
 </head>
 <body>
-  <!-- LIST VIEW -->
+  <!-- LIST / MAP VIEW -->
   <div class="page list-view" id="listView">
     <div class="header">🏭 Ground Up</div>
     <div class="subheader">Cold Room Monitoring</div>
-    <div id="liveClock" style="font-size: 16px; font-weight: bold; color: #3B82F6; margin-bottom: 24px;"></div>
     
-    <!-- OAuth Connection Status Card -->
-    <div class="oauth-banner">
-      <div class="oauth-status-text" id="oauthText">
-        <span class="status-dot orange" id="oauthDot"></span> Checking eWeLink link status...
-      </div>
-      <button class="link-btn" id="linkBtn" onclick="openLinkModal()" style="display: none;">Link Account</button>
+    <div class="tabs">
+      <div class="tab active" id="tabList" onclick="switchTab('list')">List Overview</div>
+      <div class="tab" id="tabMap" onclick="switchTab('map')">2D Floor Plan</div>
     </div>
 
-    <div class="section-title">All Sensors</div>
-    <div id="sensorList"></div>
-    <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view live details</div>
+    <div id="liveClock" style="font-size: 15px; font-weight: bold; color: #3B82F6; margin-bottom: 20px;"></div>
+    
+    <!-- 2D Floor Plan Map Screen -->
+    <div class="map-view" id="mapViewWrapper">
+      <img src="floorplan.jpg" class="map-image" alt="Facility Floor Plan" />
+      <div id="mapPins"></div>
+    </div>
+
+    <!-- Scroll list of devices -->
+    <div id="sensorListWrapper">
+      <div class="section-title">All Sensors</div>
+      <div id="sensorList"></div>
+    </div>
+    
+    <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
 
     <!-- Premium APK Download Card -->
     <div class="download-container" style="border-top: 1px dashed #E5E7EB; padding-top: 24px;">
@@ -202,7 +213,7 @@
 
   <!-- DETAIL VIEW -->
   <div class="page detail-view" id="detailView">
-    <button class="back-btn" onclick="showList()">← Back to Sensors</button>
+    <button class="back-btn" onclick="showList()">← Back to Overview</button>
     <div class="detail-header" id="detailHeader"></div>
     
     <!-- Metrics Card -->
@@ -290,24 +301,6 @@
     </div>
   </div>
 
-  <!-- OAuth Linking Modal -->
-  <div class="modal" id="linkModal">
-    <div class="modal-content">
-      <div class="modal-title">Link eWeLink Account</div>
-      <div class="modal-body">
-        1. Click the button below to authorize the application on your eWeLink Account.<br>
-        2. Once redirected, copy the resulting callback URL (which has <code>code=...</code> in the address bar).<br>
-        3. Paste that code or the entire URL in the box below to link the account.
-      </div>
-      <button class="action-btn blue" onclick="startOAuthRedirect()" style="padding: 12px; font-size: 14px; margin-bottom: 16px;">1. Authorize on eWeLink</button>
-      <input type="text" class="modal-input" id="oauthCodeInput" placeholder="Paste callback code or redirect URL here..." />
-      <div class="modal-btn-row">
-        <button class="modal-btn cancel" onclick="closeLinkModal()">Cancel</button>
-        <button class="modal-btn confirm" onclick="submitOAuthCode()">Link Account</button>
-      </div>
-    </div>
-  </div>
-
   <script>
     let rooms = [];
     let liveData = {};
@@ -317,6 +310,26 @@
     let tempMin = null;
     let tempMax = null;
     let chartInstance = null;
+
+    // Switch between List and Map tabs
+    function switchTab(tabName) {
+      const tabList = document.getElementById('tabList');
+      const tabMap = document.getElementById('tabMap');
+      const listWrapper = document.getElementById('sensorListWrapper');
+      const mapViewWrapper = document.getElementById('mapViewWrapper');
+
+      if (tabName === 'list') {
+        tabList.classList.add('active');
+        tabMap.classList.remove('active');
+        listWrapper.style.display = 'block';
+        mapViewWrapper.classList.remove('active');
+      } else {
+        tabList.classList.remove('active');
+        tabMap.classList.add('active');
+        listWrapper.style.display = 'none';
+        mapViewWrapper.classList.add('active');
+      }
+    }
 
     // Get icon based on room type
     function getRoomIcon(type) {
@@ -344,29 +357,32 @@
       </div>`;
     }
 
-    // Poll list view and check eWeLink link status
-    async function checkOAuthStatus() {
-      try {
-        const res = await fetch(`${API}/monitoring/oauth/status`);
-        if (res.ok) {
-          const data = await res.json();
-          const oauthText = document.getElementById('oauthText');
-          const oauthDot = document.getElementById('oauthDot');
-          const linkBtn = document.getElementById('linkBtn');
+    // Build map pins
+    function buildMapPin(room) {
+      if (!room.map_x || !room.map_y) return '';
+      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+      if (!tempSensor) return '';
+      const data = liveData[tempSensor.id];
+      const tempVal = data ? parseFloat(data.temperature) : null;
+      const tempText = tempVal !== null ? tempVal.toFixed(1) + '°C' : '--';
 
-          if (data.linked) {
-            oauthText.innerHTML = '<span class="status-dot green"></span> Connected to eWeLink cloud';
-            oauthDot.className = 'status-dot green';
-            linkBtn.style.display = 'none';
-          } else {
-            oauthText.innerHTML = '<span class="status-dot orange"></span> eWeLink Not Connected (Simulator Mode)';
-            oauthDot.className = 'status-dot orange';
-            linkBtn.style.display = 'block';
-          }
-        }
-      } catch (e) {
-        console.error("Error checking OAuth status:", e);
+      let isAlert = false;
+      if (tempSensor && tempVal !== null) {
+        if (tempSensor.min_threshold !== null && tempVal < tempSensor.min_threshold) isAlert = true;
+        if (tempSensor.max_threshold !== null && tempVal > tempSensor.max_threshold) isAlert = true;
       }
+
+      return `
+      <div class="map-pin" style="left: ${room.map_x}; top: ${room.map_y};" onclick="showDetail('${room.id}')">
+        ${isAlert ? '<div class="pulse-ring-web"></div>' : ''}
+        <div class="pin-badge ${isAlert ? 'alert' : ''}">
+          <div class="pin-dot ${isAlert ? 'alert' : ''}"></div>
+          <div>
+            <div class="pin-name">${room.name}</div>
+            <div class="pin-temp">${tempText}</div>
+          </div>
+        </div>
+      </div>`;
     }
 
     async function pollList() {
@@ -387,7 +403,8 @@
         document.querySelector('.section-title').textContent = `Locations (${rooms.length})`;
         
         if (rooms.length === 0) {
-          document.getElementById('sensorList').innerHTML = '<div style="text-align: center; color: #6B7280; font-size: 13px; margin: 20px 0;">No active devices found. Please link your eWeLink account or seed data.</div>';
+          document.getElementById('sensorList').innerHTML = '<div style="text-align: center; color: #6B7280; font-size: 13px; margin: 20px 0;">No active devices found. Backend is syncing from your eWeLink credentials...</div>';
+          document.getElementById('mapPins').innerHTML = '';
         } else {
           document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
         }
@@ -402,7 +419,10 @@
           });
         }
 
-        // Update readings for all rooms
+        // Render pins on the map
+        document.getElementById('mapPins').innerHTML = rooms.map(buildMapPin).join('');
+
+        // Update readings for all rooms in list view
         for (const room of rooms) {
           const tempSensor = room.sensors?.find(s => s.type === 'temperature');
           if (tempSensor && liveData[tempSensor.id]) {
@@ -439,64 +459,8 @@
       }
     }
 
-    checkOAuthStatus();
     pollList();
-    setInterval(checkOAuthStatus, 30000);
     const listInterval = setInterval(pollList, 10000);
-
-    // OAuth Modal Actions
-    function openLinkModal() {
-      document.getElementById('linkModal').classList.add('active');
-    }
-    function closeLinkModal() {
-      document.getElementById('linkModal').classList.remove('active');
-      document.getElementById('oauthCodeInput').value = '';
-    }
-
-    async function startOAuthRedirect() {
-      try {
-        const res = await fetch(`${API}/monitoring/oauth/url`);
-        if (res.ok) {
-          const data = await res.json();
-          window.open(data.url, '_blank');
-        }
-      } catch (e) {
-        alert("Failed to retrieve authorization URL.");
-      }
-    }
-
-    async function submitOAuthCode() {
-      let val = document.getElementById('oauthCodeInput').value.trim();
-      if (!val) {
-        alert("Please enter the authorization code or redirect URL.");
-        return;
-      }
-
-      // If they pasted the full redirect URL, extract the code parameter
-      if (val.includes('code=')) {
-        const urlParams = new URLSearchParams(val.split('?')[1]);
-        val = urlParams.get('code') || val;
-      }
-
-      try {
-        const res = await fetch(`${API}/monitoring/oauth/callback`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: val })
-        });
-        if (res.ok) {
-          alert("eWeLink account linked successfully! Syncing devices...");
-          closeLinkModal();
-          checkOAuthStatus();
-          pollList();
-        } else {
-          const errData = await res.json();
-          alert("Linking failed: " + (errData.detail || "Invalid code"));
-        }
-      } catch (e) {
-        alert("Failed to submit code.");
-      }
-    }
 
     // Fetch thresholds for detail view
     async function fetchActiveThresholds(deviceId) {

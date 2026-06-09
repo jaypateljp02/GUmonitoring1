@@ -12,34 +12,39 @@ import httpx
 logger = logging.getLogger(__name__)
 
 class EwelinkClient:
-    def __init__(self, email: Optional[str] = None, password: Optional[str] = None, region: str = "as", access_token: Optional[str] = None):
+    def __init__(self, email: str, password: str, region: str = "as"):
         self.email = email
         self.password = password
         self.region = region
-        # Custom developer credentials from eWeLink Console
-        self.appid = "k7I2Cjco0LzajauACqXz60hKC5DeyJWd"
-        self.appsecret = "1f5PyuItgiBT3oisfzGJiKFtyMSoPDxK"
+        # Official app credentials from SonoffLAN
+        self.appid = "4s1FXKC9FaGfoqXhmXSJneb3qcm1gOak"
+        self.appsecret = "oKvCM06gvwkRbfetd6qWRrbC3rFrbIpV"
         
         self.base_url = f"https://{region}-apia.coolkit.cc"
-        self.access_token = access_token
+        self.access_token: Optional[str] = None
         self.apikey: Optional[str] = None
 
     def _get_nonce(self) -> str:
         return "".join(random.choices(string.ascii_letters + string.digits, k=8))
 
-    async def exchange_code(self, code: str, redirect_uri: str) -> Optional[dict]:
+    async def login(self) -> bool:
         """
-        Exchange OAuth2 authorization code for access and refresh tokens.
+        Log in to eWeLink cloud and retrieve accessToken and apikey.
         """
-        url = f"{self.base_url}/v2/user/oauth/token"
+        url = f"{self.base_url}/v2/user/login"
         nonce = self._get_nonce()
         
         payload = {
-            "code": code,
-            "grantType": "authorization_code",
-            "redirectUri": redirect_uri
+            "email": self.email,
+            "password": self.password,
+            "appid": self.appid,
+            "ts": int(time.time()),
+            "version": 8,
+            "nonce": nonce,
+            "countryCode": "+91"
         }
         
+        # Serialize ONCE — use this exact bytes for both signing AND sending
         serialized = json.dumps(payload, separators=(',', ':'))
         sig_bytes = hmac.new(self.appsecret.encode('utf-8'), serialized.encode('utf-8'), hashlib.sha256).digest()
         signature = base64.b64encode(sig_bytes).decode('utf-8')
@@ -53,69 +58,40 @@ class EwelinkClient:
 
         try:
             async with httpx.AsyncClient() as client:
-                logger.info(f"Attempting token exchange at {url}")
+                logger.info(f"Attempting eWeLink login for {self.email} to {url}")
                 response = await client.post(url, content=serialized.encode('utf-8'), headers=headers, timeout=15)
                 if response.status_code != 200:
-                    logger.error(f"Token exchange HTTP error: {response.status_code} - {response.text}")
-                    return None
+                    logger.error(f"Login HTTP error: {response.status_code} - {response.text}")
+                    return False
                 
                 resp_json = response.json()
-                if resp_json.get("error", 0) != 0:
-                    logger.error(f"Token exchange API error: {resp_json.get('error')} - {resp_json.get('msg')}")
-                    return None
+                error_code = resp_json.get("error", 0)
+                if error_code != 0:
+                    logger.error(f"Login API error: {error_code} - {resp_json.get('msg')}")
+                    if error_code == 10004 and "region" in resp_json.get("data", {}):
+                        new_region = resp_json["data"]["region"]
+                        logger.info(f"Redirected to region: {new_region}")
+                        self.region = new_region
+                        self.base_url = f"https://{new_region}-apia.coolkit.cc"
+                        return await self.login()
+                    return False
                 
-                return resp_json.get("data") # Contains at (accessToken), rt (refreshToken), etc.
+                data = resp_json.get("data", {})
+                self.access_token = data.get("at")
+                self.apikey = data.get("user", {}).get("apikey")
+                logger.info("Login SUCCESS! Token obtained.")
+                return True
         except Exception as e:
-            logger.error(f"Exception during token exchange: {str(e)}")
-            return None
-
-    async def refresh_tokens(self, refresh_token: str) -> Optional[dict]:
-        """
-        Refresh access token using a refresh token.
-        """
-        url = f"{self.base_url}/v2/user/refresh"
-        nonce = self._get_nonce()
-        
-        payload = {
-            "rt": refresh_token
-        }
-        
-        serialized = json.dumps(payload, separators=(',', ':'))
-        sig_bytes = hmac.new(self.appsecret.encode('utf-8'), serialized.encode('utf-8'), hashlib.sha256).digest()
-        signature = base64.b64encode(sig_bytes).decode('utf-8')
-
-        headers = {
-            "X-CK-Appid": self.appid,
-            "X-CK-Nonce": nonce,
-            "Authorization": f"Sign {signature}",
-            "Content-Type": "application/json; charset=utf-8"
-        }
-
-        try:
-            async with httpx.AsyncClient() as client:
-                logger.info(f"Attempting token refresh at {url}")
-                response = await client.post(url, content=serialized.encode('utf-8'), headers=headers, timeout=15)
-                if response.status_code != 200:
-                    logger.error(f"Token refresh HTTP error: {response.status_code} - {response.text}")
-                    return None
-                
-                resp_json = response.json()
-                if resp_json.get("error", 0) != 0:
-                    logger.error(f"Token refresh API error: {resp_json.get('error')} - {resp_json.get('msg')}")
-                    return None
-                
-                return resp_json.get("data") # Contains at (accessToken), rt (refreshToken), etc.
-        except Exception as e:
-            logger.error(f"Exception during token refresh: {str(e)}")
-            return None
+            logger.error(f"Exception during eWeLink login: {str(e)}")
+            return False
 
     async def get_all_devices(self) -> Optional[List[Dict[str, Any]]]:
         """
         Fetch all devices/things registered under the eWeLink account.
         """
         if not self.access_token:
-            logger.error("No access token present in EwelinkClient")
-            return None
+            if not await self.login():
+                return None
 
         url = f"{self.base_url}/v2/device/thing"
         headers = {
@@ -135,6 +111,9 @@ class EwelinkClient:
                 error_code = resp_json.get("error", 0)
                 if error_code != 0:
                     logger.error(f"Device list API error: {error_code} - {resp_json.get('msg')}")
+                    if error_code in (401, 402):
+                        self.access_token = None
+                        return await self.get_all_devices()
                     return None
 
                 thing_list = resp_json.get("data", {}).get("thingList", [])
@@ -145,7 +124,7 @@ class EwelinkClient:
 
     async def get_device_status(self, device_id: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch telemetry (temperature, humidity, battery) of a specific device from the list of things.
+        Fetch telemetry parameters of a specific device from the list.
         """
         thing_list = await self.get_all_devices()
         if not thing_list:
@@ -164,13 +143,10 @@ class EwelinkClient:
             return None
 
         params_obj = target_device.get("params", {})
-        
-        # Extract readings
         temperature = params_obj.get("temperature")
         humidity = params_obj.get("humidity")
         battery = params_obj.get("battery")
         
-        # Clean temperature and humidity readings
         if temperature is not None:
             temp_val = float(temperature)
             if temp_val > 100 or temp_val < -100:

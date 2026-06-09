@@ -1,16 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 // Import Screens
 import LoginScreen from '../screens/LoginScreen';
 import SensorListScreen from '../screens/SensorListScreen'; 
+import FloorPlanScreen from '../screens/FloorPlanScreen';
 import DashboardScreen from '../screens/DashboardScreen'; 
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 import { getAuthToken } from '../services/api';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarStyle: { backgroundColor: '#0F172A', borderTopColor: '#1E293B', height: 60, paddingBottom: 8, paddingTop: 8 },
+        tabBarActiveTintColor: '#3B82F6',
+        tabBarInactiveTintColor: '#94A3B8',
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen 
+        name="List" 
+        component={SensorListScreen} 
+        options={{
+          tabBarLabel: 'Sensors List',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📋</Text>,
+        }}
+      />
+      <Tab.Screen 
+        name="Map" 
+        component={FloorPlanScreen} 
+        options={{
+          tabBarLabel: 'Facility Map',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🗺️</Text>,
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 export default function AppNavigator() {
   const [isLoading, setIsLoading] = useState(true);
@@ -34,7 +67,7 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator 
-      initialRouteName={isLoggedIn ? 'SensorList' : 'Login'}
+      initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}
       screenOptions={{
         headerStyle: { backgroundColor: '#0F172A', borderBottomWidth: 1, borderBottomColor: '#1E293B' },
         headerTintColor: '#FFFFFF',
@@ -48,8 +81,8 @@ export default function AppNavigator() {
         options={{ headerShown: false }} 
       />
       <Stack.Screen 
-        name="SensorList" 
-        component={SensorListScreen} 
+        name="MainTabs" 
+        component={MainTabNavigator} 
         options={{ headerShown: false }} 
       />
       <Stack.Screen 

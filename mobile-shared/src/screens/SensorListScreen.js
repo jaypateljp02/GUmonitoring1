@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { api, clearAuthToken } from '../services/api';
 
 function RoomCard({ room, telemetry, onPress }) {
@@ -67,21 +67,7 @@ export default function SensorListScreen({ navigation }) {
   const [rooms, setRooms] = useState([]);
   const [liveData, setLiveData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [linked, setLinked] = useState(false);
-  const [linkingMode, setLinkingMode] = useState(false);
-  const [oauthCode, setOauthCode] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  const checkOAuthStatus = async () => {
-    try {
-      const res = await api.get('/monitoring/oauth/status');
-      if (res.data) {
-        setLinked(res.data.linked);
-      }
-    } catch (e) {
-      console.log('Failed to check OAuth status', e);
-    }
-  };
 
   const fetchData = async () => {
     try {
@@ -109,58 +95,14 @@ export default function SensorListScreen({ navigation }) {
   };
 
   useEffect(() => {
-    checkOAuthStatus();
     fetchData();
-    const interval = setInterval(() => {
-      fetchData();
-      checkOAuthStatus();
-    }, 10000);
+    const interval = setInterval(fetchData, 10000);
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => {
       clearInterval(interval);
       clearInterval(timer);
     };
   }, []);
-
-  const handleLinkPress = async () => {
-    try {
-      const res = await api.get('/monitoring/oauth/url');
-      if (res.data && res.data.url) {
-        setLinkingMode(true);
-        Linking.openURL(res.data.url);
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to retrieve authorization URL.');
-    }
-  };
-
-  const submitCode = async () => {
-    let cleanCode = oauthCode.trim();
-    if (!cleanCode) {
-      Alert.alert('Error', 'Please enter a code or URL.');
-      return;
-    }
-
-    if (cleanCode.includes('code=')) {
-      const parts = cleanCode.split('code=');
-      if (parts.length > 1) {
-        cleanCode = parts[1].split('&')[0];
-      }
-    }
-
-    try {
-      const res = await api.post('/monitoring/oauth/callback', { code: cleanCode });
-      if (res.status === 200) {
-        Alert.alert('Success', 'eWeLink account linked successfully! Discovering devices...');
-        setLinkingMode(false);
-        setOauthCode('');
-        checkOAuthStatus();
-        fetchData();
-      }
-    } catch (err) {
-      Alert.alert('Linking Failed', err.response?.data?.detail || 'Invalid code provided.');
-    }
-  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -203,48 +145,6 @@ export default function SensorListScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* OAuth Integration Panel */}
-      <View style={styles.oauthBanner}>
-        {linked ? (
-          <View style={styles.oauthStatusRow}>
-            <View style={styles.statusDotGreen} />
-            <Text style={styles.oauthStatusText}>Connected to eWeLink cloud</Text>
-          </View>
-        ) : linkingMode ? (
-          <View style={styles.linkingContainer}>
-            <Text style={styles.linkingTitle}>Link eWeLink Account</Text>
-            <Text style={styles.linkingStep}>1. Complete authorization in browser.</Text>
-            <Text style={styles.linkingStep}>2. Paste code or callback URL below:</Text>
-            <TextInput
-              style={styles.codeInput}
-              placeholder="Paste code or redirect URL here..."
-              value={oauthCode}
-              onChangeText={setOauthCode}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <View style={styles.linkingBtnRow}>
-              <TouchableOpacity style={[styles.modalBtn, styles.cancelBtn]} onPress={() => setLinkingMode(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.confirmBtn]} onPress={submitCode}>
-                <Text style={styles.confirmText}>Submit Code</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.oauthStatusRowSpace}>
-            <View style={styles.oauthStatusRow}>
-              <View style={styles.statusDotOrange} />
-              <Text style={styles.oauthStatusTextOrange}>eWeLink Not Connected (Simulator)</Text>
-            </View>
-            <TouchableOpacity style={styles.linkButton} onPress={handleLinkPress}>
-              <Text style={styles.linkButtonText}>Link</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
       <Text style={styles.sectionTitle}>Locations ({rooms.length})</Text>
 
       {rooms.map(room => (
@@ -283,41 +183,6 @@ const styles = StyleSheet.create({
   logoutBtn: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, marginTop: 4 },
   logoutText: { color: '#991B1B', fontWeight: 'bold', fontSize: 13 },
   
-  // OAuth Panel styles
-  oauthBanner: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  oauthStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  oauthStatusRowSpace: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  statusDotGreen: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
-  statusDotOrange: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#F59E0B' },
-  oauthStatusText: { fontSize: 13, fontWeight: '700', color: '#059669' },
-  oauthStatusTextOrange: { fontSize: 13, fontWeight: '700', color: '#B45309' },
-  linkButton: { backgroundColor: '#2563EB', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  linkButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
-  
-  // Linking inside app styles
-  linkingContainer: { width: '100%' },
-  linkingTitle: { fontSize: 15, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
-  linkingStep: { fontSize: 12, color: '#4B5563', marginBottom: 4 },
-  codeInput: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, fontSize: 13, color: '#111827', marginTop: 10, marginBottom: 14 },
-  linkingBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  modalBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  cancelBtn: { backgroundColor: '#F3F4F6' },
-  confirmBtn: { backgroundColor: '#2563EB' },
-  cancelText: { color: '#4B5563', fontWeight: 'bold', fontSize: 13 },
-  confirmText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-
   sectionTitle: { fontSize: 12, fontWeight: '800', color: '#4B5563', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 },
 
   sensorCard: {

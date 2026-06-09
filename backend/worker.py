@@ -7,43 +7,152 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from backend.database import SessionLocal
+from backend.models.room import Room
 from backend.models.device_telemetry import DeviceTelemetry
 from backend.models.sensor import Sensor
 from backend.models.reading import SensorReading
 from backend.models.alert import Alert
-from backend.models.ewelink_token import EwelinkToken
 from backend.services.ewelink import EwelinkClient
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-async def refresh_user_token(db, token_record):
+async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
     """
-    Attempt to refresh the expired access token using the refresh token.
+    Fetch all devices from eWeLink and sync them to rooms/sensors in the database.
+    Deactivates any mock/unlinked sensors.
     """
-    logger.info("Attempting to refresh eWeLink access token...")
-    client = EwelinkClient(region=token_record.region)
-    new_tokens = await client.refresh_tokens(token_record.refresh_token)
-    if new_tokens and new_tokens.get("at") and new_tokens.get("rt"):
-        token_record.access_token = new_tokens["at"]
-        token_record.refresh_token = new_tokens["rt"]
-        db.commit()
-        logger.info("eWeLink access token refreshed successfully!")
-        return new_tokens["at"]
-    else:
-        logger.error("Failed to refresh eWeLink access token. Refresh token might be expired.")
-        return None
+    logger.info("Synchronizing eWeLink devices with database...")
+    thing_list = await client.get_all_devices()
+    if thing_list is None:
+        logger.error("Failed to retrieve eWeLink devices during sync.")
+        return []
+
+    synced_device_ids = []
+    
+    for t in thing_list:
+        item_data = t.get("itemData", {})
+        device_id = item_data.get("deviceid")
+        if not device_id:
+            continue
+        
+        device_name = item_data.get("name") or f"Device {device_id[:6]}"
+        synced_device_ids.append(device_id)
+
+        # 1. Find or create Room
+        existing_sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
+        if existing_sensor:
+            room_id = existing_sensor.room_id
+            room = db.query(Room).filter(Room.id == room_id).first()
+            if room and room.name != device_name:
+                room.name = device_name
+        else:
+            # Determine room type
+            room_type = "room"
+            name_lower = device_name.lower()
+            if "fridge" in name_lower:
+                room_type = "fridge"
+            elif "freezer" in name_lower:
+                room_type = "freezer"
+                
+            room = Room(
+                name=device_name,
+                type=room_type,
+                active=True
+            )
+            db.add(room)
+            db.flush() # Populate room.id
+            room_id = room.id
+
+        # 2. Find or create Temperature Sensor
+        temp_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "temperature").first()
+        if not temp_sensor:
+            temp_sensor = Sensor(
+                room_id=room_id,
+                name=f"{device_name} Temp",
+                type="temperature",
+                device_id=device_id,
+                min_threshold=2.0 if room.type in ["fridge", "freezer"] else 18.0,
+                max_threshold=6.0 if room.type == "fridge" else (-5.0 if room.type == "freezer" else 28.0),
+                active=True
+            )
+            db.add(temp_sensor)
+        else:
+            temp_sensor.active = True
+
+        # 3. Find or create Humidity Sensor
+        hum_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "humidity").first()
+        if not hum_sensor:
+            hum_sensor = Sensor(
+                room_id=room_id,
+                name=f"{device_name} Hum",
+                type="humidity",
+                device_id=device_id,
+                min_threshold=40.0,
+                max_threshold=65.0,
+                active=True
+            )
+            db.add(hum_sensor)
+        else:
+            hum_sensor.active = True
+
+    # 4. Deactivate mock/removed sensors and clean up inactive rooms
+    if synced_device_ids:
+        # Deactivate sensors not in eWeLink list
+        db.query(Sensor).filter(Sensor.device_id.notin_(synced_device_ids)).update({"active": False}, synchronize_session=False)
+        
+        # Deactivate rooms that have no active sensors
+        active_room_ids = db.query(Sensor.room_id).filter(Sensor.active == True).distinct().all()
+        active_room_ids = [r[0] for r in active_room_ids if r[0]]
+        
+        db.query(Room).filter(Room.id.notin_(active_room_ids)).update({"active": False}, synchronize_session=False)
+        
+    db.commit()
+    logger.info(f"Sync complete. Synced device IDs: {synced_device_ids}")
+    return synced_device_ids
 
 async def ingestion_loop():
+    email = os.getenv("EWELINK_EMAIL")
+    password = os.getenv("EWELINK_PASSWORD")
+    region = os.getenv("EWELINK_REGION", "as")
+
+    client = None
+    use_live = False
+
+    if email and password:
+        logger.info(f"Initializing official eWeLink client for {email}...")
+        client = EwelinkClient(email=email, password=password, region=region)
+        if await client.login():
+            use_live = True
+            # Sync devices immediately on login success
+            db = SessionLocal()
+            try:
+                await sync_ewelink_devices(db, client)
+            except Exception as e:
+                logger.error(f"Failed to sync devices on startup: {e}")
+            finally:
+                db.close()
+        else:
+            logger.error("Failed to authenticate with eWeLink. Running in Simulator Mode.")
+    else:
+        logger.warning("No eWeLink credentials in .env. Running in Simulator Mode.")
+
+    sync_counter = 0
+
     while True:
         start_time = time.time()
         db = SessionLocal()
         try:
-            # 1. Fetch active eWeLink token if available
-            token_record = db.query(EwelinkToken).filter(EwelinkToken.id == "default").first()
+            # Sync devices periodically (every 10 minutes / 10 loops)
+            if use_live and sync_counter >= 10:
+                try:
+                    await sync_ewelink_devices(db, client)
+                    sync_counter = 0
+                except Exception as e:
+                    logger.error(f"Failed to sync devices: {e}")
             
-            # 2. Fetch all active sensors from the DB
+            # Fetch all active sensors from the DB
             active_sensors = db.query(Sensor).filter(Sensor.active == True).all()
             
             # Map of device_id -> List[Sensor]
@@ -54,32 +163,14 @@ async def ingestion_loop():
                         devices_map[s.device_id] = []
                     devices_map[s.device_id].append(s)
 
-            # Polling variables
-            use_live = False
             thing_list = None
-            client = None
-            
-            if token_record:
-                client = EwelinkClient(access_token=token_record.access_token, region=token_record.region)
-                # Fetch all devices at once to avoid multiple API calls
+            if use_live:
                 thing_list = await client.get_all_devices()
-                
-                # Check for token expiration (401/402 or thingList is None)
                 if thing_list is None:
-                    # Try to refresh token
-                    new_at = await refresh_user_token(db, token_record)
-                    if new_at:
-                        client.access_token = new_at
+                    logger.warning("Failed to fetch devices. Retrying login...")
+                    if await client.login():
                         thing_list = await client.get_all_devices()
-                
-                if thing_list is not None:
-                    use_live = True
-                    logger.info("Successfully fetched live telemetry from eWeLink cloud.")
-                else:
-                    logger.warning("eWeLink token is invalid or expired. Falling back to simulator mode.")
-            else:
-                logger.info("No eWeLink account linked. Running in simulator mode.")
-
+            
             # Process each active device
             for target_device, sensors in devices_map.items():
                 try:
@@ -187,6 +278,7 @@ async def ingestion_loop():
         finally:
             db.close()
             
+        sync_counter += 1
         elapsed = time.time() - start_time
         sleep_time = max(0, 60.0 - elapsed)
         await asyncio.sleep(sleep_time)
