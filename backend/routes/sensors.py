@@ -15,7 +15,6 @@ from backend.models.device_telemetry import DeviceTelemetry
 from fastapi.responses import StreamingResponse
 import csv
 from io import StringIO
-from backend.worker import WorkerState
 from sqlalchemy import func, cast, Date
 import calendar
 
