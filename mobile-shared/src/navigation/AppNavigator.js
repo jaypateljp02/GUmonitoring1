@@ -5,6 +5,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // Import Screens
 import LoginScreen from '../screens/LoginScreen';
 import SensorListScreen from '../screens/SensorListScreen'; 
+import DashboardScreen from '../screens/DashboardScreen'; 
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 import { getAuthToken } from '../services/api';
 
@@ -49,6 +51,16 @@ export default function AppNavigator() {
         name="SensorList" 
         component={SensorListScreen} 
         options={{ headerShown: false }} 
+      />
+      <Stack.Screen 
+        name="DeviceDetail" 
+        component={DashboardScreen} 
+        options={{ title: 'Sensor Details' }} 
+      />
+      <Stack.Screen 
+        name="Analytics" 
+        component={AnalyticsScreen} 
+        options={{ title: 'Analytics' }} 
       />
     </Stack.Navigator>
   );
