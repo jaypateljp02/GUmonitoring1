@@ -96,13 +96,17 @@ export default function SensorListScreen({ navigation }) {
 
   useEffect(() => {
     fetchData();
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchData();
+    });
     const interval = setInterval(fetchData, 10000);
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => {
+      unsubscribe();
       clearInterval(interval);
       clearInterval(timer);
     };
-  }, []);
+  }, [navigation]);
 
   const handleLogout = () => {
     Alert.alert(

@@ -37,9 +37,15 @@ export default function FloorPlanScreen() {
     };
 
     fetchData();
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchData();
+    });
     const interval = setInterval(fetchData, 10000); // Poll every 10s for live data
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [navigation]);
 
   const handleMarkerPress = (room) => {
     // Navigate to the specific room's detail view

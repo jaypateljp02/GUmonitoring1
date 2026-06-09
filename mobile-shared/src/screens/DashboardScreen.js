@@ -89,9 +89,17 @@ export default function DashboardScreen({ route, navigation }) {
 
 
   const handleSaveThresholds = async () => {
+    const minVal = minThreshold !== '' ? parseFloat(minThreshold) : null;
+    const maxVal = maxThreshold !== '' ? parseFloat(maxThreshold) : null;
+
+    if (minVal !== null && maxVal !== null && minVal >= maxVal) {
+      Alert.alert('Invalid Thresholds', 'Min temperature must be strictly less than Max temperature.');
+      return;
+    }
+
     const body = {
-      temp_min: minThreshold !== '' ? parseFloat(minThreshold) : null,
-      temp_max: maxThreshold !== '' ? parseFloat(maxThreshold) : null
+      temp_min: minVal,
+      temp_max: maxVal
     };
     try {
       await api.put(`/sensors/device/${device.id}/thresholds`, body);

@@ -482,9 +482,18 @@
       if (!currentDevice) return;
       const minVal = document.getElementById('minInput').value;
       const maxVal = document.getElementById('maxInput').value;
+      
+      const tempMinVal = minVal !== '' ? parseFloat(minVal) : null;
+      const tempMaxVal = maxVal !== '' ? parseFloat(maxVal) : null;
+
+      if (tempMinVal !== null && tempMaxVal !== null && tempMinVal >= tempMaxVal) {
+        alert('Invalid Thresholds: Min temperature must be strictly less than Max temperature.');
+        return;
+      }
+
       const body = {
-        temp_min: minVal !== '' ? parseFloat(minVal) : null,
-        temp_max: maxVal !== '' ? parseFloat(maxVal) : null
+        temp_min: tempMinVal,
+        temp_max: tempMaxVal
       };
       try {
         const res = await fetch(`${API}/sensors/device/${currentDevice.id}/thresholds`, {
