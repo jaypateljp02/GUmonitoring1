@@ -72,7 +72,11 @@ export default function SensorListScreen({ navigation }) {
   const fetchData = async () => {
     try {
       const roomsRes = await api.get('/rooms');
-      setRooms(roomsRes.data);
+      if (Array.isArray(roomsRes.data)) {
+        setRooms(roomsRes.data);
+      } else {
+        setRooms([]);
+      }
 
       const dashboardRes = await api.get('/monitoring/dashboard');
       const telemetryMap = {};
@@ -84,6 +88,7 @@ export default function SensorListScreen({ navigation }) {
       setLiveData(telemetryMap);
     } catch (e) {
       console.log('Failed to fetch rooms & live telemetry in list view', e);
+      setRooms([]);
     } finally {
       setLoading(false);
     }

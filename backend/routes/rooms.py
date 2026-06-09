@@ -13,7 +13,7 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
 
 @router.get("", response_model=List[RoomResponse])
-def list_rooms(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def list_rooms(db: Session = Depends(get_db)):
     rooms = db.query(Room).filter(Room.active == True).all()
     result = []
     for r in rooms:
@@ -25,7 +25,7 @@ def list_rooms(db: Session = Depends(get_db), user: TokenUser = Depends(get_curr
 
 
 @router.get("/{room_id}", response_model=RoomResponse)
-def get_room(room_id: str, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+def get_room(room_id: str, db: Session = Depends(get_db)):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")

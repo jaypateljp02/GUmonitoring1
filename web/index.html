@@ -308,7 +308,12 @@
       try {
         // Fetch rooms dynamically
         const roomsRes = await fetch(`${API}/rooms`);
-        rooms = await roomsRes.json();
+        if (roomsRes.ok) {
+          const data = await roomsRes.json();
+          rooms = Array.isArray(data) ? data : [];
+        } else {
+          rooms = [];
+        }
         
         document.querySelector('.section-title').textContent = `Locations (${rooms.length})`;
         document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
