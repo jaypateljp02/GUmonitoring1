@@ -1,20 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
+// Import Screens
 import LoginScreen from '../screens/LoginScreen';
-import SensorListScreen from '../screens/SensorListScreen';
-import DashboardScreen from '../screens/DashboardScreen';
+import SensorListScreen from '../screens/SensorListScreen'; // We can use this as 'Lists' tab
+import DashboardScreen from '../screens/DashboardScreen'; // Detail View
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import FloorPlanScreen from '../screens/FloorPlanScreen';
+// import AlertsScreen from '../screens/AlertsScreen'; // TODO: build later
+
 import { getAuthToken } from '../services/api';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#1F2937' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+        tabBarStyle: { backgroundColor: '#1F2937', borderTopColor: '#374151' },
+        tabBarActiveTintColor: '#3B82F6',
+        tabBarInactiveTintColor: '#9CA3AF',
+      }}
+    >
+      <Tab.Screen 
+        name="Map" 
+        component={FloorPlanScreen} 
+        options={{ title: 'Facility Map', tabBarIcon: () => <View style={{width: 20, height: 20, backgroundColor: '#3B82F6', borderRadius: 4}} /> }} 
+      />
+      <Tab.Screen 
+        name="Sensors" 
+        component={SensorListScreen} 
+        options={{ title: 'All Sensors', tabBarIcon: () => <View style={{width: 20, height: 20, backgroundColor: '#10B981', borderRadius: 4}} /> }} 
+      />
+    </Tab.Navigator>
+  );
+}
 
 export default function AppNavigator() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Check if user has a saved session
     (async () => {
       const token = await getAuthToken();
       setIsLoggedIn(!!token);
@@ -32,7 +64,7 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator 
-      initialRouteName={isLoggedIn ? 'Main' : 'Login'}
+      initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}
       screenOptions={{
         headerStyle: { backgroundColor: '#1F2937' },
         headerTintColor: '#fff',
@@ -46,9 +78,9 @@ export default function AppNavigator() {
         options={{ headerShown: false }} 
       />
       <Stack.Screen 
-        name="Main" 
-        component={SensorListScreen} 
-        options={{ title: 'Ground Up Monitor', headerBackVisible: false }} 
+        name="MainTabs" 
+        component={MainTabNavigator} 
+        options={{ headerShown: false }} 
       />
       <Stack.Screen 
         name="DeviceDetail" 
