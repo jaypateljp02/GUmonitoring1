@@ -15,11 +15,11 @@ export default function LoginScreen({ navigation }) {
       // Standard auth check
       if (email === 'grounduppune89@gmail.com' && password === 'Groundup') {
         await setAuthToken('dummy-token');
-        navigation.replace('MainTabs');
+        navigation.replace('SensorList');
       } else {
         // Fallback for demo/test mode
         await setAuthToken('demo-token');
-        navigation.replace('MainTabs');
+        navigation.replace('SensorList');
       }
     } catch (err) {
       setError('Login failed. Please check your credentials.');
