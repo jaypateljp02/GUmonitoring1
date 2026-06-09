@@ -266,7 +266,7 @@ async def ingestion_loop():
                             reading = SensorReading(
                                 sensor_id=s.id,
                                 value=val,
-                                timestamp=timestamp_parsed
+                                recorded_at=timestamp_parsed
                             )
                             db.add(reading)
                             
@@ -279,7 +279,7 @@ async def ingestion_loop():
                                         sensor_id=s.id,
                                         value=val,
                                         message=f"{s.type.capitalize()} threshold exceeded: {val} > {s.max_threshold}",
-                                        timestamp=timestamp_parsed
+                                        created_at=timestamp_parsed
                                     )
                                     db.add(new_alert)
                             
@@ -291,7 +291,7 @@ async def ingestion_loop():
                                         sensor_id=s.id,
                                         value=val,
                                         message=f"{s.type.capitalize()} threshold dropped below minimum: {val} < {s.min_threshold}",
-                                        timestamp=timestamp_parsed
+                                        created_at=timestamp_parsed
                                     )
                                     db.add(new_alert)
                         db.commit()
