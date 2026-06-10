@@ -439,73 +439,19 @@ export default function AnalyticsScreen({ route }) {
                 />
               </ScrollView>
             </View>
-          )}
-
-          {/* Humidity Chart (Stacked under Temperature) */}
-          {(timeFrame === 'Monthly' || timeFrame === '30D') ? (
-            <View style={[styles.chartContainer, { marginTop: 20 }]}>
-              <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Humidity Extremes</Text>
-              {monthlyData.length > 0 ? (
-                <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-                  <LineChart
-                    data={monthlyHumChartData}
-                    width={Math.max(width - 40, monthlyData.length * 45)}
-                    height={260}
-                    yAxisSuffix="%"
-                    yAxisInterval={1}
-                    chartConfig={{
-                      ...chartConfigLight,
-                      propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
-                    }}
-                    bezier
-                    style={{ marginVertical: 8, borderRadius: 16 }}
-                  />
-                </ScrollView>
-              ) : (
-                <Text style={styles.errorText}>No humidity extremes data available for this range.</Text>
-              )}
-            </View>
-          ) : cleanedHumLogs.length < 2 ? (
-            <View style={[styles.errorContainer, { marginTop: 20 }]}>
-              <Text style={styles.errorText}>No humidity trend data available yet.</Text>
-            </View>
-          ) : (
-            <View style={[styles.chartContainer, { marginTop: 20 }]}>
-              <Text style={styles.chartTitle}>{timeFrame} Humidity Trend</Text>
-              <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-                <LineChart
-                  data={humChartData}
-                  width={Math.max(width - 40, sampledHumLogs.length * 40)}
-                  height={260}
-                  yAxisSuffix="%"
-                  yAxisInterval={1}
-                  chartConfig={{
-                    ...chartConfigLight,
-                    propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
-                  }}
-                  bezier
-                  style={{
-                    marginVertical: 8,
-                    borderRadius: 16
-                  }}
-                />
-              </ScrollView>
-            </View>
-          )}
+               {/* Temperature Chart End */}
         </View>
       )}
-
+ 
       <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV} activeOpacity={0.8}>
         <Text style={styles.exportButtonText}>📥 Export CSV Audit Log</Text>
       </TouchableOpacity>
-
+ 
       <View style={styles.infoBox}>
         <Text style={styles.infoText}>
           The red line represents the maximum acceptable temperature ({effectiveMaxThreshold}°C).
           {tempMin !== null && ` The green line represents the minimum acceptable temperature (${tempMin}°C).`}
-          {humMax !== null && ` The pink line represents the maximum acceptable humidity (${humMax}%).`}
-          {humMin !== null && ` The green line on the humidity chart represents the minimum acceptable humidity (${humMin}%).`}
-          {"\n\n"}Temperatures and humidities crossing these bounds will trigger system alarms.
+          {"\n\n"}Temperatures crossing these bounds will trigger system alarms.
         </Text>
       </View>
 

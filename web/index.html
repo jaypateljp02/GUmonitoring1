@@ -8,32 +8,32 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg-gradient: linear-gradient(135deg, #090d16 0%, #030712 100%);
-      --card-bg: rgba(17, 24, 39, 0.7);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --card-hover-bg: rgba(30, 41, 59, 0.65);
-      --text-primary: #f9fafc;
-      --text-secondary: #9ca3af;
-      --accent-blue: #00f2fe;
-      --accent-blue-border: rgba(0, 242, 254, 0.3);
-      --accent-blue-bg: rgba(0, 242, 254, 0.08);
+      --bg-gradient: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+      --card-bg: #ffffff;
+      --card-border: #e5e7eb;
+      --card-hover-bg: #f9fafb;
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --accent-blue: #2563eb;
+      --accent-blue-border: #bfdbfe;
+      --accent-blue-bg: #eff6ff;
       --accent-green: #10b981;
-      --accent-red: #f87171;
-      --accent-red-border: rgba(248, 113, 113, 0.3);
-      --accent-red-bg: rgba(248, 113, 113, 0.08);
-      --accent-purple: #c084fc;
-      --accent-purple-border: rgba(192, 132, 252, 0.3);
-      --accent-purple-bg: rgba(192, 132, 252, 0.08);
-      --accent-pink: #f472b6;
-      --accent-pink-border: rgba(244, 114, 182, 0.3);
-      --accent-pink-bg: rgba(244, 114, 182, 0.08);
+      --accent-red: #ef4444;
+      --accent-red-border: #fecaca;
+      --accent-red-bg: #fef2f2;
+      --accent-purple: #8b5cf6;
+      --accent-purple-border: #ddd6fe;
+      --accent-purple-bg: #f5f3ff;
+      --accent-pink: #ec4899;
+      --accent-pink-border: #fbcfe8;
+      --accent-pink-bg: #fdf2f8;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
       font-family: 'Inter', -apple-system, sans-serif;
-      background: #030712;
+      background: #f3f4f6;
       background-image: var(--bg-gradient);
       color: var(--text-primary);
       min-height: 100vh;
@@ -46,54 +46,51 @@
       position: fixed;
       top: -10%; left: -10%;
       width: 120%; height: 120%;
-      background: radial-gradient(circle at 15% 15%, rgba(0, 242, 254, 0.04) 0%, transparent 45%),
-                  radial-gradient(circle at 85% 85%, rgba(192, 132, 252, 0.04) 0%, transparent 45%);
+      background: radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.03) 0%, transparent 45%),
+                  radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.03) 0%, transparent 45%);
       pointer-events: none;
       z-index: -1;
     }
 
-    .page { padding: 20px; max-width: 500px; margin: 0 auto; transition: max-width 0.2s; }
-    @media (min-width: 600px) or (orientation: landscape) {
-      .page { max-width: 850px; }
-    }
+    .page { padding: 16px; max-width: 480px; margin: 0 auto; }
 
     /* Header */
     .header {
-      font-size: 34px; font-weight: 800;
-      background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+      font-size: 28px; font-weight: 800;
+      background: linear-gradient(135deg, #111827 0%, #2563eb 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 4px; letter-spacing: -0.5px;
+      margin-bottom: 2px; letter-spacing: -0.5px;
     }
-    .subheader { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; font-weight: 500; }
-    .section-title { font-size: 12px; font-weight: 800; color: var(--text-secondary); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1.5px; }
+    .subheader { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; font-weight: 500; }
+    .section-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
 
     /* Tabs Navigation */
     .tabs {
-      display: flex; gap: 6px; margin-bottom: 24px;
-      background: rgba(255,255,255,0.05); padding: 4px; border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex; gap: 6px; margin-bottom: 16px;
+      background: rgba(0,0,0,0.03); padding: 4px; border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.04);
     }
     .tab {
-      flex: 1; padding: 10px; text-align: center; font-weight: 700;
-      font-size: 13px; cursor: pointer; border-radius: 10px;
+      flex: 1; padding: 8px; text-align: center; font-weight: 700;
+      font-size: 13px; cursor: pointer; border-radius: 8px;
       color: var(--text-secondary); transition: all 0.2s ease-in-out;
     }
     .tab.active {
-      background: rgba(255, 255, 255, 0.1); color: #ffffff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: #ffffff; color: var(--text-primary);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0,0,0,0.02);
     }
 
     /* Map View Container */
     .map-view {
-      display: none; position: relative; background: #0c101b;
-      border-radius: 24px; border: 1px solid var(--card-border); overflow: hidden;
-      aspect-ratio: 4/3; margin-bottom: 24px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: none; position: relative; background: #e5e7eb;
+      border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden;
+      aspect-ratio: 16/9; margin-bottom: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .map-view.active { display: block; }
-    .map-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+    .map-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
     
     .map-pin {
       position: absolute; transform: translate(-50%, -50%);
@@ -127,56 +124,54 @@
     /* Sensor List Card */
     .sensor-card {
       background: var(--card-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 18px 22px;
-      margin-bottom: 14px;
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
     .sensor-card:hover {
       background: var(--card-hover-bg);
-      transform: translateY(-2px);
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+      transform: translateY(-1px);
+      border-color: rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     }
     .sensor-card:active { transform: scale(0.98); }
-    .sensor-card.alert-border { border-color: #f87171; background: rgba(239, 68, 68, 0.08); }
-    .sensor-card.offline-border { border-color: #6b7280; background: rgba(55, 65, 81, 0.15); }
+    .sensor-card.alert-border { border-color: var(--accent-red); background: var(--accent-red-bg); }
+    .sensor-card.offline-border { border-color: #cbd5e1; background: #f1f5f9; }
     
-    .sensor-left { display: flex; align-items: center; gap: 14px; }
-    .sensor-icon { font-size: 30px; }
-    .sensor-name { font-size: 17px; font-weight: 700; color: #ffffff; }
-    .sensor-id-text { font-size: 11px; color: var(--accent-blue); font-family: monospace; margin-top: 2px; }
+    .sensor-left { display: flex; align-items: center; gap: 10px; }
+    .sensor-icon { font-size: 24px; }
+    .sensor-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .sensor-id-text { font-size: 11px; color: var(--accent-blue); font-family: monospace; margin-top: 1px; }
     
     .sensor-right { text-align: right; }
-    .sensor-temp { font-size: 30px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; }
-    .sensor-temp.alert { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.25); }
-    .sensor-temp.offline { color: #9ca3af; }
+    .sensor-temp { font-size: 24px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; }
+    .sensor-temp.alert { color: var(--accent-red); }
+    .sensor-temp.offline { color: #6b7280; }
     
     /* Battery/Time info on right side */
     .sensor-card-meta {
       display: flex; gap: 8px; font-size: 10px; font-weight: 700;
-      color: var(--text-secondary); margin-bottom: 4px; justify-content: flex-end;
+      color: var(--text-secondary); margin-bottom: 2px; justify-content: flex-end;
     }
-    .meta-item-bat { color: #34d399; }
+    .meta-item-bat { color: #059669; }
     .meta-item-time { color: var(--text-secondary); }
 
     .sensor-badge {
-      font-size: 10px; font-weight: 800; margin-top: 6px;
+      font-size: 10px; font-weight: 800; margin-top: 4px;
       padding: 2.5px 8px; border-radius: 6px; display: inline-block;
       letter-spacing: 0.5px; text-transform: uppercase;
     }
-    .badge-ok { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
-    .badge-alert { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
-    .badge-offline { background: rgba(107, 114, 128, 0.12); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.25); }
-    .footer-text { text-align: center; color: var(--text-secondary); font-size: 12px; margin-top: 24px; }
+    .badge-ok { background: rgba(16, 185, 129, 0.08); color: #059669; border: 1px solid rgba(16, 185, 129, 0.15); }
+    .badge-alert { background: rgba(239, 68, 68, 0.08); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.15); }
+    .badge-offline { background: rgba(107, 114, 128, 0.08); color: #4b5563; border: 1px solid rgba(107, 114, 128, 0.15); }
+    .footer-text { text-align: center; color: var(--text-secondary); font-size: 11px; margin-top: 16px; }
 
     /* ─── Detail View ─── */
     .detail-view { display: none; }
@@ -184,56 +179,54 @@
     .list-view.hidden { display: none; }
 
     .back-btn {
-      background: none; border: none; color: #38bdf8; font-size: 14px;
-      font-weight: 700; cursor: pointer; margin-bottom: 20px;
+      background: none; border: none; color: #2563eb; font-size: 13px;
+      font-weight: 700; cursor: pointer; margin-bottom: 14px;
       font-family: 'Inter', sans-serif; padding: 0;
       transition: color 0.15s;
     }
-    .back-btn:hover { color: #00f2fe; }
-    .detail-header { font-size: 30px; font-weight: 800; color: #ffffff; margin-bottom: 24px; letter-spacing: -0.5px; }
+    .back-btn:hover { color: #1d4ed8; }
+    .detail-header { font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 16px; letter-spacing: -0.5px; }
 
-    /* Glass Card layout */
+    /* Clean light Card layout */
     .card {
-      border-radius: 24px; padding: 24px; margin-bottom: 24px;
+      border-radius: 16px; padding: 16px; margin-bottom: 14px;
       border: 1px solid var(--card-border);
       background: var(--card-bg);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
     }
-    .card.offline-card { border-color: rgba(107, 114, 128, 0.3); background: rgba(30, 41, 59, 0.3); }
+    .card.offline-card { border-color: #cbd5e1; background: #f1f5f9; }
     .card.alarm { animation: neon-alarm-flash 1.2s infinite ease-in-out; }
     @keyframes neon-alarm-flash {
       0%, 100% { border-color: var(--card-border); background: var(--card-bg); }
-      50% { border-color: rgba(239, 68, 68, 0.6); background: rgba(239, 68, 68, 0.05); }
+      50% { border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.04); }
     }
 
-    .card-title { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .card-title { color: var(--text-secondary); font-size: 11px; margin-bottom: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
     .row { display: flex; justify-content: space-between; }
-    .row + .row { margin-top: 20px; }
+    .row + .row { margin-top: 12px; }
     .metric-box { flex: 1; }
-    .metric-label { color: var(--text-secondary); font-size: 12px; margin-bottom: 6px; font-weight: 600; }
-    .metric-value { color: #ffffff; font-size: 26px; font-weight: 800; }
+    .metric-label { color: var(--text-secondary); font-size: 11px; margin-bottom: 4px; font-weight: 600; }
+    .metric-value { color: var(--text-primary); font-size: 22px; font-weight: 800; }
 
     /* Expanded Grid Items */
     .stat-box-large {
-      flex: 1.25; padding: 22px 14px; border-radius: 20px; text-align: center;
+      flex: 1.25; padding: 14px 8px; border-radius: 12px; text-align: center;
       transition: all 0.2s ease-in-out; border: 1px solid transparent;
       display: flex; flex-direction: column; justify-content: center;
     }
     .stat-box-large:hover { transform: translateY(-2px); }
     .stat-box-avg {
-      flex: 0.85; padding: 16px 10px; border-radius: 16px;
+      flex: 0.85; padding: 10px 6px; border-radius: 10px;
     }
     
     /* Temp stat cards */
     .stat-temp-min { background-color: var(--accent-blue-bg); border-color: var(--accent-blue-border); }
-    .stat-temp-avg { background-color: rgba(255, 255, 255, 0.02); border-color: rgba(255, 255, 255, 0.06); }
+    .stat-temp-avg { background-color: #f3f4f6; border-color: #e5e7eb; }
     .stat-temp-max { background-color: var(--accent-red-bg); border-color: var(--accent-red-border); }
     
     /* Hum stat cards */
     .stat-hum-min { background-color: var(--accent-purple-bg); border-color: var(--accent-purple-border); }
-    .stat-hum-avg { background-color: rgba(255, 255, 255, 0.02); border-color: rgba(255, 255, 255, 0.06); }
+    .stat-hum-avg { background-color: #f3f4f6; border-color: #e5e7eb; }
     .stat-hum-max { background-color: var(--accent-pink-bg); border-color: var(--accent-pink-border); }
 
     .stat-label-large { font-size: 10px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; }
@@ -242,32 +235,32 @@
     .stat-val-avg { font-size: 22px; font-weight: 800; line-height: 1.1; }
 
     .warning-text {
-      color: #f87171; font-weight: 800; margin-top: 20px;
-      text-align: center; background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-      padding: 12px; border-radius: 12px; font-size: 13px;
+      color: #dc2626; font-weight: 800; margin-top: 14px;
+      text-align: center; background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 10px; border-radius: 10px; font-size: 13px;
       display: none;
     }
     .warning-text.show { display: block; }
-    .warning-text.offline-warn { background: rgba(107, 114, 128, 0.15); border-color: rgba(107, 114, 128, 0.25); color: #d1d5db; }
-
+    .warning-text.offline-warn { background: #f3f4f6; border-color: #e5e7eb; color: #4b5563; }
+ 
     .action-btn {
-      display: block; border-radius: 14px; padding: 14px;
-      text-align: center; margin-bottom: 12px; cursor: pointer;
-      color: #fff; font-size: 15px; font-weight: 700;
+      display: block; border-radius: 10px; padding: 10px;
+      text-align: center; margin-bottom: 8px; cursor: pointer;
+      color: #fff; font-size: 14px; font-weight: 700;
       text-decoration: none; transition: all 0.2s ease-in-out;
       border: none;
     }
     .action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
     .action-btn:active { transform: translateY(0); }
-    .action-btn.blue { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }
-    .action-btn.green { background: linear-gradient(135deg, #10b981 0%, #047857 100%); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
-
+    .action-btn.blue { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2); }
+    .action-btn.green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2); }
+ 
     .input-field {
-      width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px; font-family: 'Inter', sans-serif;
-      font-size: 14px; color: #ffffff; background: rgba(0, 0, 0, 0.2);
-      outline: none; margin-top: 6px; transition: border-color 0.15s;
+      width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+      border-radius: 8px; font-family: 'Inter', sans-serif;
+      font-size: 14px; color: #111827; background: #ffffff;
+      outline: none; margin-top: 4px; transition: border-color 0.15s;
     }
     .input-field:focus { border-color: var(--accent-blue); }
 
@@ -456,14 +449,6 @@
       </div>
     </div>
 
-    <!-- Humidity Chart Card -->
-    <div class="card" id="humChartCard" style="margin-top: 20px; display: none;">
-      <div class="card-title" id="humChartCardTitle">7-Day Humidity Trend</div>
-      <div style="position: relative; height: 260px; width: 100%;">
-        <canvas id="humTelemetryChart"></canvas>
-      </div>
-    </div>
-
     <!-- Thresholds Configuration Panel -->
     <div class="card" style="margin-top: 20px;">
       <div class="card-title">Thresholds Configuration</div>
@@ -504,7 +489,6 @@
     let humMin = null;
     let humMax = null;
     let chartInstance = null;
-    let humChartInstance = null;
 
     // Switch between List and Map tabs
     function switchTab(tabName) {
@@ -765,14 +749,14 @@
       const days = document.getElementById('daysSelect').value;
       const interval = document.getElementById('intervalSelect').value;
 
-      const chartOptionsDark = {
+      const chartOptionsLight = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: {
             position: 'top',
             labels: {
-              color: '#9ca3af',
+              color: '#4b5563',
               font: { family: 'Inter', size: 11, weight: '600' }
             }
           }
@@ -781,7 +765,7 @@
           x: {
             grid: { display: false },
             ticks: {
-              color: '#9ca3af',
+              color: '#4b5563',
               font: { family: 'Inter', size: 9 },
               maxRotation: 45,
               minRotation: 0,
@@ -790,9 +774,9 @@
             }
           },
           y: {
-            grid: { color: 'rgba(255, 255, 255, 0.08)' },
+            grid: { color: '#e5e7eb' },
             ticks: {
-              color: '#9ca3af',
+              color: '#4b5563',
               font: { family: 'Inter', size: 10 }
             }
           }
@@ -803,7 +787,6 @@
         const isMonthly = days === 'Monthly';
         document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=30&interval_minutes=1440`;
         document.getElementById('chartCardTitle').textContent = isMonthly ? `Monthly Temperature Extremes` : `30-Day Min/Max Temperature Extremes`;
-        document.getElementById('humChartCardTitle').textContent = isMonthly ? `Monthly Humidity Extremes` : `30-Day Min/Max Humidity Extremes`;
         
         try {
           const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=30`;
@@ -812,7 +795,6 @@
           
           if (data && data.daily_metrics && data.daily_metrics.length > 0) {
             document.getElementById('chartCard').style.display = 'block';
-            document.getElementById('humChartCard').style.display = 'block';
             
             const labels = data.daily_metrics.map(d => {
               const dt = new Date(d.date);
@@ -820,8 +802,6 @@
             });
             const tempMaxes = data.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
             const tempMins = data.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
-            const humMaxes = data.daily_metrics.map(d => d.hum_max !== null ? d.hum_max : 0);
-            const humMins = data.daily_metrics.map(d => d.hum_min !== null ? d.hum_min : 0);
             
             if (chartInstance) chartInstance.destroy();
             const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
@@ -831,40 +811,23 @@
                 labels: labels,
                 datasets: [
                   { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
-                  { label: 'Min Temp (°C)', data: tempMins, borderColor: '#38bdf8', tension: 0.3, fill: false, borderWidth: 2 }
+                  { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
                 ]
               },
-              options: chartOptionsDark
-            });
-
-            if (humChartInstance) humChartInstance.destroy();
-            const ctxHum = document.getElementById('humTelemetryChart').getContext('2d');
-            humChartInstance = new Chart(ctxHum, {
-              type: 'line',
-              data: {
-                labels: labels,
-                datasets: [
-                  { label: 'Max Humidity (%)', data: humMaxes, borderColor: '#f472b6', tension: 0.3, fill: false, borderWidth: 2 },
-                  { label: 'Min Humidity (%)', data: humMins, borderColor: '#c084fc', tension: 0.3, fill: false, borderWidth: 2 }
-                ]
-              },
-              options: chartOptionsDark
+              options: chartOptionsLight
             });
           } else {
             document.getElementById('chartCard').style.display = 'none';
-            document.getElementById('humChartCard').style.display = 'none';
           }
         } catch (e) {
           console.error(e);
           document.getElementById('chartCard').style.display = 'none';
-          document.getElementById('humChartCard').style.display = 'none';
         }
         return;
       }
 
       document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${days}&interval_minutes=${interval}`;
       document.getElementById('chartCardTitle').textContent = `${days}-Day Temperature Trend (${interval === '1' ? 'Raw' : interval + 'm'} intervals)`;
-      document.getElementById('humChartCardTitle').textContent = `${days}-Day Humidity Trend (${interval === '1' ? 'Raw' : interval + 'm'} intervals)`;
 
       try {
         const res = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${days}&interval_minutes=${interval}`);
@@ -877,18 +840,16 @@
             return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
           });
           const temps = sortedData.map(d => parseFloat(d.temperature));
-          const hums = sortedData.map(d => parseFloat(d.humidity));
 
           document.getElementById('chartCard').style.display = 'block';
-          document.getElementById('humChartCard').style.display = 'block';
 
           // Temperature Datasets
           const tempDatasets = [
             {
               label: 'Temperature (°C)',
               data: temps,
-              borderColor: '#38bdf8',
-              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderColor: '#2563eb',
+              backgroundColor: 'rgba(37, 99, 235, 0.05)',
               tension: 0.3,
               fill: true,
               borderWidth: 2,
@@ -919,66 +880,19 @@
             });
           }
 
-          // Humidity Datasets
-          const humDatasets = [
-            {
-              label: 'Humidity (%)',
-              data: hums,
-              borderColor: '#c084fc',
-              backgroundColor: 'rgba(192, 132, 252, 0.1)',
-              tension: 0.3,
-              fill: true,
-              borderWidth: 2,
-              pointRadius: sortedData.length > 50 ? 0 : 3
-            }
-          ];
-
-          if (humMax !== null) {
-            humDatasets.push({
-              label: `Max Limit (${humMax}%)`,
-              data: new Array(sortedData.length).fill(humMax),
-              borderColor: '#f472b6',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
-            });
-          }
-          if (humMin !== null) {
-            humDatasets.push({
-              label: `Min Limit (${humMin}%)`,
-              data: new Array(sortedData.length).fill(humMin),
-              borderColor: '#10B981',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
-            });
-          }
-
           if (chartInstance) chartInstance.destroy();
           const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
           chartInstance = new Chart(ctxTemp, {
             type: 'line',
             data: { labels: labels, datasets: tempDatasets },
-            options: chartOptionsDark
-          });
-
-          if (humChartInstance) humChartInstance.destroy();
-          const ctxHum = document.getElementById('humTelemetryChart').getContext('2d');
-          humChartInstance = new Chart(ctxHum, {
-            type: 'line',
-            data: { labels: labels, datasets: humDatasets },
-            options: chartOptionsDark
+            options: chartOptionsLight
           });
         } else {
           document.getElementById('chartCard').style.display = 'none';
-          document.getElementById('humChartCard').style.display = 'none';
         }
       } catch (e) {
         console.error('Error fetching analytics for chart:', e);
         document.getElementById('chartCard').style.display = 'none';
-        document.getElementById('humChartCard').style.display = 'none';
       }
     }
 
@@ -1018,10 +932,6 @@
       if (chartInstance) {
         chartInstance.destroy();
         chartInstance = null;
-      }
-      if (humChartInstance) {
-        humChartInstance.destroy();
-        humChartInstance = null;
       }
       pollList();
     }
