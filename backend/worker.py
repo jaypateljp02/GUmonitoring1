@@ -37,6 +37,12 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
         if not device_id:
             continue
         
+        # Filter out devices (like Zigbee Bridges) that do not report temperature or humidity telemetry
+        params = item_data.get("params", {})
+        if "temperature" not in params and "humidity" not in params:
+            logger.info(f"Skipping non-telemetry eWeLink device: {item_data.get('name')} (id: {device_id})")
+            continue
+        
         device_name = item_data.get("name") or f"Device {device_id[:6]}"
         synced_device_ids.append(device_id)
 

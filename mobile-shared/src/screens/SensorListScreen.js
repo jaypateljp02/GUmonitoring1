@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { api, clearAuthToken } from '../services/api';
 
 const parseDate = (timestampStr) => {
@@ -96,6 +96,7 @@ export default function SensorListScreen({ navigation }) {
   const [liveData, setLiveData] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -120,6 +121,12 @@ export default function SensorListScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
   };
 
   useEffect(() => {
@@ -154,6 +161,40 @@ export default function SensorListScreen({ navigation }) {
     );
   };
 
+  const getRoomPriority = (room) => {
+    const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+    const humSensor = room.sensors?.find(s => s.type === 'humidity');
+
+    const hasTemp = tempSensor && liveData[tempSensor.id];
+    const hasHum = humSensor && liveData[humSensor.id];
+
+    const temp = hasTemp ? parseFloat(liveData[tempSensor.id].temperature) : null;
+    const hum = hasHum ? parseFloat(liveData[humSensor.id].humidity) : null;
+
+    const latestTimeStr = hasTemp ? liveData[tempSensor.id].timestamp : null;
+    const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
+    const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+    const isOffline = hasTemp && !isOnline;
+
+    let isAlert = false;
+    if (tempSensor && temp !== null) {
+      if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
+      if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+    }
+    if (humSensor && hum !== null) {
+      if (humSensor.min_threshold !== null && hum < humSensor.min_threshold) isAlert = true;
+      if (humSensor.max_threshold !== null && hum > humSensor.max_threshold) isAlert = true;
+    }
+
+    if (isAlert) return 1;    // ALERT at top
+    if (isOffline) return 2;  // OFFLINE next
+    return 3;                 // OK at bottom
+  };
+
+  const sortedRooms = [...rooms].sort((a, b) => {
+    return getRoomPriority(a) - getRoomPriority(b);
+  });
+
   if (loading && rooms.length === 0) {
     return (
       <View style={styles.loadingContainer}>
@@ -163,7 +204,13 @@ export default function SensorListScreen({ navigation }) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ padding: 20 }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#3B82F6"]} />
+      }
+    >
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.header}>Ground Up</Text>
@@ -179,7 +226,7 @@ export default function SensorListScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Locations ({rooms.length})</Text>
 
-      {rooms.map(room => (
+      {sortedRooms.map(room => (
         <RoomCard
           key={room.id}
           room={room}
