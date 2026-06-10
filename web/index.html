@@ -324,7 +324,7 @@
         <span class="sensor-badge badge-ok" style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px; background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.2);" id="dTopTime">🕒 --</span>
       </div>
     </div>
-    <div class="detail-header" id="detailHeader" style="margin-top: 10px;"></div>
+    <div class="detail-header" id="detailHeader" style="margin-top: 10px; display: flex; align-items: center; gap: 10px;"></div>
     
     <!-- Metrics Card -->
     <div class="card" id="detailCard">
@@ -447,16 +447,28 @@
 
     <!-- Chart Card -->
     <div class="card" id="chartCard" style="margin-top: 14px; display: none;">
-      <div class="card-title" id="chartCardTitle">7-Day Temperature Trend</div>
-      <div style="position: relative; height: 150px; width: 100%;">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div class="card-title" id="chartCardTitle" style="margin-bottom: 0;">7-Day Temperature Trend</div>
+        <div class="chart-orientation-toggle" style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+          <button class="toggle-btn active" id="btn-horiz-trend" onclick="setChartOrientation('trend', 'horizontal')" style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
+          <button class="toggle-btn" id="btn-vert-trend" onclick="setChartOrientation('trend', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
+        </div>
+      </div>
+      <div id="trendChartWrapper" style="position: relative; height: 150px; width: 100%;">
         <canvas id="telemetryChart"></canvas>
       </div>
     </div>
 
     <!-- Extremes Chart Card -->
     <div class="card" id="extremesChartCard" style="margin-top: 14px; display: none;">
-      <div class="card-title" id="extremesChartCardTitle">Daily Min/Max Extremes</div>
-      <div style="position: relative; height: 150px; width: 100%;">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div class="card-title" id="extremesChartCardTitle" style="margin-bottom: 0;">Daily Min/Max Extremes</div>
+        <div class="chart-orientation-toggle" style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+          <button class="toggle-btn active" id="btn-horiz-ext" onclick="setChartOrientation('extremes', 'horizontal')" style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
+          <button class="toggle-btn" id="btn-vert-ext" onclick="setChartOrientation('extremes', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
+        </div>
+      </div>
+      <div id="extremesChartWrapper" style="position: relative; height: 150px; width: 100%;">
         <canvas id="extremesChart"></canvas>
       </div>
     </div>
@@ -498,7 +510,7 @@
   <script>
     let rooms = [];
     let liveData = {};
-    const API = window.location.origin;
+    const API = (window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : 'http://127.0.0.1:8000';
     let currentDevice = null;
     let detailInterval = null;
     let tempMin = null;
@@ -507,21 +519,58 @@
     let humMax = null;
     let chartInstance = null;
     let extremesChartInstance = null;
+    let trendOrientation = 'horizontal';
+    let extremesOrientation = 'horizontal';
 
-    // Get icon based on room type
+    // Get premium colored badge icon based on room type (resolves black emoji rendering on Windows)
     function getRoomIcon(type) {
-      if (type === 'fridge') return '❄️';
-      if (type === 'freezer') return '🧊';
-      return '🏢';
+      if (type === 'fridge') {
+        return `
+          <span style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="2" x2="12" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+              <line x1="19.07" y1="4.93" x2="4.93" y2="19.07"></line>
+              <path d="M20 12l-4-4-4 4 4 4z"></path>
+              <path d="M4 12l4-4 4 4-4 4z"></path>
+            </svg>
+          </span>
+        `;
+      }
+      if (type === 'freezer') {
+        return `
+          <span style="background: #ecfeff; border: 1px solid #cffafe; border-radius: 8px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0891b2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+              <path d="M2 17l10 5 10-5"></path>
+              <path d="M2 7v10"></path>
+              <path d="M12 12v10"></path>
+              <path d="M22 7v10"></path>
+            </svg>
+          </span>
+        `;
+      }
+      return `
+        <span style="background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#4b5563" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+            <line x1="9" y1="22" x2="9" y2="16"></line>
+            <line x1="15" y1="22" x2="15" y2="16"></line>
+            <line x1="9" y1="16" x2="15" y2="16"></line>
+            <path d="M9 6h6M9 10h6M9 14h6M9 18h6"></path>
+          </svg>
+        </span>
+      `;
     }
 
-    // Build sensor list cards
+    // Build sensor list cards (starts with a clean offline/waiting state instead of false positives)
     function buildSensorCard(room) {
       const tempSensor = room.sensors?.find(s => s.type === 'temperature');
       return `
       <div class="sensor-card" id="sc-${room.id}" onclick="showDetail('${room.id}')">
-        <div class="sensor-left" style="display: flex; align-items: center; gap: 8px;">
-          <span class="sensor-icon" style="font-size: 20px;">${getRoomIcon(room.type)}</span>
+        <div class="sensor-left" style="display: flex; align-items: center; gap: 10px;">
+          <span class="sensor-icon" style="display: inline-flex; align-items: center; justify-content: center;">${getRoomIcon(room.type)}</span>
           <div style="display: flex; flex-direction: column;">
             <span class="sensor-name" style="font-size: 13px; font-weight: 700; color: var(--text-primary);">${room.name}</span>
             <span class="sensor-id-text" style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace;">ID: ${tempSensor?.device_id ? tempSensor.device_id.substring(0, 6) : 'N/A'}</span>
@@ -530,12 +579,12 @@
         <div class="sensor-right" style="display: flex; align-items: center; gap: 10px; text-align: right;">
           <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px;">
             <div class="sensor-card-meta" id="sm-${room.id}" style="display: flex; gap: 6px; font-size: 9.5px; font-weight: 700; color: var(--text-secondary);">
-              <span class="meta-item-bat" style="color: #059669;">🔋 --</span>
+              <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
               <span class="meta-item-time">🕒 --</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <div class="sensor-temp" id="st-${room.id}" style="font-size: 18px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px;">--</div>
-              <div class="sensor-badge badge-ok" id="sb-${room.id}" style="margin-top: 0; padding: 2px 6px; font-size: 9px; font-weight: 800; border-radius: 4px;">OK</div>
+              <div class="sensor-badge badge-offline" id="sb-${room.id}" style="margin-top: 0; padding: 2px 6px; font-size: 9px; font-weight: 800; border-radius: 4px;">NO DATA</div>
             </div>
           </div>
         </div>
@@ -560,74 +609,113 @@
         document.querySelector('.section-title').textContent = `Devices (${rooms.length})`;
         
         if (rooms.length === 0) {
-          document.getElementById('sensorList').innerHTML = '<div style="text-align: center; color: #6B7280; font-size: 13px; margin: 20px 0;">No active devices found. Backend is syncing from your eWeLink credentials...</div>';
+          document.getElementById('sensorList').innerHTML = '<div style="text-align: center; color: #6B7280; font-size: 13px; margin: 20px 0;">No active devices found. Backend is syncing...</div>';
         } else {
           document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
         }
 
         // Fetch dashboard live telemetry
-        const dashRes = await fetch(`${API}/monitoring/dashboard`);
-        const dashData = await dashRes.json();
-        liveData = {};
-        if (dashData && dashData.live_devices) {
-          dashData.live_devices.forEach(d => {
-            liveData[d.sensor_id] = d;
-          });
+        let liveDevicesCount = 0;
+        try {
+          const dashRes = await fetch(`${API}/monitoring/dashboard`);
+          if (dashRes.ok) {
+            const dashData = await dashRes.json();
+            liveData = {};
+            if (dashData && dashData.live_devices) {
+              dashData.live_devices.forEach(d => {
+                liveData[d.sensor_id] = d;
+              });
+              liveDevicesCount = dashData.live_devices.length;
+            }
+          }
+        } catch (telemetryErr) {
+          console.error("Error fetching live telemetry:", telemetryErr);
         }
 
         // Update readings for all rooms in list view
         for (const room of rooms) {
-          const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-          if (tempSensor && liveData[tempSensor.id]) {
-            const data = liveData[tempSensor.id];
-            const temp = parseFloat(data.temperature);
-            const battery = parseFloat(data.battery_level).toFixed(0);
-            const ts = new Date(data.timestamp.endsWith('Z') ? data.timestamp : data.timestamp + 'Z');
-            const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
+          try {
+            const tempSensor = room.sensors?.find(s => s.type === 'temperature');
             const el = document.getElementById(`st-${room.id}`);
             const badge = document.getElementById(`sb-${room.id}`);
             const card = document.getElementById(`sc-${room.id}`);
             const meta = document.getElementById(`sm-${room.id}`);
-            
-            if (el) el.textContent = temp.toFixed(1) + '°C';
-            if (meta) {
-              meta.innerHTML = `
-                <span class="meta-item-bat">🔋 ${battery}%</span>
-                <span class="meta-item-time">🕒 ${timeStr}</span>
-              `;
-            }
 
-            let isAlert = false;
-            if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-            if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+            if (tempSensor && liveData[tempSensor.id]) {
+              const data = liveData[tempSensor.id];
+              const temp = parseFloat(data.temperature);
+              const battery = parseFloat(data.battery_level).toFixed(0);
+              const ts = new Date(data.timestamp.endsWith('Z') ? data.timestamp : data.timestamp + 'Z');
+              const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              
+              if (el) el.textContent = temp.toFixed(1) + '°C';
+              if (meta) {
+                meta.innerHTML = `
+                  <span class="meta-item-bat" style="color: #059669;">🔋 ${battery}%</span>
+                  <span class="meta-item-time">🕒 ${timeStr}</span>
+                `;
+              }
 
-            const isOnline = data.is_online !== false;
+              let isAlert = false;
+              if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
+              if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
 
-            if (badge && card) {
-              if (!isOnline) {
+              const isOnline = data.is_online !== false;
+
+              if (badge && card) {
+                if (!isOnline) {
+                  if (el) {
+                    el.classList.add('offline');
+                    el.classList.remove('alert');
+                  }
+                  badge.className = 'sensor-badge badge-offline';
+                  badge.textContent = '⚠️ OFFLINE';
+                  card.className = 'sensor-card offline-border';
+                } else if (isAlert) {
+                  if (el) {
+                    el.classList.add('alert');
+                    el.classList.remove('offline');
+                  }
+                  badge.className = 'sensor-badge badge-alert';
+                  badge.textContent = '⚠️ ALERT';
+                  card.className = 'sensor-card alert-border';
+                } else {
+                  if (el) el.classList.remove('alert', 'offline');
+                  badge.className = 'sensor-badge badge-ok';
+                  badge.textContent = '✅ OK';
+                  card.className = 'sensor-card';
+                }
+              }
+            } else {
+              // Mark as offline / no data if not present in dashboard telemetry
+              if (el) {
+                el.textContent = '--';
                 el.classList.add('offline');
-                el.classList.remove('alert');
+              }
+              if (meta) {
+                meta.innerHTML = `
+                  <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
+                  <span class="meta-item-time">🕒 --</span>
+                `;
+              }
+              if (badge && card) {
                 badge.className = 'sensor-badge badge-offline';
-                badge.textContent = '⚠️ OFFLINE';
+                badge.textContent = 'NO DATA';
                 card.className = 'sensor-card offline-border';
-              } else if (isAlert) {
-                el.classList.add('alert');
-                el.classList.remove('offline');
-                badge.className = 'sensor-badge badge-alert';
-                badge.textContent = '⚠️ ALERT';
-                card.className = 'sensor-card alert-border';
-              } else {
-                el.classList.remove('alert', 'offline');
-                badge.className = 'sensor-badge badge-ok';
-                badge.textContent = '✅ OK';
-                card.className = 'sensor-card';
               }
             }
+          } catch (itemErr) {
+            console.error("Error updating room card in list:", room, itemErr);
           }
         }
       } catch(e) {
         console.error("Error polling list:", e);
+        document.getElementById('sensorList').innerHTML = `
+          <div style="text-align: center; color: #ef4444; font-size: 13px; margin: 20px 0; padding: 12px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px;">
+            <strong>Backend Connection Failed</strong><br>
+            Unable to connect to the monitoring backend.<br>
+            <span style="font-size: 11px; opacity: 0.8; display: block; margin-top: 4px;">Make sure the server is running at ${API}</span>
+          </div>`;
       }
     }
 
@@ -712,6 +800,55 @@
       }
     }
 
+    function setChartOrientation(chartType, orientation) {
+      if (chartType === 'trend') {
+        trendOrientation = orientation;
+        const btnHoriz = document.getElementById('btn-horiz-trend');
+        const btnVert = document.getElementById('btn-vert-trend');
+        const wrapper = document.getElementById('trendChartWrapper');
+        if (orientation === 'vertical') {
+          btnHoriz.style.background = 'transparent';
+          btnHoriz.style.color = 'var(--text-secondary)';
+          btnHoriz.style.boxShadow = 'none';
+          btnVert.style.background = '#fff';
+          btnVert.style.color = 'var(--text-primary)';
+          btnVert.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '300px';
+        } else {
+          btnVert.style.background = 'transparent';
+          btnVert.style.color = 'var(--text-secondary)';
+          btnVert.style.boxShadow = 'none';
+          btnHoriz.style.background = '#fff';
+          btnHoriz.style.color = 'var(--text-primary)';
+          btnHoriz.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '150px';
+        }
+      } else if (chartType === 'extremes') {
+        extremesOrientation = orientation;
+        const btnHoriz = document.getElementById('btn-horiz-ext');
+        const btnVert = document.getElementById('btn-vert-ext');
+        const wrapper = document.getElementById('extremesChartWrapper');
+        if (orientation === 'vertical') {
+          btnHoriz.style.background = 'transparent';
+          btnHoriz.style.color = 'var(--text-secondary)';
+          btnHoriz.style.boxShadow = 'none';
+          btnVert.style.background = '#fff';
+          btnVert.style.color = 'var(--text-primary)';
+          btnVert.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '300px';
+        } else {
+          btnVert.style.background = 'transparent';
+          btnVert.style.color = 'var(--text-secondary)';
+          btnVert.style.boxShadow = 'none';
+          btnHoriz.style.background = '#fff';
+          btnHoriz.style.color = 'var(--text-primary)';
+          btnHoriz.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '150px';
+        }
+      }
+      updateAnalyticsOptions();
+    }
+
     // Update analytics trend chart
     async function updateAnalyticsOptions() {
       if (!currentDevice) return;
@@ -738,44 +875,98 @@
         }
       }
 
-      const chartOptionsLight = {
+      // Dynamic Options for Trend Chart
+      const trendOptions = {
         responsive: true,
         maintainAspectRatio: false,
+        indexAxis: trendOrientation === 'vertical' ? 'y' : 'x',
         plugins: {
           legend: {
             position: 'top',
             labels: {
               color: '#4b5563',
-              font: { family: 'Inter', size: 11, weight: '600' }
+              font: { family: 'Inter', size: 10, weight: '600' }
             }
           }
         },
         scales: {
           x: {
-            grid: { display: false },
+            grid: {
+              display: trendOrientation === 'vertical',
+              color: '#e2e8f0'
+            },
             ticks: {
               color: '#4b5563',
-              font: { family: 'Inter', size: 9 },
-              maxRotation: 45,
+              font: { family: 'Inter', size: trendOrientation === 'vertical' ? 10 : 8 },
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: trendOrientation === 'vertical' ? 8 : 5
+            }
+          },
+          y: {
+            grid: {
+              display: trendOrientation === 'horizontal',
+              color: '#e2e8f0'
+            },
+            ticks: {
+              color: '#4b5563',
+              font: { family: 'Inter', size: trendOrientation === 'vertical' ? 8 : 10 },
+              autoSkip: true,
+              maxTicksLimit: trendOrientation === 'vertical' ? 12 : 8
+            }
+          }
+        }
+      };
+
+      // Dynamic Options for Extremes Chart
+      const extremesOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: extremesOrientation === 'vertical' ? 'y' : 'x',
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: '#4b5563',
+              font: { family: 'Inter', size: 10, weight: '600' }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: extremesOrientation === 'vertical',
+              color: '#e2e8f0'
+            },
+            ticks: {
+              color: '#4b5563',
+              font: { family: 'Inter', size: extremesOrientation === 'vertical' ? 10 : 8 },
+              maxRotation: 0,
               minRotation: 0,
               autoSkip: true,
               maxTicksLimit: 8
             }
           },
           y: {
-            grid: { color: '#cbd5e1' },
+            grid: {
+              display: extremesOrientation === 'horizontal',
+              color: '#e2e8f0'
+            },
             ticks: {
               color: '#4b5563',
-              font: { family: 'Inter', size: 10 }
+              font: { family: 'Inter', size: extremesOrientation === 'vertical' ? 8 : 10 },
+              autoSkip: true,
+              maxTicksLimit: extremesOrientation === 'vertical' ? 12 : 8
             }
           }
         }
       };
 
       // 1. Update Telemetry Trend Chart
-      document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
+      document.getElementById('dCsvLink').href = `${API}/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
       if (days === 'custom' && customStart && customEnd) {
-        document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()})`;
+        document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
       } else {
         document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
       }
@@ -796,9 +987,14 @@
           if (sortedData.length >= 2) {
             document.getElementById('chartCard').style.display = 'block';
 
+            // Clean, non-crowded label format
             const labels = sortedData.map(d => {
               const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
-              return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+              if (days === '1') {
+                return ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+              } else {
+                return (ts.getMonth() + 1) + '/' + ts.getDate() + ' ' + ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+              }
             });
             const temps = sortedData.map(d => parseFloat(d.temperature));
 
@@ -844,7 +1040,7 @@
             chartInstance = new Chart(ctxTemp, {
               type: 'line',
               data: { labels: labels, datasets: tempDatasets },
-              options: chartOptionsLight
+              options: trendOptions
             });
           } else {
             document.getElementById('chartCard').style.display = 'none';
@@ -861,7 +1057,7 @@
       const isExtremesSupported = days === '7' || days === '30' || days === 'Monthly' || (days === 'custom' && customStart && customEnd);
       if (isExtremesSupported) {
         if (days === 'custom' && customStart && customEnd) {
-          document.getElementById('extremesChartCardTitle').textContent = `Min/Max Temperature Extremes (${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()})`;
+          document.getElementById('extremesChartCardTitle').textContent = `Min/Max Temperature Extremes (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
         } else {
           document.getElementById('extremesChartCardTitle').textContent = days === 'Monthly' ? `Monthly Min/Max Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
         }
@@ -905,7 +1101,7 @@
                     { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
                   ]
                 },
-                options: chartOptionsLight
+                options: extremesOptions
               });
             } else {
               document.getElementById('extremesChartCard').style.display = 'none';
@@ -975,12 +1171,33 @@
 
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
-      document.getElementById('detailHeader').textContent = currentDevice.icon + ' ' + currentDevice.name + ' Monitor';
+      document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + ' Monitor</span>';
       
       document.getElementById('daysSelect').value = '7';
       document.getElementById('intervalSelect').value = '1';
       document.getElementById('customDateRangeRow').style.display = 'none';
       
+      // Default to horizontal on open
+      trendOrientation = 'horizontal';
+      extremesOrientation = 'horizontal';
+      
+      // Reset button highlights
+      document.getElementById('btn-horiz-trend').style.background = '#fff';
+      document.getElementById('btn-horiz-trend').style.color = 'var(--text-primary)';
+      document.getElementById('btn-horiz-trend').style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+      document.getElementById('btn-vert-trend').style.background = 'transparent';
+      document.getElementById('btn-vert-trend').style.color = 'var(--text-secondary)';
+      document.getElementById('btn-vert-trend').style.boxShadow = 'none';
+      document.getElementById('trendChartWrapper').style.height = '150px';
+
+      document.getElementById('btn-horiz-ext').style.background = '#fff';
+      document.getElementById('btn-horiz-ext').style.color = 'var(--text-primary)';
+      document.getElementById('btn-horiz-ext').style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+      document.getElementById('btn-vert-ext').style.background = 'transparent';
+      document.getElementById('btn-vert-ext').style.color = 'var(--text-secondary)';
+      document.getElementById('btn-vert-ext').style.boxShadow = 'none';
+      document.getElementById('extremesChartWrapper').style.height = '150px';
+
       document.getElementById('analyticsContent').style.display = 'none';
       document.getElementById('analyticsArrow').textContent = '▼';
       document.getElementById('thresholdsContent').style.display = 'none';
