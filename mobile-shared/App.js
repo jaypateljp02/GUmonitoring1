@@ -51,9 +51,10 @@ export default function App() {
           res.data.forEach(alertItem => {
             if (!notifiedAlertIds.has(alertItem.id)) {
               notifiedAlertIds.add(alertItem.id);
+              const isOffline = alertItem.message && alertItem.message.toLowerCase().includes('offline');
               triggerLocalNotification(
-                '🚨 Temperature Alert!',
-                alertItem.message || 'A sensor has crossed critical temperature limits.'
+                isOffline ? '🚨 Sensor Offline!' : '🚨 Temperature Alert!',
+                alertItem.message || 'A sensor has crossed critical limits.'
               );
             }
           });

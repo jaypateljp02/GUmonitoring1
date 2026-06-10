@@ -25,7 +25,7 @@ function RoomCard({ room, telemetry, onPress }) {
 
   const latestTimeStr = hasTemp ? telemetry[tempSensor.id].timestamp : null;
   const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-  const isOnline = latestTime ? (new Date() - latestTime) < 10 * 60 * 1000 : false;
+  const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
   const isOffline = hasTemp && !isOnline;
 
   // Determine alert status based on thresholds

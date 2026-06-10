@@ -104,7 +104,7 @@ export default function FloorPlanScreen() {
           
           const latestTimeStr = data ? data.timestamp : null;
           const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-          const isOnline = latestTime ? (new Date() - latestTime) < 10 * 60 * 1000 : false;
+          const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
           const isOffline = data && !isOnline;
 
           // Check for alerts

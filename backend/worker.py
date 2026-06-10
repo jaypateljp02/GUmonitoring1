@@ -202,10 +202,7 @@ async def ingestion_loop():
             for target_device, sensors in devices_map.items():
                 try:
                     mode = sensors[0].mock_mode if sensors else "normal"
-                    if mode == "failover":
-                        logger.info(f"Simulator in failover mode for device {target_device}. No data ingested.")
-                        continue
-
+                    
                     temp_val = None
                     hum_val = None
                     bat_val = 100.0
@@ -220,23 +217,30 @@ async def ingestion_loop():
                                 device_data = item_data
                                 break
 
-                    if use_live and device_data:
-                        params = device_data.get("params", {})
-                        raw_temp = params.get("temperature")
-                        raw_hum = params.get("humidity")
-                        raw_bat = params.get("battery")
+                    is_device_reporting = False
+                    if mode == "failover":
+                        is_device_reporting = False
+                    elif use_live:
+                        if device_data:
+                            params = device_data.get("params", {})
+                            raw_temp = params.get("temperature")
+                            raw_hum = params.get("humidity")
+                            raw_bat = params.get("battery")
 
-                        # Clean values
-                        if raw_temp is not None:
-                            temp_val = float(raw_temp)
-                            if temp_val > 100 or temp_val < -100:
-                                temp_val = temp_val / 100.0
-                        if raw_hum is not None:
-                            hum_val = float(raw_hum)
-                            if hum_val > 100:
-                                hum_val = hum_val / 100.0
-                        if raw_bat is not None:
-                            bat_val = float(raw_bat)
+                            # Clean values
+                            if raw_temp is not None:
+                                temp_val = float(raw_temp)
+                                if temp_val > 100 or temp_val < -100:
+                                    temp_val = temp_val / 100.0
+                            if raw_hum is not None:
+                                hum_val = float(raw_hum)
+                                if hum_val > 100:
+                                    hum_val = hum_val / 100.0
+                            if raw_bat is not None:
+                                bat_val = float(raw_bat)
+                            
+                            if temp_val is not None and hum_val is not None:
+                                is_device_reporting = True
                     else:
                         # Fallback: Simulator mode logic
                         if mode == "ice":
@@ -248,6 +252,39 @@ async def ingestion_loop():
                         
                         hum_val = round(random.uniform(40.0, 60.0), 2)
                         bat_val = 98.0
+                        is_device_reporting = True
+
+                    # Handle database alerts for offline status
+                    if not is_device_reporting:
+                        logger.warning(f"Device {target_device} is offline or not reporting. Creating offline alerts.")
+                        from decimal import Decimal
+                        for s in sensors:
+                            # Check if active offline alert exists
+                            exist = db.query(Alert).filter(
+                                Alert.sensor_id == s.id,
+                                Alert.resolved == False,
+                                Alert.message.like("%offline%")
+                            ).first()
+                            if not exist:
+                                new_alert = Alert(
+                                    sensor_id=s.id,
+                                    value=Decimal("0.0"),
+                                    message=f"{s.type.capitalize()} sensor is offline: Device {target_device} stopped sending data.",
+                                    created_at=timestamp_parsed
+                                )
+                                db.add(new_alert)
+                        db.commit()
+                    else:
+                        # Resolve active offline alerts
+                        for s in sensors:
+                            active_offline = db.query(Alert).filter(
+                                Alert.sensor_id == s.id,
+                                Alert.resolved == False,
+                                Alert.message.like("%offline%")
+                            ).all()
+                            for alert in active_offline:
+                                alert.resolved = True
+                        db.commit()
 
                     if temp_val is not None and hum_val is not None:
                         # 1. Raw Telemetry

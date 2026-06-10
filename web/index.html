@@ -715,7 +715,7 @@
           const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
           document.getElementById('dTime').textContent = ts.toLocaleTimeString();
 
-          const isOnline = d.is_online !== false;
+          const isOnline = (new Date() - ts) < 2 * 60 * 1000;
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
           

@@ -62,7 +62,7 @@ export default function DashboardScreen({ route, navigation }) {
   };
 
   const lastUpdate = telemetry ? parseDate(telemetry.timestamp) : null;
-  const isOnline = lastUpdate ? (new Date() - lastUpdate) < 10 * 60 * 1000 : false;
+  const isOnline = lastUpdate ? (new Date() - lastUpdate) < 2 * 60 * 1000 : false;
   const isOffline = telemetry && !isOnline;
 
   const tMin = minThreshold !== '' ? parseFloat(minThreshold) : null;
