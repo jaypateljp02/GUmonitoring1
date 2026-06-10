@@ -14,11 +14,14 @@ router = APIRouter(prefix="/alerts", tags=["Alerts"])
 @router.get("", response_model=List[AlertResponse])
 def list_alerts(
     resolved: Optional[bool] = Query(None),
+    sensor_id: Optional[str] = Query(None),
     db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)
 ):
     query = db.query(Alert)
     if resolved is not None:
         query = query.filter(Alert.resolved == resolved)
+    if sensor_id is not None:
+        query = query.filter(Alert.sensor_id == sensor_id)
     return [AlertResponse.model_validate(a) for a in query.order_by(Alert.created_at.desc()).all()]
 
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { api } from '../services/api';
 import { LineChart } from 'react-native-chart-kit';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 export default function AnalyticsScreen({ route }) {
+  const { width } = useWindowDimensions();
   const device = route?.params?.device || { id: 'a4b002884e', name: 'Device 1', icon: '❄️' };
   const SENSOR_ID = device.id;
   const [telemetryLogs, setTelemetryLogs] = useState([]);
@@ -19,12 +20,17 @@ export default function AnalyticsScreen({ route }) {
   // Dynamic threshold states
   const [tempMin, setTempMin] = useState(null);
   const [tempMax, setTempMax] = useState(null);
+  
+  // Historical alerts states
+  const [alertLogs, setAlertLogs] = useState([]);
+  const [deviceSensors, setDeviceSensors] = useState([]);
 
   // Fetch thresholds once
   useEffect(() => {
     const fetchThresholds = async () => {
       try {
         const res = await api.get(`/sensors/device/${SENSOR_ID}/sensors`);
+        setDeviceSensors(res.data || []);
         const tempSensor = res.data.find(s => s.type === 'temperature');
         if (tempSensor) {
           setTempMin(tempSensor.min_threshold);
@@ -42,8 +48,10 @@ export default function AnalyticsScreen({ route }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        if (timeFrame === 'Monthly') {
-          const response = await api.get(`/sensors/device/${SENSOR_ID}/metrics/monthly`);
+        if (timeFrame === 'Monthly' || timeFrame === '30D') {
+          const isMonthly = timeFrame === 'Monthly';
+          const endpoint = isMonthly ? `/sensors/device/${SENSOR_ID}/metrics/monthly` : `/sensors/device/${SENSOR_ID}/metrics/rolling?days=30`;
+          const response = await api.get(endpoint);
           setMonthlyData(response.data.daily_metrics || []);
         } else {
           const numDays = parseInt(timeFrame.replace('D', ''));
@@ -61,6 +69,27 @@ export default function AnalyticsScreen({ route }) {
     };
     fetchData();
   }, [SENSOR_ID, timeFrame, intervalMinutes]);
+
+  // Fetch alert logs for all logical sensors under this device
+  useEffect(() => {
+    const fetchAlertLogs = async () => {
+      if (deviceSensors.length === 0) return;
+      try {
+        let allAlerts = [];
+        for (const s of deviceSensors) {
+          const res = await api.get(`/alerts?sensor_id=${s.id}`);
+          if (res.data) {
+            allAlerts.push(...res.data);
+          }
+        }
+        allAlerts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setAlertLogs(allAlerts.slice(0, 10)); // keep last 10 entries
+      } catch (err) {
+        console.log('Error fetching alerts', err);
+      }
+    };
+    fetchAlertLogs();
+  }, [deviceSensors]);
 
   const handleExportCSV = async () => {
     try {
@@ -101,9 +130,31 @@ export default function AnalyticsScreen({ route }) {
       };
     });
 
-  // Since the chart is scrollable, keep more data points to show detailed 1-minute data in the middle
-  const step = cleanedLogs.length > 300 ? Math.floor(cleanedLogs.length / 200) : 1;
-  const sampledLogs = cleanedLogs.filter((_, index) => index % step === 0);
+  // Peak-preserving sampling logic to ensure sudden spikes/drops are never lost in aggregation
+  let sampledLogs = [];
+  if (cleanedLogs.length <= 300) {
+    sampledLogs = cleanedLogs;
+  } else {
+    const step = Math.floor(cleanedLogs.length / 150); // group into 150 buckets
+    for (let i = 0; i < cleanedLogs.length; i += step) {
+      const chunk = cleanedLogs.slice(i, i + step);
+      if (chunk.length === 0) continue;
+      
+      let minLog = chunk[0];
+      let maxLog = chunk[0];
+      for (const log of chunk) {
+        if (log.temperature < minLog.temperature) minLog = log;
+        if (log.temperature > maxLog.temperature) maxLog = log;
+      }
+      
+      if (minLog.timestamp === maxLog.timestamp) {
+        sampledLogs.push(minLog);
+      } else {
+        const sorted = [minLog, maxLog].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        sampledLogs.push(...sorted);
+      }
+    }
+  }
 
   // Spaced-out X-axis time labels to prevent overlap
   let lastLabelTime = null;
@@ -166,6 +217,7 @@ export default function AnalyticsScreen({ route }) {
     { label: '1D', value: '1D' },
     { label: '3D', value: '3D' },
     { label: '7D', value: '7D' },
+    { label: '30D', value: '30D' },
     { label: 'Monthly', value: 'Monthly' }
   ];
 
@@ -251,14 +303,14 @@ export default function AnalyticsScreen({ route }) {
         <View style={styles.chartLoadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      ) : timeFrame === 'Monthly' ? (
+      ) : (timeFrame === 'Monthly' || timeFrame === '30D') ? (
         <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>Monthly Temperature Extremes</Text>
+          <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
           {monthlyData.length > 0 ? (
             <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
               <LineChart
                 data={monthlyChartData}
-                width={Math.max(Dimensions.get('window').width - 40, monthlyData.length * 45)}
+                width={Math.max(width - 40, monthlyData.length * 45)}
                 height={260}
                 yAxisSuffix="°C"
                 yAxisInterval={1}
@@ -268,7 +320,7 @@ export default function AnalyticsScreen({ route }) {
               />
             </ScrollView>
           ) : (
-            <Text style={styles.errorText}>No data for this month.</Text>
+            <Text style={styles.errorText}>No data available for this range.</Text>
           )}
         </View>
       ) : cleanedLogs.length < 2 ? (
@@ -282,7 +334,7 @@ export default function AnalyticsScreen({ route }) {
           <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
             <LineChart
               data={chartData}
-              width={Math.max(Dimensions.get('window').width - 40, sampledLogs.length * 40)}
+              width={Math.max(width - 40, sampledLogs.length * 40)}
               height={260}
               yAxisSuffix="°C"
               yAxisInterval={1}
@@ -307,6 +359,28 @@ export default function AnalyticsScreen({ route }) {
           {tempMin !== null && ` The green line represents the minimum acceptable temperature (${tempMin}°C).`}
           Temperatures crossing these bounds will trigger system alarms.
         </Text>
+      </View>
+
+      {/* Outage & Alert History Log */}
+      <View style={styles.historyContainer}>
+        <Text style={styles.historyTitle}>📜 Outage & Alert Logs</Text>
+        {alertLogs.length > 0 ? (
+          alertLogs.map(alert => (
+            <View key={alert.id} style={[styles.alertRow, alert.resolved ? styles.alertResolved : styles.alertActive]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alertMsg}>{alert.message}</Text>
+                <Text style={styles.alertTime}>
+                  ⏰ {new Date(alert.created_at.endsWith('Z') ? alert.created_at : alert.created_at + 'Z').toLocaleString()}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, alert.resolved ? styles.statusBadgeResolved : styles.statusBadgeActive]}>
+                <Text style={styles.statusText}>{alert.resolved ? 'RESOLVED' : 'ACTIVE'}</Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noAlertsText}>No historical alerts or offline events found.</Text>
+        )}
       </View>
     </ScrollView>
   );
@@ -354,5 +428,70 @@ const styles = StyleSheet.create({
     color: '#1E40AF',
     fontSize: 14,
     lineHeight: 22,
+  },
+  historyContainer: {
+    marginTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 40,
+  },
+  historyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  alertActive: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  alertResolved: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  alertMsg: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    lineHeight: 18,
+  },
+  alertTime: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 6,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  statusBadgeActive: {
+    backgroundColor: '#EF4444',
+  },
+  statusBadgeResolved: {
+    backgroundColor: '#10B981',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  noAlertsText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 12,
   }
 });

@@ -12,7 +12,10 @@
       font-family: 'Inter', -apple-system, sans-serif;
       background: #F3F4F6; color: #111827; min-height: 100vh;
     }
-    .page { padding: 20px; max-width: 500px; margin: 0 auto; }
+    .page { padding: 20px; max-width: 500px; margin: 0 auto; transition: max-width 0.2s; }
+    @media (min-width: 600px) or (orientation: landscape) {
+      .page { max-width: 850px; }
+    }
 
     /* Header */
     .header { font-size: 30px; font-weight: bold; color: #111827; margin-bottom: 2px; }
@@ -535,12 +538,14 @@
       const days = document.getElementById('daysSelect').value;
       const interval = document.getElementById('intervalSelect').value;
 
-      if (days === 'Monthly') {
+      if (days === 'Monthly' || days === '30') {
+        const isMonthly = days === 'Monthly';
         document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=30&interval_minutes=1440`;
-        document.getElementById('chartCardTitle').textContent = `Monthly Temperature Extremes`;
+        document.getElementById('chartCardTitle').textContent = isMonthly ? `Monthly Temperature Extremes` : `30-Day Min/Max Temperature Extremes`;
         
         try {
-          const res = await fetch(`${API}/sensors/device/${currentDevice.id}/metrics/monthly`);
+          const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=30`;
+          const res = await fetch(`${API}${endpoint}`);
           const data = await res.json();
           
           if (data && data.daily_metrics && data.daily_metrics.length > 0) {

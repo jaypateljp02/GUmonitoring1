@@ -248,6 +248,48 @@ def get_monthly_analytics(
         daily_metrics=daily_metrics
     )
 
+@router.get("/device/{device_id}/metrics/rolling", response_model=MonthlyAnalyticsResponse)
+def get_rolling_analytics(
+    device_id: str,
+    days: int = 30,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch rolling daily metrics (min/max temperature and humidity) for the last N days.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    stats = db.query(
+        cast(DeviceTelemetry.timestamp, Date).label('day'),
+        func.min(DeviceTelemetry.temperature).label('t_min'),
+        func.max(DeviceTelemetry.temperature).label('t_max'),
+        func.min(DeviceTelemetry.humidity).label('h_min'),
+        func.max(DeviceTelemetry.humidity).label('h_max')
+    ).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= cutoff
+    ).group_by(
+        cast(DeviceTelemetry.timestamp, Date)
+    ).order_by(
+        cast(DeviceTelemetry.timestamp, Date)
+    ).all()
+    
+    daily_metrics = []
+    for row in stats:
+        daily_metrics.append(DailyMetric(
+            date=row.day.strftime("%Y-%m-%d"),
+            temp_min=round(row.t_min, 2) if row.t_min is not None else None,
+            temp_max=round(row.t_max, 2) if row.t_max is not None else None,
+            hum_min=round(row.h_min, 2) if row.h_min is not None else None,
+            hum_max=round(row.h_max, 2) if row.h_max is not None else None,
+        ))
+        
+    return MonthlyAnalyticsResponse(
+        device_id=device_id,
+        year=datetime.utcnow().year,
+        month=datetime.utcnow().month,
+        daily_metrics=daily_metrics
+    )
+
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
     device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
