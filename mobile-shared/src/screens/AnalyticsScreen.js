@@ -20,6 +20,8 @@ export default function AnalyticsScreen({ route }) {
   // Dynamic threshold states
   const [tempMin, setTempMin] = useState(null);
   const [tempMax, setTempMax] = useState(null);
+  const [humMin, setHumMin] = useState(null);
+  const [humMax, setHumMax] = useState(null);
   
   // Historical alerts states
   const [alertLogs, setAlertLogs] = useState([]);
@@ -35,6 +37,11 @@ export default function AnalyticsScreen({ route }) {
         if (tempSensor) {
           setTempMin(tempSensor.min_threshold);
           setTempMax(tempSensor.max_threshold);
+        }
+        const humSensor = res.data.find(s => s.type === 'humidity');
+        if (humSensor) {
+          setHumMin(humSensor.min_threshold);
+          setHumMax(humSensor.max_threshold);
         }
       } catch (err) {
         console.log('Error fetching device thresholds', err);
@@ -244,6 +251,89 @@ export default function AnalyticsScreen({ route }) {
     legend: ["Max Temp (°C)", "Min Temp (°C)"]
   };
 
+  // --- Humidity Trend Chart Data ---
+  const cleanedHumLogs = telemetryLogs
+    .map(log => {
+      const humVal = parseFloat(log.humidity);
+      return {
+        ...log,
+        humidity: isNaN(humVal) ? 0.0 : humVal
+      };
+    });
+
+  // Peak-preserving sampling logic for humidity
+  let sampledHumLogs = [];
+  if (cleanedHumLogs.length <= 300) {
+    sampledHumLogs = cleanedHumLogs;
+  } else {
+    const step = Math.floor(cleanedHumLogs.length / 150);
+    for (let i = 0; i < cleanedHumLogs.length; i += step) {
+      const chunk = cleanedHumLogs.slice(i, i + step);
+      if (chunk.length === 0) continue;
+      let minLog = chunk[0];
+      let maxLog = chunk[0];
+      for (const log of chunk) {
+        if (log.humidity < minLog.humidity) minLog = log;
+        if (log.humidity > maxLog.humidity) maxLog = log;
+      }
+      if (minLog.timestamp === maxLog.timestamp) {
+        sampledHumLogs.push(minLog);
+      } else {
+        const sorted = [minLog, maxLog].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        sampledHumLogs.push(...sorted);
+      }
+    }
+  }
+
+  const humChartData = {
+    labels: labels.length > 0 ? labels : ["No Data"],
+    datasets: [
+      {
+        data: sampledHumLogs.length > 0 ? sampledHumLogs.map(log => log.humidity) : [0],
+        color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`, // Purple
+        strokeWidth: 2
+      }
+    ],
+    legend: ["Humidity (%)"]
+  };
+
+  if (humMax !== null) {
+    humChartData.datasets.push({
+      data: sampledHumLogs.length > 0 ? sampledHumLogs.map(() => humMax) : [humMax],
+      color: (opacity = 1) => `rgba(236, 72, 153, ${opacity})`, // Pink
+      strokeWidth: 1.5,
+      withDots: false,
+    });
+    humChartData.legend.push(`Max Limit (${humMax}%)`);
+  }
+
+  if (humMin !== null) {
+    humChartData.datasets.push({
+      data: sampledHumLogs.length > 0 ? sampledHumLogs.map(() => humMin) : [humMin],
+      color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Green
+      strokeWidth: 1.5,
+      withDots: false,
+    });
+    humChartData.legend.push(`Min Limit (${humMin}%)`);
+  }
+
+  const monthlyHumChartData = {
+    labels: monthlyLabels.length > 0 ? monthlyLabels : ["No Data"],
+    datasets: [
+      {
+        data: monthlyData.length > 0 ? monthlyData.map(d => d.hum_max !== null ? parseFloat(d.hum_max) : 0) : [0],
+        color: (opacity = 1) => `rgba(236, 72, 153, ${opacity})`, // Pink (Max)
+        strokeWidth: 2
+      },
+      {
+        data: monthlyData.length > 0 ? monthlyData.map(d => d.hum_min !== null ? parseFloat(d.hum_min) : 0) : [0],
+        color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`, // Purple (Min)
+        strokeWidth: 2
+      }
+    ],
+    legend: ["Max Hum (%)", "Min Hum (%)"]
+  };
+
   const intervalOptions = [
     { label: 'Raw', value: 1 },
     { label: '15m', value: 15 },
@@ -303,49 +393,105 @@ export default function AnalyticsScreen({ route }) {
         <View style={styles.chartLoadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      ) : (timeFrame === 'Monthly' || timeFrame === '30D') ? (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
-          {monthlyData.length > 0 ? (
-            <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-              <LineChart
-                data={monthlyChartData}
-                width={Math.max(width - 40, monthlyData.length * 45)}
-                height={260}
-                yAxisSuffix="°C"
-                yAxisInterval={1}
-                chartConfig={chartConfigLight}
-                bezier
-                style={{ marginVertical: 8, borderRadius: 16 }}
-              />
-            </ScrollView>
-          ) : (
-            <Text style={styles.errorText}>No data available for this range.</Text>
-          )}
-        </View>
-      ) : cleanedLogs.length < 2 ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>No analytics data available yet.</Text>
-          <Text style={[styles.errorSubText, { marginTop: 8 }]}>Need at least 2 temperature readings to render the trend chart.</Text>
-        </View>
       ) : (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
-          <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-            <LineChart
-              data={chartData}
-              width={Math.max(width - 40, sampledLogs.length * 40)}
-              height={260}
-              yAxisSuffix="°C"
-              yAxisInterval={1}
-              chartConfig={chartConfigLight}
-              bezier
-              style={{
-                marginVertical: 8,
-                borderRadius: 16
-              }}
-            />
-          </ScrollView>
+        <View>
+          {/* Temperature Chart */}
+          {(timeFrame === 'Monthly' || timeFrame === '30D') ? (
+            <View style={styles.chartContainer}>
+              <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
+              {monthlyData.length > 0 ? (
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                  <LineChart
+                    data={monthlyChartData}
+                    width={Math.max(width - 40, monthlyData.length * 45)}
+                    height={260}
+                    yAxisSuffix="°C"
+                    yAxisInterval={1}
+                    chartConfig={chartConfigLight}
+                    bezier
+                    style={{ marginVertical: 8, borderRadius: 16 }}
+                  />
+                </ScrollView>
+              ) : (
+                <Text style={styles.errorText}>No temperature extremes data available for this range.</Text>
+              )}
+            </View>
+          ) : cleanedLogs.length < 2 ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>No temperature trend data available yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.chartContainer}>
+              <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
+              <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                <LineChart
+                  data={chartData}
+                  width={Math.max(width - 40, sampledLogs.length * 40)}
+                  height={260}
+                  yAxisSuffix="°C"
+                  yAxisInterval={1}
+                  chartConfig={chartConfigLight}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16
+                  }}
+                />
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Humidity Chart (Stacked under Temperature) */}
+          {(timeFrame === 'Monthly' || timeFrame === '30D') ? (
+            <View style={[styles.chartContainer, { marginTop: 20 }]}>
+              <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Humidity Extremes</Text>
+              {monthlyData.length > 0 ? (
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                  <LineChart
+                    data={monthlyHumChartData}
+                    width={Math.max(width - 40, monthlyData.length * 45)}
+                    height={260}
+                    yAxisSuffix="%"
+                    yAxisInterval={1}
+                    chartConfig={{
+                      ...chartConfigLight,
+                      propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
+                    }}
+                    bezier
+                    style={{ marginVertical: 8, borderRadius: 16 }}
+                  />
+                </ScrollView>
+              ) : (
+                <Text style={styles.errorText}>No humidity extremes data available for this range.</Text>
+              )}
+            </View>
+          ) : cleanedHumLogs.length < 2 ? (
+            <View style={[styles.errorContainer, { marginTop: 20 }]}>
+              <Text style={styles.errorText}>No humidity trend data available yet.</Text>
+            </View>
+          ) : (
+            <View style={[styles.chartContainer, { marginTop: 20 }]}>
+              <Text style={styles.chartTitle}>{timeFrame} Humidity Trend</Text>
+              <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                <LineChart
+                  data={humChartData}
+                  width={Math.max(width - 40, sampledHumLogs.length * 40)}
+                  height={260}
+                  yAxisSuffix="%"
+                  yAxisInterval={1}
+                  chartConfig={{
+                    ...chartConfigLight,
+                    propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
+                  }}
+                  bezier
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16
+                  }}
+                />
+              </ScrollView>
+            </View>
+          )}
         </View>
       )}
 
@@ -355,9 +501,11 @@ export default function AnalyticsScreen({ route }) {
 
       <View style={styles.infoBox}>
         <Text style={styles.infoText}>
-          The red line represents the maximum acceptable temperature ({effectiveMaxThreshold}°C) for the cold storage.
+          The red line represents the maximum acceptable temperature ({effectiveMaxThreshold}°C).
           {tempMin !== null && ` The green line represents the minimum acceptable temperature (${tempMin}°C).`}
-          Temperatures crossing these bounds will trigger system alarms.
+          {humMax !== null && ` The pink line represents the maximum acceptable humidity (${humMax}%).`}
+          {humMin !== null && ` The green line on the humidity chart represents the minimum acceptable humidity (${humMin}%).`}
+          {"\n\n"}Temperatures and humidities crossing these bounds will trigger system alarms.
         </Text>
       </View>
 

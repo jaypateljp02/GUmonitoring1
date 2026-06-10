@@ -11,6 +11,8 @@ export default function DashboardScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [minThreshold, setMinThreshold] = useState('');
   const [maxThreshold, setMaxThreshold] = useState('');
+  const [minHumThreshold, setMinHumThreshold] = useState('');
+  const [maxHumThreshold, setMaxHumThreshold] = useState('');
   const flashAnim = useRef(new Animated.Value(0)).current;
 
   const fetchThresholds = async () => {
@@ -20,6 +22,18 @@ export default function DashboardScreen({ route, navigation }) {
       if (tempSensor) {
         setMinThreshold(tempSensor.min_threshold !== null ? String(tempSensor.min_threshold) : '');
         setMaxThreshold(tempSensor.max_threshold !== null ? String(tempSensor.max_threshold) : '');
+      } else {
+        setMinThreshold('');
+        setMaxThreshold('');
+      }
+
+      const humSensor = res.data.find(s => s.type === 'humidity');
+      if (humSensor) {
+        setMinHumThreshold(humSensor.min_threshold !== null ? String(humSensor.min_threshold) : '');
+        setMaxHumThreshold(humSensor.max_threshold !== null ? String(humSensor.max_threshold) : '');
+      } else {
+        setMinHumThreshold('');
+        setMaxHumThreshold('');
       }
     } catch (e) {
       console.log('Error fetching thresholds:', e);
@@ -67,11 +81,23 @@ export default function DashboardScreen({ route, navigation }) {
 
   const tMin = minThreshold !== '' ? parseFloat(minThreshold) : null;
   const tMax = maxThreshold !== '' ? parseFloat(maxThreshold) : null;
+  const hMin = minHumThreshold !== '' ? parseFloat(minHumThreshold) : null;
+  const hMax = maxHumThreshold !== '' ? parseFloat(maxHumThreshold) : null;
+
   const temp = telemetry ? parseFloat(telemetry.temperature) : null;
-  const isAlert = temp !== null && !isOffline && (
+  const hum = telemetry ? parseFloat(telemetry.humidity) : null;
+
+  const isTempAlert = temp !== null && (
     (tMin !== null && temp < tMin) ||
     (tMax !== null && temp > tMax)
   );
+
+  const isHumAlert = hum !== null && (
+    (hMin !== null && hum < hMin) ||
+    (hMax !== null && hum > hMax)
+  );
+
+  const isAlert = !isOffline && (isTempAlert || isHumAlert);
 
   useEffect(() => {
     if (isAlert) {
@@ -107,15 +133,23 @@ export default function DashboardScreen({ route, navigation }) {
   const handleSaveThresholds = async () => {
     const minVal = minThreshold !== '' ? parseFloat(minThreshold) : null;
     const maxVal = maxThreshold !== '' ? parseFloat(maxThreshold) : null;
+    const minHumVal = minHumThreshold !== '' ? parseFloat(minHumThreshold) : null;
+    const maxHumVal = maxHumThreshold !== '' ? parseFloat(maxHumThreshold) : null;
 
     if (minVal !== null && maxVal !== null && minVal >= maxVal) {
       Alert.alert('Invalid Thresholds', 'Min temperature must be strictly less than Max temperature.');
       return;
     }
+    if (minHumVal !== null && maxHumVal !== null && minHumVal >= maxHumVal) {
+      Alert.alert('Invalid Thresholds', 'Min humidity must be strictly less than Max humidity.');
+      return;
+    }
 
     const body = {
       temp_min: minVal,
-      temp_max: maxVal
+      temp_max: maxVal,
+      hum_min: minHumVal,
+      hum_max: maxHumVal
     };
     try {
       await api.put(`/sensors/device/${device.id}/thresholds`, body);
@@ -144,17 +178,35 @@ export default function DashboardScreen({ route, navigation }) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>{device.icon} {device.name}</Text>
+      {/* Top Header Row with battery & time in the right corner */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
+        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flexShrink: 1 }]}>{device.icon} {device.name}</Text>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E6F4EA', borderColor: isOffline ? '#D1D5DB' : '#C2E7C9' }]}>
+            <Text style={{ color: isOffline ? '#5E5E5E' : '#137333', fontSize: 11, fontWeight: 'bold' }}>
+              🔋 {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
+            </Text>
+          </View>
+          <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E8F0FE', borderColor: isOffline ? '#D1D5DB' : '#D2E3FC' }]}>
+            <Text style={{ color: isOffline ? '#5E5E5E' : '#1A73E8', fontSize: 11, fontWeight: 'bold' }}>
+              🕒 {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+            </Text>
+          </View>
+        </View>
+      </View>
       
       <Animated.View style={[styles.card, { backgroundColor: cardBgColor }]}>
-        {/* Top bar with Battery and Last Update (Small) */}
+        {/* Top bar with Battery and Last Update (Grouped in right corner) */}
         <View style={styles.topStatusRow}>
-          <Text style={styles.smallStatusText}>
-            🔋 {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
-          </Text>
-          <Text style={styles.smallStatusText}>
-            🕒 {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
-          </Text>
+          <Text style={styles.topStatusLabel}>LIVE TELEMETRY</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Text style={styles.smallStatusText}>
+              🔋 Battery: {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
+            </Text>
+            <Text style={styles.smallStatusText}>
+              🕒 Update: {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+            </Text>
+          </View>
         </View>
 
         {/* Live Grid (Temp & Humidity side-by-side) */}
@@ -191,9 +243,9 @@ export default function DashboardScreen({ route, navigation }) {
                   {parseFloat(metrics24h.temp_min).toFixed(1)}°C
                 </Text>
               </View>
-              <View style={[styles.statsCard, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
-                <Text style={[styles.statsLabel, { color: '#475569' }]}>AVERAGE</Text>
-                <Text style={[styles.statsValue, { color: '#1E293B' }]}>
+              <View style={[styles.statsCard, styles.statsCardAvg, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
+                <Text style={[styles.statsLabel, styles.statsLabelAvg, { color: '#475569' }]}>AVERAGE</Text>
+                <Text style={[styles.statsValueAvg, { color: '#1E293B' }]}>
                   {parseFloat(metrics24h.temp_avg).toFixed(1)}°C
                 </Text>
               </View>
@@ -207,13 +259,42 @@ export default function DashboardScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* 24h Humidity Statistics (Big UI Box) */}
+        {metrics24h && metrics24h.hum_min !== null && (
+          <View style={[styles.statsSection, { marginTop: 14 }]}>
+            <Text style={styles.statsSectionTitle}>📈 24-HOUR HUMIDITY BOUNDS</Text>
+            <View style={styles.statsGrid}>
+              <View style={[styles.statsCard, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                <Text style={[styles.statsLabel, { color: '#1D4ED8' }]}>MINIMUM</Text>
+                <Text style={[styles.statsValue, { color: '#1E40AF' }]}>
+                  {parseFloat(metrics24h.hum_min).toFixed(1)}%
+                </Text>
+              </View>
+              <View style={[styles.statsCard, styles.statsCardAvg, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
+                <Text style={[styles.statsLabel, styles.statsLabelAvg, { color: '#475569' }]}>AVERAGE</Text>
+                <Text style={[styles.statsValueAvg, { color: '#1E293B' }]}>
+                  {parseFloat(metrics24h.hum_avg).toFixed(1)}%
+                </Text>
+              </View>
+              <View style={[styles.statsCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+                <Text style={[styles.statsLabel, { color: '#B91C1C' }]}>MAXIMUM</Text>
+                <Text style={[styles.statsValue, { color: '#991B1B' }]}>
+                  {parseFloat(metrics24h.hum_max).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {isOffline ? (
           <Text style={[styles.warningText, styles.warningTextOffline, { marginTop: 14 }]}>
             {`⚠️ DEVICE IS OFFLINE (No data for >2 mins)\nLast Active: ${telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : 'Never'}`}
           </Text>
         ) : isAlert ? (
           <Text style={[styles.warningText, { marginTop: 14 }]}>
-            {tMin !== null && temp < tMin ? `⚠️ TEMPERATURE BELOW SAFE LIMIT (${tMin}°C)` : `⚠️ TEMPERATURE EXCEEDS SAFE LIMIT (${tMax}°C)`}
+            {isTempAlert 
+              ? (tMin !== null && temp < tMin ? `⚠️ TEMPERATURE BELOW SAFE LIMIT (${tMin}°C)` : `⚠️ TEMPERATURE EXCEEDS SAFE LIMIT (${tMax}°C)`)
+              : (hMin !== null && hum < hMin ? `⚠️ HUMIDITY BELOW SAFE LIMIT (${hMin}%)` : `⚠️ HUMIDITY EXCEEDS SAFE LIMIT (${hMax}%)`)}
           </Text>
         ) : null}
       </Animated.View>
@@ -238,7 +319,8 @@ export default function DashboardScreen({ route, navigation }) {
       <View style={styles.thresholdPanel}>
         <Text style={styles.thresholdPanelTitle}>Threshold Configurations</Text>
         
-        <View style={styles.thresholdRow}>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Temperature Thresholds</Text>
+        <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>MIN TEMPERATURE (°C)</Text>
             <TextInput
@@ -257,6 +339,32 @@ export default function DashboardScreen({ route, navigation }) {
               keyboardType="numeric"
               value={maxThreshold}
               onChangeText={setMaxThreshold}
+              placeholder="None"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Humidity Thresholds</Text>
+        <View style={styles.thresholdRow}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>MIN HUMIDITY (%)</Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={minHumThreshold}
+              onChangeText={setMinHumThreshold}
+              placeholder="None"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>MAX HUMIDITY (%)</Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={maxHumThreshold}
+              onChangeText={setMaxHumThreshold}
               placeholder="None"
               placeholderTextColor="#9CA3AF"
             />
@@ -293,15 +401,31 @@ const styles = StyleSheet.create({
   topStatusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  topStatusLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
   smallStatusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748B',
+  },
+  topBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   liveGrid: {
     flexDirection: 'row',
@@ -346,23 +470,38 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 6,
   },
   statsCard: {
-    flex: 1,
-    paddingVertical: 12,
+    flex: 1.25,
+    paddingVertical: 18,
     paddingHorizontal: 8,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsCardAvg: {
+    flex: 0.85,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   statsLabel: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  statsLabelAvg: {
+    fontSize: 9,
     marginBottom: 4,
   },
   statsValue: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  statsValueAvg: {
     fontSize: 16,
     fontWeight: '800',
   },
