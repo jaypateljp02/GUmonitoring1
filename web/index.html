@@ -913,7 +913,7 @@
               color: '#4b5563',
               font: { family: 'Inter', size: trendOrientation === 'vertical' ? 8 : 10 },
               autoSkip: true,
-              maxTicksLimit: trendOrientation === 'vertical' ? 12 : 8
+              maxTicksLimit: trendOrientation === 'vertical' ? 48 : 8
             }
           }
         }
@@ -957,7 +957,7 @@
               color: '#4b5563',
               font: { family: 'Inter', size: extremesOrientation === 'vertical' ? 8 : 10 },
               autoSkip: true,
-              maxTicksLimit: extremesOrientation === 'vertical' ? 12 : 8
+              maxTicksLimit: extremesOrientation === 'vertical' ? 40 : 8
             }
           }
         }
@@ -986,6 +986,15 @@
 
           if (sortedData.length >= 2) {
             document.getElementById('chartCard').style.display = 'block';
+
+            // Recalculate wrapper height dynamically in vertical orientation to show full timeline/24hr
+            const wrapper = document.getElementById('trendChartWrapper');
+            if (trendOrientation === 'vertical') {
+              const calcHeight = Math.min(1200, Math.max(300, sortedData.length * 20));
+              wrapper.style.height = `${calcHeight}px`;
+            } else {
+              wrapper.style.height = '150px';
+            }
 
             // Clean, non-crowded label format
             const labels = sortedData.map(d => {
@@ -1083,6 +1092,14 @@
             if (metrics.length >= 2) {
               document.getElementById('extremesChartCard').style.display = 'block';
               
+              const wrapper = document.getElementById('extremesChartWrapper');
+              if (extremesOrientation === 'vertical') {
+                const calcHeight = Math.min(1200, Math.max(300, metrics.length * 25));
+                wrapper.style.height = `${calcHeight}px`;
+              } else {
+                wrapper.style.height = '150px';
+              }
+
               const labels = metrics.map(d => {
                 const dt = new Date(d.date);
                 return `${dt.getMonth()+1}/${dt.getDate()}`;
