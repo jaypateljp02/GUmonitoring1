@@ -147,61 +147,72 @@ export default function DashboardScreen({ route, navigation }) {
       <Text style={styles.header}>{device.icon} {device.name}</Text>
       
       <Animated.View style={[styles.card, { backgroundColor: cardBgColor }]}>
-        <Text style={styles.cardTitle}>LIVE METRIC READINGS</Text>
-        
-        {/* Large Temperature Indicator */}
-        <View style={styles.mainTelemetryDisplay}>
-          <Text style={styles.largeLabel}>Temperature</Text>
-          <Text style={[
-            styles.largeValue, 
-            isAlert && styles.largeValueAlert,
-            isOffline && styles.largeValueOffline
-          ]}>
-            {telemetry ? `${parseFloat(telemetry.temperature).toFixed(1)}°C` : '--'}
+        {/* Top bar with Battery and Last Update (Small) */}
+        <View style={styles.topStatusRow}>
+          <Text style={styles.smallStatusText}>
+            🔋 {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
           </Text>
-          
-          {metrics24h && metrics24h.temp_avg !== null && (
-            <Text style={styles.metricSub}>
-              24h Avg: {parseFloat(metrics24h.temp_avg).toFixed(1)}°C | Min: {parseFloat(metrics24h.temp_min).toFixed(1)}°C | Max: {parseFloat(metrics24h.temp_max).toFixed(1)}°C
-            </Text>
-          )}
+          <Text style={styles.smallStatusText}>
+            🕒 {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+          </Text>
         </View>
 
-        {/* Humidity Indicator */}
-        <View style={[styles.secondaryTelemetryDisplay, { marginTop: 20 }]}>
-          <Text style={styles.largeLabel}>Relative Humidity</Text>
-          <Text style={[styles.humidityValue, isOffline && styles.humidityValueOffline]}>
-            {telemetry ? `${parseFloat(telemetry.humidity).toFixed(1)}%` : '--'}
-          </Text>
-          
-          {metrics24h && metrics24h.hum_avg !== null && (
-            <Text style={styles.metricSub}>
-              24h Avg: {parseFloat(metrics24h.hum_avg).toFixed(1)}% | Min: {parseFloat(metrics24h.hum_min).toFixed(1)}% | Max: {parseFloat(metrics24h.hum_max).toFixed(1)}%
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.batteryTimeRow}>
-          <View style={styles.miniMetricBox}>
-            <Text style={styles.miniLabel}>BATTERY LEVEL</Text>
-            <Text style={styles.miniValue}>
-              🔋 {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
+        {/* Live Grid (Temp & Humidity side-by-side) */}
+        <View style={styles.liveGrid}>
+          {/* Temperature Box */}
+          <View style={styles.liveBox}>
+            <Text style={styles.liveBoxLabel}>🌡️ TEMPERATURE</Text>
+            <Text style={[
+              styles.liveBoxValue, 
+              isAlert && styles.liveBoxValueAlert,
+              isOffline && styles.liveBoxValueOffline
+            ]}>
+              {telemetry ? `${parseFloat(telemetry.temperature).toFixed(1)}°C` : '--'}
             </Text>
           </View>
-          <View style={[styles.miniMetricBox, { alignItems: 'flex-end' }]}>
-            <Text style={styles.miniLabel}>LAST UPDATE</Text>
-            <Text style={styles.miniValue}>
-              🕒 {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : '--'}
+          
+          {/* Humidity Box */}
+          <View style={[styles.liveBox, { borderLeftWidth: 1, borderLeftColor: '#E5E7EB' }]}>
+            <Text style={styles.liveBoxLabel}>💧 HUMIDITY</Text>
+            <Text style={[styles.liveBoxValue, { color: '#2563EB' }, isOffline && styles.liveBoxValueOffline]}>
+              {telemetry ? `${parseFloat(telemetry.humidity).toFixed(1)}%` : '--'}
             </Text>
           </View>
         </View>
+
+        {/* 24h Temperature Statistics (Big UI Box) */}
+        {metrics24h && metrics24h.temp_min !== null && (
+          <View style={styles.statsSection}>
+            <Text style={styles.statsSectionTitle}>📈 24-HOUR TEMPERATURE BOUNDS</Text>
+            <View style={styles.statsGrid}>
+              <View style={[styles.statsCard, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                <Text style={[styles.statsLabel, { color: '#1D4ED8' }]}>MINIMUM</Text>
+                <Text style={[styles.statsValue, { color: '#1E40AF' }]}>
+                  {parseFloat(metrics24h.temp_min).toFixed(1)}°C
+                </Text>
+              </View>
+              <View style={[styles.statsCard, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
+                <Text style={[styles.statsLabel, { color: '#475569' }]}>AVERAGE</Text>
+                <Text style={[styles.statsValue, { color: '#1E293B' }]}>
+                  {parseFloat(metrics24h.temp_avg).toFixed(1)}°C
+                </Text>
+              </View>
+              <View style={[styles.statsCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+                <Text style={[styles.statsLabel, { color: '#B91C1C' }]}>MAXIMUM</Text>
+                <Text style={[styles.statsValue, { color: '#991B1B' }]}>
+                  {parseFloat(metrics24h.temp_max).toFixed(1)}°C
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {isOffline ? (
-          <Text style={[styles.warningText, styles.warningTextOffline]}>
-            {`⚠️ DEVICE IS OFFLINE (No data for >10 mins)\nLast Active: ${telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : 'Never'}`}
+          <Text style={[styles.warningText, styles.warningTextOffline, { marginTop: 14 }]}>
+            {`⚠️ DEVICE IS OFFLINE (No data for >2 mins)\nLast Active: ${telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : 'Never'}`}
           </Text>
         ) : isAlert ? (
-          <Text style={styles.warningText}>
+          <Text style={[styles.warningText, { marginTop: 14 }]}>
             {tMin !== null && temp < tMin ? `⚠️ TEMPERATURE BELOW SAFE LIMIT (${tMin}°C)` : `⚠️ TEMPERATURE EXCEEDS SAFE LIMIT (${tMax}°C)`}
           </Text>
         ) : null}
@@ -278,53 +289,83 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  cardTitle: { color: '#6B7280', fontSize: 11, marginBottom: 20, fontWeight: '800', letterSpacing: 1 },
-  mainTelemetryDisplay: {
-    alignItems: 'center',
-    paddingVertical: 10,
+  cardTitle: { color: '#6B7280', fontSize: 10, marginBottom: 16, fontWeight: '800', letterSpacing: 1 },
+  topStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F1F5F9',
   },
-  secondaryTelemetryDisplay: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  largeLabel: {
-    color: '#6B7280',
+  smallStatusText: {
     fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
+    color: '#64748B',
+  },
+  liveGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  liveBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  liveBoxLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  largeValue: {
-    color: '#111827',
-    fontSize: 64,
+  liveBoxValue: {
+    color: '#0F172A',
+    fontSize: 38,
     fontWeight: '900',
-    textAlign: 'center',
   },
-  largeValueAlert: {
+  liveBoxValueAlert: {
     color: '#EF4444',
   },
-  largeValueOffline: {
-    color: '#6B7280',
+  liveBoxValueOffline: {
+    color: '#94A3B8',
   },
-  humidityValue: {
-    color: '#2563EB',
-    fontSize: 40,
+  statsSection: {
+    marginTop: 4,
+  },
+  statsSectionTitle: {
+    fontSize: 10,
     fontWeight: '800',
-    textAlign: 'center',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 12,
   },
-  humidityValueOffline: {
-    color: '#9CA3AF',
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  metricSub: { color: '#6B7280', fontSize: 11, marginTop: 8, textAlign: 'center', fontWeight: '500' },
-  batteryTimeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
-  miniMetricBox: { flex: 1 },
-  miniLabel: { color: '#6B7280', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
-  miniValue: { color: '#111827', fontSize: 14, fontWeight: 'bold' },
+  statsCard: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  statsLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  statsValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
   warningText: { color: '#FFFFFF', fontWeight: 'bold', marginTop: 20, textAlign: 'center', backgroundColor: '#EF4444', padding: 12, borderRadius: 12, overflow: 'hidden' },
   warningTextOffline: { backgroundColor: '#6B7280' },
   
