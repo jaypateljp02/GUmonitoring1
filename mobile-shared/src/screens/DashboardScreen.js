@@ -196,17 +196,9 @@ export default function DashboardScreen({ route, navigation }) {
       </View>
       
       <Animated.View style={[styles.card, { backgroundColor: cardBgColor }]}>
-        {/* Top bar with Battery and Last Update (Grouped in right corner) */}
+        {/* Top bar with LIVE TELEMETRY label */}
         <View style={styles.topStatusRow}>
           <Text style={styles.topStatusLabel}>LIVE TELEMETRY</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Text style={styles.smallStatusText}>
-              🔋 Battery: {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}
-            </Text>
-            <Text style={styles.smallStatusText}>
-              🕒 Update: {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
-            </Text>
-          </View>
         </View>
 
         {/* Live Grid (Temp & Humidity side-by-side) */}
