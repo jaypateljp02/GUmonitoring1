@@ -165,7 +165,7 @@ def aggregate_telemetry(logs: List[DeviceTelemetry], interval_minutes: int = 30)
 
 @router.get("/device/{device_id}/telemetry", response_model=List[DeviceTelemetryResponse])
 def get_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 30, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
 ):
     cutoff = datetime.utcnow() - timedelta(days=days)
     logs = db.query(DeviceTelemetry).filter(
@@ -250,7 +250,7 @@ def get_monthly_analytics(
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 30, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
 ):
     cutoff = datetime.utcnow() - timedelta(days=days)
     logs = db.query(DeviceTelemetry).filter(

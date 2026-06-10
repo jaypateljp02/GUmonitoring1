@@ -95,6 +95,13 @@
     }
     .badge-ok { background: #D1FAE5; color: #065F46; }
     .badge-alert { background: #FEE2E2; color: #991B1B; }
+    .badge-offline { background: #E5E7EB; color: #4B5563; border: 1px solid #D1D5DB; }
+    .sensor-card.offline-border { border-color: #9CA3AF; background: #F3F4F6; }
+    .sensor-temp.offline { color: #6B7280; }
+    .pin-badge.offline { background: rgba(55, 65, 81, 0.95); border-color: #9CA3AF; }
+    .pin-dot.offline { background: #9CA3AF; }
+    .card.offline-card { background: #F3F4F6; border-color: #D1D5DB; }
+    .warning-text.offline-warn { background: #E5E7EB; color: #4B5563; }
     .footer-text { text-align: center; color: #9CA3AF; font-size: 12px; margin-top: 20px; }
 
     /* ─── Detail View ─── */
@@ -261,9 +268,9 @@
         <div class="metric-box">
           <div class="metric-label">Data Interval</div>
           <select id="intervalSelect" class="input-field" onchange="updateAnalyticsOptions()">
-            <option value="1">Raw (1 min)</option>
+            <option value="1" selected>Raw (1 min)</option>
             <option value="15">15 Minutes</option>
-            <option value="30" selected>30 Minutes</option>
+            <option value="30">30 Minutes</option>
             <option value="60">1 Hour</option>
             <option value="120">2 Hours</option>
             <option value="720">12 Hours</option>
@@ -371,12 +378,13 @@
         if (tempSensor.min_threshold !== null && tempVal < tempSensor.min_threshold) isAlert = true;
         if (tempSensor.max_threshold !== null && tempVal > tempSensor.max_threshold) isAlert = true;
       }
+      const isOnline = data && data.is_online !== false;
 
       return `
       <div class="map-pin" style="left: ${room.map_x}; top: ${room.map_y};" onclick="showDetail('${room.id}')">
-        ${isAlert ? '<div class="pulse-ring-web"></div>' : ''}
-        <div class="pin-badge ${isAlert ? 'alert' : ''}">
-          <div class="pin-dot ${isAlert ? 'alert' : ''}"></div>
+        ${isAlert && isOnline ? '<div class="pulse-ring-web"></div>' : ''}
+        <div class="pin-badge ${!isOnline ? 'offline' : (isAlert ? 'alert' : '')}">
+          <div class="pin-dot ${!isOnline ? 'offline' : (isAlert ? 'alert' : '')}"></div>
           <div>
             <div class="pin-name">${room.name}</div>
             <div class="pin-temp">${tempText}</div>
@@ -439,17 +447,26 @@
             if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
             if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
 
+            const isOnline = data.is_online !== false;
+
             if (badge && card) {
-              if (isAlert) {
+              if (!isOnline) {
+                el.classList.add('offline');
+                el.classList.remove('alert');
+                badge.className = 'sensor-badge badge-offline';
+                badge.textContent = '⚠️ OFFLINE';
+                card.className = 'sensor-card offline-border';
+              } else if (isAlert) {
                 el.classList.add('alert');
+                el.classList.remove('offline');
                 badge.className = 'sensor-badge badge-alert';
                 badge.textContent = '⚠️ ALERT';
-                card.classList.add('alert-border');
+                card.className = 'sensor-card alert-border';
               } else {
-                el.classList.remove('alert');
+                el.classList.remove('alert', 'offline');
                 badge.className = 'sensor-badge badge-ok';
                 badge.textContent = '✅ OK';
-                card.classList.remove('alert-border');
+                card.className = 'sensor-card';
               }
             }
           }
@@ -698,6 +715,7 @@
           const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
           document.getElementById('dTime').textContent = ts.toLocaleTimeString();
 
+          const isOnline = d.is_online !== false;
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
           
@@ -711,13 +729,17 @@
             alertMsg = `⚠️ TEMPERATURE ALERT: EXCEEDS ${tempMax}°C`;
           }
 
-          if (isAlert) {
-            card.classList.add('alarm');
+          if (!isOnline) {
+            card.className = 'card offline-card';
+            warn.textContent = `⚠️ DEVICE OFFLINE (No data for >10 mins)`;
+            warn.className = 'warning-text show offline-warn';
+          } else if (isAlert) {
+            card.className = 'card alarm';
             warn.textContent = alertMsg;
-            warn.classList.add('show');
+            warn.className = 'warning-text show';
           } else {
-            card.classList.remove('alarm');
-            warn.classList.remove('show');
+            card.className = 'card';
+            warn.className = 'warning-text';
           }
 
           try {

@@ -51,10 +51,24 @@ export default function DashboardScreen({ route, navigation }) {
     return () => clearInterval(interval);
   }, []);
 
+  const parseDate = (timestampStr) => {
+    if (!timestampStr) return null;
+    const normalized = timestampStr.replace(' ', 'T');
+    const parts = normalized.split('T');
+    if (parts.length === 2 && !parts[1].includes('Z') && !parts[1].match(/[+-]\d{2}:?\d{2}$/)) {
+      return new Date(normalized + 'Z');
+    }
+    return new Date(normalized);
+  };
+
+  const lastUpdate = telemetry ? parseDate(telemetry.timestamp) : null;
+  const isOnline = lastUpdate ? (new Date() - lastUpdate) < 10 * 60 * 1000 : false;
+  const isOffline = telemetry && !isOnline;
+
   const tMin = minThreshold !== '' ? parseFloat(minThreshold) : null;
   const tMax = maxThreshold !== '' ? parseFloat(maxThreshold) : null;
   const temp = telemetry ? parseFloat(telemetry.temperature) : null;
-  const isAlert = temp !== null && (
+  const isAlert = temp !== null && !isOffline && (
     (tMin !== null && temp < tMin) ||
     (tMax !== null && temp > tMax)
   );
@@ -124,17 +138,23 @@ export default function DashboardScreen({ route, navigation }) {
     );
   }
 
+  const cardBgColor = isOffline ? '#E5E7EB' : (isAlert ? warningBackgroundColor : '#FFFFFF');
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.header}>{device.icon} {device.name}</Text>
       
-      <Animated.View style={[styles.card, { backgroundColor: isAlert ? warningBackgroundColor : '#FFFFFF' }]}>
+      <Animated.View style={[styles.card, { backgroundColor: cardBgColor }]}>
         <Text style={styles.cardTitle}>LIVE METRIC READINGS</Text>
         
         {/* Large Temperature Indicator */}
         <View style={styles.mainTelemetryDisplay}>
           <Text style={styles.largeLabel}>Temperature</Text>
-          <Text style={[styles.largeValue, isAlert && styles.largeValueAlert]}>
+          <Text style={[
+            styles.largeValue, 
+            isAlert && styles.largeValueAlert,
+            isOffline && styles.largeValueOffline
+          ]}>
             {telemetry ? `${parseFloat(telemetry.temperature).toFixed(1)}°C` : '--'}
           </Text>
           
@@ -148,7 +168,7 @@ export default function DashboardScreen({ route, navigation }) {
         {/* Humidity Indicator */}
         <View style={[styles.secondaryTelemetryDisplay, { marginTop: 20 }]}>
           <Text style={styles.largeLabel}>Relative Humidity</Text>
-          <Text style={styles.humidityValue}>
+          <Text style={[styles.humidityValue, isOffline && styles.humidityValueOffline]}>
             {telemetry ? `${parseFloat(telemetry.humidity).toFixed(1)}%` : '--'}
           </Text>
           
@@ -174,11 +194,15 @@ export default function DashboardScreen({ route, navigation }) {
           </View>
         </View>
 
-        {isAlert && (
+        {isOffline ? (
+          <Text style={[styles.warningText, styles.warningTextOffline]}>
+            {`⚠️ DEVICE IS OFFLINE (No data for >10 mins)\nLast Active: ${telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : 'Never'}`}
+          </Text>
+        ) : isAlert ? (
           <Text style={styles.warningText}>
             {tMin !== null && temp < tMin ? `⚠️ TEMPERATURE BELOW SAFE LIMIT (${tMin}°C)` : `⚠️ TEMPERATURE EXCEEDS SAFE LIMIT (${tMax}°C)`}
           </Text>
-        )}
+        ) : null}
       </Animated.View>
 
       <TouchableOpacity 
@@ -282,11 +306,17 @@ const styles = StyleSheet.create({
   largeValueAlert: {
     color: '#EF4444',
   },
+  largeValueOffline: {
+    color: '#6B7280',
+  },
   humidityValue: {
     color: '#2563EB',
     fontSize: 40,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  humidityValueOffline: {
+    color: '#9CA3AF',
   },
   metricSub: { color: '#6B7280', fontSize: 11, marginTop: 8, textAlign: 'center', fontWeight: '500' },
   batteryTimeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
@@ -294,6 +324,7 @@ const styles = StyleSheet.create({
   miniLabel: { color: '#6B7280', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
   miniValue: { color: '#111827', fontSize: 14, fontWeight: 'bold' },
   warningText: { color: '#FFFFFF', fontWeight: 'bold', marginTop: 20, textAlign: 'center', backgroundColor: '#EF4444', padding: 12, borderRadius: 12, overflow: 'hidden' },
+  warningTextOffline: { backgroundColor: '#6B7280' },
   
   actionButton: { backgroundColor: '#2563EB', borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
   exportButton: { backgroundColor: '#10B981' },

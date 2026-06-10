@@ -13,7 +13,7 @@ export default function AnalyticsScreen({ route }) {
   
   // Custom selection states
   const [timeFrame, setTimeFrame] = useState('7D');
-  const [intervalMinutes, setIntervalMinutes] = useState(30);
+  const [intervalMinutes, setIntervalMinutes] = useState(1);
   const [monthlyData, setMonthlyData] = useState([]);
   
   // Dynamic threshold states
@@ -254,16 +254,18 @@ export default function AnalyticsScreen({ route }) {
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>Monthly Temperature Extremes</Text>
           {monthlyData.length > 0 ? (
-            <LineChart
-              data={monthlyChartData}
-              width={Dimensions.get('window').width - 40}
-              height={220}
-              yAxisSuffix="°C"
-              yAxisInterval={1}
-              chartConfig={chartConfigLight}
-              bezier
-              style={{ marginVertical: 8, borderRadius: 16 }}
-            />
+            <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+              <LineChart
+                data={monthlyChartData}
+                width={Math.max(Dimensions.get('window').width - 40, monthlyData.length * 45)}
+                height={260}
+                yAxisSuffix="°C"
+                yAxisInterval={1}
+                chartConfig={chartConfigLight}
+                bezier
+                style={{ marginVertical: 8, borderRadius: 16 }}
+              />
+            </ScrollView>
           ) : (
             <Text style={styles.errorText}>No data for this month.</Text>
           )}
@@ -276,19 +278,21 @@ export default function AnalyticsScreen({ route }) {
       ) : (
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
-          <LineChart
-            data={chartData}
-            width={Dimensions.get('window').width - 40}
-            height={220}
-            yAxisSuffix="°C"
-            yAxisInterval={1}
-            chartConfig={chartConfigLight}
-            bezier
-            style={{
-              marginVertical: 8,
-              borderRadius: 16
-            }}
-          />
+          <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+            <LineChart
+              data={chartData}
+              width={Math.max(Dimensions.get('window').width - 40, sampledLogs.length * 40)}
+              height={260}
+              yAxisSuffix="°C"
+              yAxisInterval={1}
+              chartConfig={chartConfigLight}
+              bezier
+              style={{
+                marginVertical: 8,
+                borderRadius: 16
+              }}
+            />
+          </ScrollView>
         </View>
       )}
 

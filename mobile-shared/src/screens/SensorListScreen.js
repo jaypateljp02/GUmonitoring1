@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { api, clearAuthToken } from '../services/api';
 
+const parseDate = (timestampStr) => {
+  if (!timestampStr) return null;
+  const normalized = timestampStr.replace(' ', 'T');
+  const parts = normalized.split('T');
+  if (parts.length === 2 && !parts[1].includes('Z') && !parts[1].match(/[+-]\d{2}:?\d{2}$/)) {
+    return new Date(normalized + 'Z');
+  }
+  return new Date(normalized);
+};
+
 function RoomCard({ room, telemetry, onPress }) {
   // Find temperature and humidity sensors
   const tempSensor = room.sensors?.find(s => s.type === 'temperature');
@@ -12,6 +22,11 @@ function RoomCard({ room, telemetry, onPress }) {
 
   const temp = hasTemp ? parseFloat(telemetry[tempSensor.id].temperature) : null;
   const hum = hasHum ? parseFloat(telemetry[humSensor.id].humidity) : null;
+
+  const latestTimeStr = hasTemp ? telemetry[tempSensor.id].timestamp : null;
+  const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
+  const isOnline = latestTime ? (new Date() - latestTime) < 10 * 60 * 1000 : false;
+  const isOffline = hasTemp && !isOnline;
 
   // Determine alert status based on thresholds
   let isAlert = false;
@@ -32,7 +47,11 @@ function RoomCard({ room, telemetry, onPress }) {
 
   return (
     <TouchableOpacity 
-      style={[styles.sensorCard, isAlert && styles.sensorCardAlert]} 
+      style={[
+        styles.sensorCard, 
+        isAlert && styles.sensorCardAlert,
+        isOffline && styles.sensorCardOffline
+      ]} 
       onPress={onPress} 
       activeOpacity={0.8}
     >
@@ -49,10 +68,19 @@ function RoomCard({ room, telemetry, onPress }) {
       <View style={styles.sensorCardRight}>
         {temp !== null ? (
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.sensorTemp, isAlert && styles.sensorTempAlert]}>{temp.toFixed(1)}°C</Text>
+            <Text style={[
+              styles.sensorTemp, 
+              isAlert && styles.sensorTempAlert,
+              isOffline && styles.sensorTempOffline
+            ]}>
+              {temp.toFixed(1)}°C
+            </Text>
             {hum !== null && <Text style={styles.sensorHum}>{hum.toFixed(1)}% RH</Text>}
-            <Text style={[styles.sensorBadge, isAlert ? styles.badgeAlert : styles.badgeOk]}>
-              {isAlert ? '⚠️ ALERT' : '✅ OK'}
+            <Text style={[
+              styles.sensorBadge, 
+              isOffline ? styles.badgeOffline : (isAlert ? styles.badgeAlert : styles.badgeOk)
+            ]}>
+              {isOffline ? '⚠️ OFFLINE' : (isAlert ? '⚠️ ALERT' : '✅ OK')}
             </Text>
           </View>
         ) : (
@@ -201,6 +229,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sensorCardAlert: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
+  sensorCardOffline: { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' },
 
   sensorCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sensorIcon: { fontSize: 28 },
@@ -210,11 +239,13 @@ const styles = StyleSheet.create({
   sensorCardRight: { alignItems: 'flex-end' },
   sensorTemp: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
   sensorTempAlert: { color: '#EF4444' },
+  sensorTempOffline: { color: '#6B7280' },
   sensorHum: { fontSize: 13, color: '#6B7280', marginTop: 2 },
 
   sensorBadge: { fontSize: 10, fontWeight: 'bold', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   badgeOk: { backgroundColor: '#D1FAE5', color: '#065F46', borderWidth: 1, borderColor: '#A7F3D0' },
   badgeAlert: { backgroundColor: '#FEE2E2', color: '#991B1B', borderWidth: 1, borderColor: '#FCA5A5' },
+  badgeOffline: { backgroundColor: '#E5E7EB', color: '#4B5563', borderWidth: 1, borderColor: '#D1D5DB' },
 
   footerText: { textAlign: 'center', color: '#9CA3AF', fontSize: 12, marginTop: 20, marginBottom: 30 },
 });

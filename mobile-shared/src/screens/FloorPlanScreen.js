@@ -4,6 +4,16 @@ import { api } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 
+const parseDate = (timestampStr) => {
+  if (!timestampStr) return null;
+  const normalized = timestampStr.replace(' ', 'T');
+  const parts = normalized.split('T');
+  if (parts.length === 2 && !parts[1].includes('Z') && !parts[1].match(/[+-]\d{2}:?\d{2}$/)) {
+    return new Date(normalized + 'Z');
+  }
+  return new Date(normalized);
+};
+
 const { width, height } = Dimensions.get('window');
 
 // Premium Floor Plan View Component
@@ -92,8 +102,13 @@ export default function FloorPlanScreen() {
           const data = tempSensor ? liveData[tempSensor.id] : null;
           const temp = data ? `${parseFloat(data.temperature)}°C` : '--';
           
+          const latestTimeStr = data ? data.timestamp : null;
+          const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
+          const isOnline = latestTime ? (new Date() - latestTime) < 10 * 60 * 1000 : false;
+          const isOffline = data && !isOnline;
+
           // Check for alerts
-          const isAlert = data && (
+          const isAlert = data && !isOffline && (
             (tempSensor.min_threshold !== null && data.temperature < tempSensor.min_threshold) ||
             (tempSensor.max_threshold !== null && data.temperature > tempSensor.max_threshold)
           );
@@ -106,11 +121,24 @@ export default function FloorPlanScreen() {
               activeOpacity={0.7}
             >
               {isAlert && <View style={styles.pulseRing} />}
-              <BlurView intensity={80} style={[styles.markerBadge, isAlert && styles.markerBadgeAlert]}>
-                <View style={styles.markerDot} />
+              <BlurView 
+                intensity={80} 
+                style={[
+                  styles.markerBadge, 
+                  isAlert && styles.markerBadgeAlert,
+                  isOffline && styles.markerBadgeOffline
+                ]}
+              >
+                <View style={[styles.markerDot, isOffline && styles.markerDotOffline]} />
                 <View>
                   <Text style={styles.markerName}>{room.name}</Text>
-                  <Text style={[styles.markerTemp, isAlert && styles.markerTempAlert]}>{temp}</Text>
+                  <Text style={[
+                    styles.markerTemp, 
+                    isAlert && styles.markerTempAlert,
+                    isOffline && styles.markerTempOffline
+                  ]}>
+                    {temp}
+                  </Text>
                 </View>
               </BlurView>
             </TouchableOpacity>
@@ -177,12 +205,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(153, 27, 27, 0.85)',
     borderColor: '#EF4444',
   },
+  markerBadgeOffline: {
+    backgroundColor: 'rgba(55, 65, 81, 0.85)',
+    borderColor: 'rgba(156, 163, 175, 0.4)',
+  },
   markerDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#3B82F6',
     marginRight: 8,
+  },
+  markerDotOffline: {
+    backgroundColor: '#9CA3AF',
   },
   markerName: {
     color: '#9CA3AF',
@@ -197,6 +232,9 @@ const styles = StyleSheet.create({
   },
   markerTempAlert: {
     color: '#FECACA',
+  },
+  markerTempOffline: {
+    color: '#D1D5DB',
   },
   pulseRing: {
     position: 'absolute',
