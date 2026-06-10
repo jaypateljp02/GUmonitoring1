@@ -394,56 +394,61 @@
       <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT</div>
     </div>
     
-    <!-- Analytics Config Panel -->
+    <!-- Collapsible Analytics Config Panel -->
     <div class="card" style="margin-top: 14px;">
-      <div class="card-title">Analytics & Export Options</div>
-      <div class="row">
-        <div class="metric-box" style="margin-right: 8px;">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Time Frame</div>
-          <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="toggleDateRangeInputs(); updateAnalyticsOptions()">
-            <option value="1">1 Day</option>
-            <option value="3">3 Days</option>
-            <option value="7" selected>7 Days</option>
-            <option value="30">30 Days</option>
-            <option value="Monthly">Monthly</option>
-            <option value="custom">Custom Range</option>
-          </select>
-        </div>
-        <div class="metric-box">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Data Interval</div>
-          <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()">
-            <option value="1" selected>Raw (1 min)</option>
-            <option value="15">15 Minutes</option>
-            <option value="30">30 Minutes</option>
-            <option value="60">1 Hour</option>
-            <option value="120">2 Hours</option>
-            <option value="720">12 Hours</option>
-            <option value="1440">24 Hours</option>
-          </select>
-        </div>
+      <div class="card-header-collapsible" onclick="toggleCollapse('analyticsContent', 'analyticsArrow')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+        <div class="card-title" style="margin-bottom: 0;">Analytics & Export Options</div>
+        <span id="analyticsArrow" style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">▼</span>
       </div>
-      
-      <!-- Custom Date Range inputs -->
-      <div id="customDateRangeRow" style="display: none; margin-top: 10px;" class="row">
-        <div class="metric-box" style="margin-right: 8px;">
-          <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date</div>
-          <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+      <div id="analyticsContent" style="display: none; margin-top: 10px;">
+        <div class="row">
+          <div class="metric-box" style="margin-right: 8px;">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Time Frame</div>
+            <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="toggleDateRangeInputs(); updateAnalyticsOptions()">
+              <option value="1">1 Day</option>
+              <option value="3">3 Days</option>
+              <option value="7" selected>7 Days</option>
+              <option value="30">30 Days</option>
+              <option value="Monthly">Monthly</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Data Interval</div>
+            <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()">
+              <option value="1" selected>Raw (1 min)</option>
+              <option value="15">15 Minutes</option>
+              <option value="30">30 Minutes</option>
+              <option value="60">1 Hour</option>
+              <option value="120">2 Hours</option>
+              <option value="720">12 Hours</option>
+              <option value="1440">24 Hours</option>
+            </select>
+          </div>
         </div>
-        <div class="metric-box">
-          <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date</div>
-          <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+        
+        <!-- Custom Date Range inputs -->
+        <div id="customDateRangeRow" style="display: none; margin-top: 10px;" class="row">
+          <div class="metric-box" style="margin-right: 8px;">
+            <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date</div>
+            <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+          </div>
+          <div class="metric-box">
+            <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date</div>
+            <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+          </div>
         </div>
-      </div>
 
-      <div style="margin-top: 10px;">
-        <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export CSV Log</a>
+        <div style="margin-top: 10px;">
+          <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export CSV Log</a>
+        </div>
       </div>
     </div>
 
     <!-- Chart Card -->
     <div class="card" id="chartCard" style="margin-top: 14px; display: none;">
       <div class="card-title" id="chartCardTitle">7-Day Temperature Trend</div>
-      <div style="position: relative; height: 180px; width: 100%;">
+      <div style="position: relative; height: 150px; width: 100%;">
         <canvas id="telemetryChart"></canvas>
       </div>
     </div>
@@ -451,37 +456,42 @@
     <!-- Extremes Chart Card -->
     <div class="card" id="extremesChartCard" style="margin-top: 14px; display: none;">
       <div class="card-title" id="extremesChartCardTitle">Daily Min/Max Extremes</div>
-      <div style="position: relative; height: 180px; width: 100%;">
+      <div style="position: relative; height: 150px; width: 100%;">
         <canvas id="extremesChart"></canvas>
       </div>
     </div>
 
-    <!-- Thresholds Configuration Panel -->
+    <!-- Collapsible Thresholds Configuration Panel -->
     <div class="card" style="margin-top: 14px;">
-      <div class="card-title">Thresholds Configuration</div>
-      <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Temperature Thresholds</div>
-      <div class="row" style="margin-bottom: 10px;">
-        <div class="metric-box" style="margin-right: 8px;">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Temp (°C)</div>
-          <input type="number" step="0.5" id="minInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
-        </div>
-        <div class="metric-box">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Temp (°C)</div>
-          <input type="number" step="0.5" id="maxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
-        </div>
+      <div class="card-header-collapsible" onclick="toggleCollapse('thresholdsContent', 'thresholdsArrow')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+        <div class="card-title" style="margin-bottom: 0;">Thresholds Configuration</div>
+        <span id="thresholdsArrow" style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">▼</span>
       </div>
-      <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Humidity Thresholds</div>
-      <div class="row">
-        <div class="metric-box" style="margin-right: 8px;">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Humidity (%)</div>
-          <input type="number" step="1" id="humMinInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+      <div id="thresholdsContent" style="display: none; margin-top: 10px;">
+        <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Temperature Thresholds</div>
+        <div class="row" style="margin-bottom: 10px;">
+          <div class="metric-box" style="margin-right: 8px;">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Temp (°C)</div>
+            <input type="number" step="0.5" id="minInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+          </div>
+          <div class="metric-box">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Temp (°C)</div>
+            <input type="number" step="0.5" id="maxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+          </div>
         </div>
-        <div class="metric-box">
-          <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Humidity (%)</div>
-          <input type="number" step="1" id="humMaxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+        <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Humidity Thresholds</div>
+        <div class="row">
+          <div class="metric-box" style="margin-right: 8px;">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Humidity (%)</div>
+            <input type="number" step="1" id="humMinInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+          </div>
+          <div class="metric-box">
+            <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Humidity (%)</div>
+            <input type="number" step="1" id="humMaxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+          </div>
         </div>
+        <button class="action-btn blue" style="margin-top: 10px; padding: 10px; font-size: 13px; margin-bottom: 0;" onclick="saveThresholds()">Save Thresholds</button>
       </div>
-      <button class="action-btn blue" style="margin-top: 10px; padding: 10px; font-size: 13px; margin-bottom: 0;" onclick="saveThresholds()">Save Thresholds</button>
     </div>
   </div>
 
@@ -915,6 +925,17 @@
         }
       }
     }
+
+    function toggleCollapse(contentId, arrowId) {
+      const content = document.getElementById(contentId);
+      const arrow = document.getElementById(arrowId);
+      if (content.style.display === 'none') {
+        content.style.display = 'block';
+        arrow.textContent = '▲';
+      } else {
+        content.style.display = 'none';
+        arrow.textContent = '▼';
+      }
     }
 
     function toggleDateRangeInputs() {
@@ -959,6 +980,11 @@
       document.getElementById('daysSelect').value = '7';
       document.getElementById('intervalSelect').value = '1';
       document.getElementById('customDateRangeRow').style.display = 'none';
+      
+      document.getElementById('analyticsContent').style.display = 'none';
+      document.getElementById('analyticsArrow').textContent = '▼';
+      document.getElementById('thresholdsContent').style.display = 'none';
+      document.getElementById('thresholdsArrow').textContent = '▼';
 
       await fetchActiveThresholds(currentDevice.id);
       await updateAnalyticsOptions();
