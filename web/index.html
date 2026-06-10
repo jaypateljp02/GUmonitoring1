@@ -10,7 +10,7 @@
     :root {
       --bg-gradient: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
       --card-bg: #ffffff;
-      --card-border: #e5e7eb;
+      --card-border: #cbd5e1;
       --card-hover-bg: #f9fafb;
       --text-primary: #111827;
       --text-secondary: #4b5563;
@@ -434,6 +434,14 @@
       </div>
     </div>
 
+    <!-- Extremes Chart Card -->
+    <div class="card" id="extremesChartCard" style="margin-top: 14px; display: none;">
+      <div class="card-title" id="extremesChartCardTitle">Daily Min/Max Extremes</div>
+      <div style="position: relative; height: 180px; width: 100%;">
+        <canvas id="extremesChart"></canvas>
+      </div>
+    </div>
+
     <!-- Thresholds Configuration Panel -->
     <div class="card" style="margin-top: 14px;">
       <div class="card-title">Thresholds Configuration</div>
@@ -474,6 +482,7 @@
     let humMin = null;
     let humMax = null;
     let chartInstance = null;
+    let extremesChartInstance = null;
 
     // Get icon based on room type
     function getRoomIcon(type) {
@@ -710,7 +719,7 @@
             }
           },
           y: {
-            grid: { color: '#e5e7eb' },
+            grid: { color: '#cbd5e1' },
             ticks: {
               color: '#4b5563',
               font: { family: 'Inter', size: 10 }
@@ -719,59 +728,17 @@
         }
       };
 
-      if (days === 'Monthly' || days === '30' || days === '7') {
-        const isMonthly = days === 'Monthly';
-        const exportDays = days === 'Monthly' ? '30' : days;
-        document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=1440`;
-        document.getElementById('chartCardTitle').textContent = isMonthly ? `Monthly Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
-        
-        try {
-          const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=${days}`;
-          const res = await fetch(`${API}${endpoint}`);
-          const data = await res.json();
-          
-          if (data && data.daily_metrics && data.daily_metrics.length > 0) {
-            document.getElementById('chartCard').style.display = 'block';
-            
-            const labels = data.daily_metrics.map(d => {
-              const dt = new Date(d.date);
-              return `${dt.getMonth()+1}/${dt.getDate()}`;
-            });
-            const tempMaxes = data.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
-            const tempMins = data.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
-            
-            if (chartInstance) chartInstance.destroy();
-            const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
-            chartInstance = new Chart(ctxTemp, {
-              type: 'line',
-              data: {
-                labels: labels,
-                datasets: [
-                  { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
-                  { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
-                ]
-              },
-              options: chartOptionsLight
-            });
-          } else {
-            document.getElementById('chartCard').style.display = 'none';
-          }
-        } catch (e) {
-          console.error(e);
-          document.getElementById('chartCard').style.display = 'none';
-        }
-        return;
-      }
-
-      document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${days}&interval_minutes=${interval}`;
-      document.getElementById('chartCardTitle').textContent = `${days}-Day Temperature Trend (${interval === '1' ? 'Raw' : interval + 'm'} intervals)`;
+      // 1. Update Telemetry Trend Chart (Always query /telemetry for current intervals)
+      const exportDays = days === 'Monthly' ? '30' : days;
+      document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
+      document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
 
       try {
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${days}&interval_minutes=${interval}`);
-        const data = await res.json();
+        const resTrend = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${exportDays}&interval_minutes=${interval}`);
+        const trendData = await resTrend.json();
         
-        if (data && data.length >= 2) {
-          const sortedData = [...data].reverse();
+        if (trendData && trendData.length >= 2) {
+          const sortedData = [...trendData].reverse();
           const labels = sortedData.map(d => {
             const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
             return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
@@ -828,8 +795,57 @@
           document.getElementById('chartCard').style.display = 'none';
         }
       } catch (e) {
-        console.error('Error fetching analytics for chart:', e);
+        console.error('Error fetching trend telemetry:', e);
         document.getElementById('chartCard').style.display = 'none';
+      }
+
+      // 2. Update Extremes (Min/Max) Chart (Only for 7 Days, 30 Days, Monthly)
+      if (days === '7' || days === '30' || days === 'Monthly') {
+        document.getElementById('extremesChartCardTitle').textContent = days === 'Monthly' ? `Monthly Min/Max Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
+        
+        try {
+          const isMonthly = days === 'Monthly';
+          const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=${days}`;
+          const resExt = await fetch(`${API}${endpoint}`);
+          const extData = await resExt.json();
+          
+          if (extData && extData.daily_metrics && extData.daily_metrics.length > 0) {
+            document.getElementById('extremesChartCard').style.display = 'block';
+            
+            const labels = extData.daily_metrics.map(d => {
+              const dt = new Date(d.date);
+              return `${dt.getMonth()+1}/${dt.getDate()}`;
+            });
+            const tempMaxes = extData.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
+            const tempMins = extData.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
+            
+            if (extremesChartInstance) extremesChartInstance.destroy();
+            const ctxExt = document.getElementById('extremesChart').getContext('2d');
+            extremesChartInstance = new Chart(ctxExt, {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [
+                  { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
+                  { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
+                ]
+              },
+              options: chartOptionsLight
+            });
+          } else {
+            document.getElementById('extremesChartCard').style.display = 'none';
+          }
+        } catch (e) {
+          console.error('Error fetching extremes metrics:', e);
+          document.getElementById('extremesChartCard').style.display = 'none';
+        }
+      } else {
+        // Hide extremes chart card for short timeframes (1D, 3D)
+        document.getElementById('extremesChartCard').style.display = 'none';
+        if (extremesChartInstance) {
+          extremesChartInstance.destroy();
+          extremesChartInstance = null;
+        }
       }
     }
 
@@ -869,6 +885,10 @@
       if (chartInstance) {
         chartInstance.destroy();
         chartInstance = null;
+      }
+      if (extremesChartInstance) {
+        extremesChartInstance.destroy();
+        extremesChartInstance = null;
       }
       pollList();
     }
