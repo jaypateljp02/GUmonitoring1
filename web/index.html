@@ -6,6 +6,7 @@
   <title>Ground Up Monitor</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
     :root {
       --bg-gradient: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
@@ -508,6 +509,7 @@
   </div>
 
   <script>
+    Chart.register(ChartDataLabels);
     let rooms = [];
     let liveData = {};
     const API = (window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : 'http://127.0.0.1:8000';
@@ -887,6 +889,9 @@
               color: '#4b5563',
               font: { family: 'Inter', size: 10, weight: '600' }
             }
+          },
+          datalabels: {
+            display: false
           }
         },
         scales: {
@@ -931,6 +936,15 @@
               color: '#4b5563',
               font: { family: 'Inter', size: 10, weight: '600' }
             }
+          },
+          datalabels: {
+            display: true,
+            anchor: 'end',
+            align: extremesOrientation === 'vertical' ? 'right' : 'top',
+            formatter: (value) => value !== null ? parseFloat(value).toFixed(1) + '°' : '',
+            font: { family: 'Inter', size: 9, weight: 'bold' },
+            color: (context) => context.dataset.borderColor,
+            offset: 2
           }
         },
         scales: {
