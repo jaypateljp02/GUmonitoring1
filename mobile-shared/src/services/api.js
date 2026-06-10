@@ -2,12 +2,28 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTH_KEY = '@gu_auth_token';
+const API_URL_KEY = '@gu_api_url';
 
-// Public cloud backend - works from anywhere in the world
-export const API_URL = 'https://gumonitoring.onrender.com';
+export const DEFAULT_API_URL = 'https://gumonitoring.onrender.com';
+
+export const getApiUrl = async () => {
+  try {
+    const saved = await AsyncStorage.getItem(API_URL_KEY);
+    return saved || DEFAULT_API_URL;
+  } catch (e) {
+    return DEFAULT_API_URL;
+  }
+};
+
+export const setApiUrl = async (url) => {
+  try {
+    await AsyncStorage.setItem(API_URL_KEY, url);
+    api.defaults.baseURL = url;
+  } catch (e) {}
+};
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: DEFAULT_API_URL,
 });
 
 api.interceptors.request.use(async (config) => {
@@ -44,3 +60,8 @@ export const clearAuthToken = async () => {
     console.log('Failed to clear auth token:', e);
   }
 };
+
+// Initialize baseURL from AsyncStorage on startup
+getApiUrl().then(url => {
+  api.defaults.baseURL = url;
+}).catch(() => {});

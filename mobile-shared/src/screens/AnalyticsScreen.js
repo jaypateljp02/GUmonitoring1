@@ -127,6 +127,22 @@ export default function AnalyticsScreen({ route }) {
     return new Date(normalized);
   };
 
+  // Format YYYY-MM-DD date into a premium readable date string
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const monthName = monthNames[monthIndex] || parts[1];
+      return `${monthName} ${day}, ${year}`;
+    }
+    return dateStr;
+  };
+
+
   // Clean data logs and filter out invalid readings to prevent crashes
   const cleanedLogs = telemetryLogs
     .map(log => {
@@ -397,23 +413,51 @@ export default function AnalyticsScreen({ route }) {
         <View>
           {/* Temperature Chart */}
           {(timeFrame === 'Monthly' || timeFrame === '30D') ? (
-            <View style={styles.chartContainer}>
-              <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
-              {monthlyData.length > 0 ? (
-                <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-                  <LineChart
-                    data={monthlyChartData}
-                    width={Math.max(width - 40, monthlyData.length * 45)}
-                    height={260}
-                    yAxisSuffix="°C"
-                    yAxisInterval={1}
-                    chartConfig={chartConfigLight}
-                    bezier
-                    style={{ marginVertical: 8, borderRadius: 16 }}
-                  />
-                </ScrollView>
-              ) : (
-                <Text style={styles.errorText}>No temperature extremes data available for this range.</Text>
+            <View>
+              <View style={styles.chartContainer}>
+                <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
+                {monthlyData.length > 0 ? (
+                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                    <LineChart
+                      data={monthlyChartData}
+                      width={Math.max(width - 40, monthlyData.length * 45)}
+                      height={340}
+                      yAxisSuffix="°C"
+                      yAxisInterval={1}
+                      chartConfig={chartConfigLight}
+                      bezier
+                      style={{ marginVertical: 8, borderRadius: 16 }}
+                    />
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.errorText}>No temperature extremes data available for this range.</Text>
+                )}
+              </View>
+
+              {monthlyData.length > 0 && (
+                <View style={styles.extremesTableContainer}>
+                  <Text style={styles.extremesTableTitle}>Daily Temperature Log</Text>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Date</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'right', color: '#3B82F6' }]}>Min Temp</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'right', color: '#EF4444' }]}>Max Temp</Text>
+                  </View>
+                  {monthlyData.slice().reverse().map((item, index) => {
+                    const minVal = parseFloat(item.temp_min);
+                    const maxVal = parseFloat(item.temp_max);
+                    return (
+                      <View key={item.date || index} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, { flex: 2, fontWeight: '600' }]}>{formatDate(item.date)}</Text>
+                        <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right', color: '#2563EB', fontWeight: 'bold' }]}>
+                          {!isNaN(minVal) ? `${minVal.toFixed(1)}°C` : 'N/A'}
+                        </Text>
+                        <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right', color: '#DC2626', fontWeight: 'bold' }]}>
+                          {!isNaN(maxVal) ? `${maxVal.toFixed(1)}°C` : 'N/A'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           ) : cleanedLogs.length < 2 ? (
@@ -427,7 +471,7 @@ export default function AnalyticsScreen({ route }) {
                 <LineChart
                   data={chartData}
                   width={Math.max(width - 40, sampledLogs.length * 40)}
-                  height={260}
+                  height={340}
                   yAxisSuffix="°C"
                   yAxisInterval={1}
                   chartConfig={chartConfigLight}
@@ -439,7 +483,7 @@ export default function AnalyticsScreen({ route }) {
                 />
               </ScrollView>
             </View>
-               {/* Temperature Chart End */}
+          )}
         </View>
       )}
  
@@ -587,5 +631,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     paddingVertical: 12,
-  }
+  },
+  extremesTableContainer: {
+    marginTop: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    width: '100%',
+  },
+  extremesTableTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  tableCell: {
+    fontSize: 14,
+    color: '#374151',
+  },
 });

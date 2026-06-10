@@ -1,17 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { api, setAuthToken } from '../services/api';
+import { api, setAuthToken, getApiUrl, setApiUrl } from '../services/api';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [apiUrl, setApiUrlState] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadSavedUrl = async () => {
+      const saved = await getApiUrl();
+      setApiUrlState(saved);
+    };
+    loadSavedUrl();
+  }, []);
 
   const handleLogin = async () => {
     try {
       setLoading(true);
       setError('');
+      
+      // Persist the backend URL if entered
+      if (apiUrl.trim()) {
+        await setApiUrl(apiUrl.trim());
+      }
+      
       // Standard auth check
       if (email === 'grounduppune89@gmail.com' && password === 'Groundup') {
         await setAuthToken('dummy-token');
@@ -59,6 +74,19 @@ export default function LoginScreen({ navigation }) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>BACKEND API URL</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. https://gumonitoring.onrender.com"
+            placeholderTextColor="#9CA3AF"
+            value={apiUrl}
+            onChangeText={setApiUrlState}
+            autoCapitalize="none"
+            keyboardType="url"
           />
         </View>
 
