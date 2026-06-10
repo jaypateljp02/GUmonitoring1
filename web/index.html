@@ -1110,12 +1110,26 @@
               if (extremesChartInstance) extremesChartInstance.destroy();
               const ctxExt = document.getElementById('extremesChart').getContext('2d');
               extremesChartInstance = new Chart(ctxExt, {
-                type: 'line',
+                type: 'bar',
                 data: {
                   labels: labels,
                   datasets: [
-                    { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
-                    { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
+                    { 
+                      label: 'Max Temp (°C)', 
+                      data: tempMaxes, 
+                      borderColor: '#EF4444', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.25)', 
+                      borderWidth: 1.5,
+                      borderRadius: 4
+                    },
+                    { 
+                      label: 'Min Temp (°C)', 
+                      data: tempMins, 
+                      borderColor: '#2563eb', 
+                      backgroundColor: 'rgba(37, 99, 235, 0.25)', 
+                      borderWidth: 1.5,
+                      borderRadius: 4
+                    }
                   ]
                 },
                 options: extremesOptions
