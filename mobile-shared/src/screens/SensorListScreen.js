@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import { api, clearAuthToken } from '../services/api';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import { api, clearAuthToken, getApiUrl, setApiUrl } from '../services/api';
 
 const parseDate = (timestampStr) => {
   if (!timestampStr) return null;
@@ -97,6 +97,23 @@ export default function SensorListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('');
+  const [showUrlSettings, setShowUrlSettings] = useState(false);
+  const [newUrlInput, setNewUrlInput] = useState('');
+
+  const loadUrl = async () => {
+    try {
+      const url = await getApiUrl();
+      setCurrentUrl(url);
+      setNewUrlInput(url);
+    } catch (err) {
+      console.log('Error loading API URL:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadUrl();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -131,8 +148,10 @@ export default function SensorListScreen({ navigation }) {
 
   useEffect(() => {
     fetchData();
+    loadUrl();
     const unsubscribe = navigation.addListener('focus', () => {
       fetchData();
+      loadUrl();
     });
     const interval = setInterval(fetchData, 10000);
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -222,6 +241,70 @@ export default function SensorListScreen({ navigation }) {
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={{ marginBottom: 16 }}>
+        <TouchableOpacity 
+          onPress={() => setShowUrlSettings(!showUrlSettings)}
+          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F0FE', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#D2E3FC' }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#1A73E8', flex: 1 }}>
+            ⚙️ Connected to: {currentUrl || 'Default'}
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1A73E8' }}>
+            {showUrlSettings ? 'Hide' : 'Change'}
+          </Text>
+        </TouchableOpacity>
+
+        {showUrlSettings && (
+          <View style={{ marginTop: 8, backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#6B7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Backend Server URL
+            </Text>
+            <TextInput
+              style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, fontSize: 14, color: '#111827', marginBottom: 12 }}
+              value={newUrlInput}
+              onChangeText={setNewUrlInput}
+              placeholder="e.g. https://gumonitoring.onrender.com"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity 
+                onPress={async () => {
+                  if (newUrlInput.trim()) {
+                    await setApiUrl(newUrlInput.trim());
+                    setCurrentUrl(newUrlInput.trim());
+                    setShowUrlSettings(false);
+                    setLoading(true);
+                    fetchData();
+                  }
+                }}
+                style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' }}>Save & Connect</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={async () => {
+                  const defaultUrl = 'https://gumonitoring.onrender.com';
+                  await setApiUrl(defaultUrl);
+                  setCurrentUrl(defaultUrl);
+                  setNewUrlInput(defaultUrl);
+                  setShowUrlSettings(false);
+                  setLoading(true);
+                  fetchData();
+                }}
+                style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#4B5563', fontSize: 14, fontWeight: 'bold' }}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       <Text style={styles.sectionTitle}>Locations ({rooms.length})</Text>
