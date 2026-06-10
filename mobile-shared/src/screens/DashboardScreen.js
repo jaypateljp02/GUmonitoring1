@@ -89,7 +89,9 @@ export default function DashboardScreen({ route, navigation }) {
 
   const handleExportCSV = async () => {
     try {
-      const response = await api.get(`/sensors/device/${device.id}/export`);
+      const response = await api.get(`/sensors/device/${device.id}/export`, {
+        responseType: 'text'
+      });
       const fileUri = `${FileSystem.documentDirectory}telemetry_${device.id}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {

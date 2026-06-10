@@ -66,7 +66,8 @@ export default function AnalyticsScreen({ route }) {
     try {
       const exportDays = timeFrame === 'Monthly' ? 30 : parseInt(timeFrame.replace('D', ''));
       const response = await api.get(`/sensors/device/${SENSOR_ID}/export`, {
-        params: { days: exportDays, interval_minutes: intervalMinutes }
+        params: { days: exportDays, interval_minutes: intervalMinutes },
+        responseType: 'text'
       });
       const fileUri = `${FileSystem.documentDirectory}telemetry_${SENSOR_ID}_${timeFrame}_${intervalMinutes}m.csv`;
       await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.UTF8 });
@@ -100,8 +101,8 @@ export default function AnalyticsScreen({ route }) {
       };
     });
 
-  // Sample data points to fit the screen
-  const step = Math.max(1, Math.floor(cleanedLogs.length / 20));
+  // Since the chart is scrollable, keep more data points to show detailed 1-minute data in the middle
+  const step = cleanedLogs.length > 300 ? Math.floor(cleanedLogs.length / 200) : 1;
   const sampledLogs = cleanedLogs.filter((_, index) => index % step === 0);
 
   // Spaced-out X-axis time labels to prevent overlap
