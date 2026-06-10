@@ -400,12 +400,13 @@
       <div class="row">
         <div class="metric-box" style="margin-right: 8px;">
           <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Time Frame</div>
-          <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()">
+          <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="toggleDateRangeInputs(); updateAnalyticsOptions()">
             <option value="1">1 Day</option>
             <option value="3">3 Days</option>
             <option value="7" selected>7 Days</option>
             <option value="30">30 Days</option>
             <option value="Monthly">Monthly</option>
+            <option value="custom">Custom Range</option>
           </select>
         </div>
         <div class="metric-box">
@@ -421,6 +422,19 @@
           </select>
         </div>
       </div>
+      
+      <!-- Custom Date Range inputs -->
+      <div id="customDateRangeRow" style="display: none; margin-top: 10px;" class="row">
+        <div class="metric-box" style="margin-right: 8px;">
+          <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date</div>
+          <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+        </div>
+        <div class="metric-box">
+          <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date</div>
+          <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+        </div>
+      </div>
+
       <div style="margin-top: 10px;">
         <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export CSV Log</a>
       </div>
@@ -693,6 +707,26 @@
       if (!currentDevice) return;
       const days = document.getElementById('daysSelect').value;
       const interval = document.getElementById('intervalSelect').value;
+      let exportDays = days === 'Monthly' ? '30' : days;
+      let customStart = null;
+      let customEnd = null;
+
+      if (days === 'custom') {
+        const startVal = document.getElementById('startDateInput').value;
+        const endVal = document.getElementById('endDateInput').value;
+        if (startVal && endVal) {
+          customStart = new Date(startVal);
+          customEnd = new Date(endVal);
+          customEnd.setHours(23, 59, 59, 999);
+          
+          const today = new Date();
+          const diffTime = Math.abs(today - customStart);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          exportDays = Math.min(diffDays, 90);
+        } else {
+          exportDays = 7;
+        }
+      }
 
       const chartOptionsLight = {
         responsive: true,
@@ -728,69 +762,83 @@
         }
       };
 
-      // 1. Update Telemetry Trend Chart (Always query /telemetry for current intervals)
-      const exportDays = days === 'Monthly' ? '30' : days;
+      // 1. Update Telemetry Trend Chart
       document.getElementById('dCsvLink').href = `/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
-      document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
+      if (days === 'custom' && customStart && customEnd) {
+        document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()})`;
+      } else {
+        document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
+      }
 
       try {
         const resTrend = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${exportDays}&interval_minutes=${interval}`);
         const trendData = await resTrend.json();
         
         if (trendData && trendData.length >= 2) {
-          const sortedData = [...trendData].reverse();
-          const labels = sortedData.map(d => {
-            const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
-            return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
-          });
-          const temps = sortedData.map(d => parseFloat(d.temperature));
+          let sortedData = [...trendData].reverse();
+          if (days === 'custom' && customStart && customEnd) {
+            sortedData = sortedData.filter(d => {
+              const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
+              return ts >= customStart && ts <= customEnd;
+            });
+          }
 
-          document.getElementById('chartCard').style.display = 'block';
+          if (sortedData.length >= 2) {
+            document.getElementById('chartCard').style.display = 'block';
 
-          // Temperature Datasets
-          const tempDatasets = [
-            {
-              label: 'Temperature (°C)',
-              data: temps,
-              borderColor: '#2563eb',
-              backgroundColor: 'rgba(37, 99, 235, 0.05)',
-              tension: 0.3,
-              fill: true,
-              borderWidth: 2,
-              pointRadius: sortedData.length > 50 ? 0 : 3
+            const labels = sortedData.map(d => {
+              const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
+              return ts.toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) + ' ' + ts.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+            });
+            const temps = sortedData.map(d => parseFloat(d.temperature));
+
+            // Temperature Datasets
+            const tempDatasets = [
+              {
+                label: 'Temperature (°C)',
+                data: temps,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                tension: 0.3,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: sortedData.length > 50 ? 0 : 3
+              }
+            ];
+
+            if (tempMax !== null) {
+              tempDatasets.push({
+                label: `Max Limit (${tempMax}°C)`,
+                data: new Array(sortedData.length).fill(tempMax),
+                borderColor: '#EF4444',
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+                borderWidth: 1.5
+              });
             }
-          ];
+            if (tempMin !== null) {
+              tempDatasets.push({
+                label: `Min Limit (${tempMin}°C)`,
+                data: new Array(sortedData.length).fill(tempMin),
+                borderColor: '#10B981',
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+                borderWidth: 1.5
+              });
+            }
 
-          if (tempMax !== null) {
-            tempDatasets.push({
-              label: `Max Limit (${tempMax}°C)`,
-              data: new Array(sortedData.length).fill(tempMax),
-              borderColor: '#EF4444',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
+            if (chartInstance) chartInstance.destroy();
+            const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
+            chartInstance = new Chart(ctxTemp, {
+              type: 'line',
+              data: { labels: labels, datasets: tempDatasets },
+              options: chartOptionsLight
             });
+          } else {
+            document.getElementById('chartCard').style.display = 'none';
           }
-          if (tempMin !== null) {
-            tempDatasets.push({
-              label: `Min Limit (${tempMin}°C)`,
-              data: new Array(sortedData.length).fill(tempMin),
-              borderColor: '#10B981',
-              borderDash: [5, 5],
-              pointRadius: 0,
-              fill: false,
-              borderWidth: 1.5
-            });
-          }
-
-          if (chartInstance) chartInstance.destroy();
-          const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
-          chartInstance = new Chart(ctxTemp, {
-            type: 'line',
-            data: { labels: labels, datasets: tempDatasets },
-            options: chartOptionsLight
-          });
         } else {
           document.getElementById('chartCard').style.display = 'none';
         }
@@ -799,39 +847,59 @@
         document.getElementById('chartCard').style.display = 'none';
       }
 
-      // 2. Update Extremes (Min/Max) Chart (Only for 7 Days, 30 Days, Monthly)
-      if (days === '7' || days === '30' || days === 'Monthly') {
-        document.getElementById('extremesChartCardTitle').textContent = days === 'Monthly' ? `Monthly Min/Max Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
+      // 2. Update Extremes (Min/Max) Chart
+      const isExtremesSupported = days === '7' || days === '30' || days === 'Monthly' || (days === 'custom' && customStart && customEnd);
+      if (isExtremesSupported) {
+        if (days === 'custom' && customStart && customEnd) {
+          document.getElementById('extremesChartCardTitle').textContent = `Min/Max Temperature Extremes (${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()})`;
+        } else {
+          document.getElementById('extremesChartCardTitle').textContent = days === 'Monthly' ? `Monthly Min/Max Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
+        }
         
         try {
           const isMonthly = days === 'Monthly';
-          const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=${days}`;
+          const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=${exportDays}`;
           const resExt = await fetch(`${API}${endpoint}`);
           const extData = await resExt.json();
           
           if (extData && extData.daily_metrics && extData.daily_metrics.length > 0) {
-            document.getElementById('extremesChartCard').style.display = 'block';
-            
-            const labels = extData.daily_metrics.map(d => {
-              const dt = new Date(d.date);
-              return `${dt.getMonth()+1}/${dt.getDate()}`;
-            });
-            const tempMaxes = extData.daily_metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
-            const tempMins = extData.daily_metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
-            
-            if (extremesChartInstance) extremesChartInstance.destroy();
-            const ctxExt = document.getElementById('extremesChart').getContext('2d');
-            extremesChartInstance = new Chart(ctxExt, {
-              type: 'line',
-              data: {
-                labels: labels,
-                datasets: [
-                  { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
-                  { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
-                ]
-              },
-              options: chartOptionsLight
-            });
+            let metrics = extData.daily_metrics;
+            if (days === 'custom' && customStart && customEnd) {
+              metrics = metrics.filter(d => {
+                const dt = new Date(d.date);
+                const compareStart = new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate());
+                const compareEnd = new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate());
+                const itemDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+                return itemDate >= compareStart && itemDate <= compareEnd;
+              });
+            }
+
+            if (metrics.length >= 2) {
+              document.getElementById('extremesChartCard').style.display = 'block';
+              
+              const labels = metrics.map(d => {
+                const dt = new Date(d.date);
+                return `${dt.getMonth()+1}/${dt.getDate()}`;
+              });
+              const tempMaxes = metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
+              const tempMins = metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
+              
+              if (extremesChartInstance) extremesChartInstance.destroy();
+              const ctxExt = document.getElementById('extremesChart').getContext('2d');
+              extremesChartInstance = new Chart(ctxExt, {
+                type: 'line',
+                data: {
+                  labels: labels,
+                  datasets: [
+                    { label: 'Max Temp (°C)', data: tempMaxes, borderColor: '#EF4444', tension: 0.3, fill: false, borderWidth: 2 },
+                    { label: 'Min Temp (°C)', data: tempMins, borderColor: '#2563eb', tension: 0.3, fill: false, borderWidth: 2 }
+                  ]
+                },
+                options: chartOptionsLight
+              });
+            } else {
+              document.getElementById('extremesChartCard').style.display = 'none';
+            }
           } else {
             document.getElementById('extremesChartCard').style.display = 'none';
           }
@@ -840,12 +908,32 @@
           document.getElementById('extremesChartCard').style.display = 'none';
         }
       } else {
-        // Hide extremes chart card for short timeframes (1D, 3D)
         document.getElementById('extremesChartCard').style.display = 'none';
         if (extremesChartInstance) {
           extremesChartInstance.destroy();
           extremesChartInstance = null;
         }
+      }
+    }
+    }
+
+    function toggleDateRangeInputs() {
+      const days = document.getElementById('daysSelect').value;
+      const rangeRow = document.getElementById('customDateRangeRow');
+      if (days === 'custom') {
+        rangeRow.style.display = 'flex';
+        const startInput = document.getElementById('startDateInput');
+        const endInput = document.getElementById('endDateInput');
+        if (!startInput.value) {
+          const start = new Date();
+          start.setDate(start.getDate() - 7);
+          startInput.value = start.toISOString().substring(0, 10);
+        }
+        if (!endInput.value) {
+          endInput.value = new Date().toISOString().substring(0, 10);
+        }
+      } else {
+        rangeRow.style.display = 'none';
       }
     }
 
@@ -870,6 +958,7 @@
       
       document.getElementById('daysSelect').value = '7';
       document.getElementById('intervalSelect').value = '1';
+      document.getElementById('customDateRangeRow').style.display = 'none';
 
       await fetchActiveThresholds(currentDevice.id);
       await updateAnalyticsOptions();
