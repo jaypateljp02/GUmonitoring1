@@ -1,44 +1,34 @@
 import { useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Alert, Platform, StatusBar, PermissionsAndroid } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Updates from 'expo-updates';
-import * as Location from 'expo-location';
 
 import { requestNotificationPermissions, triggerLocalNotification } from './src/services/notificationService';
 import { api } from './src/services/api';
 
-async function checkForOTAUpdate() {
-  if (__DEV__) return;
-
-  try {
-    const update = await Updates.checkForUpdateAsync();
-    if (update.isAvailable) {
-      await Updates.fetchUpdateAsync();
-      Alert.alert(
-        'Update Available',
-        'A new version has been downloaded. The app will restart now.',
-        [{ text: 'OK', onPress: () => Updates.reloadAsync() }],
+async function requestLocationPermission() {
+  if (Platform.OS === 'android') {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
       );
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('Location permission granted');
+      } else {
+        console.log('Location permission denied');
+      }
+    } catch (err) {
+      console.warn(err);
     }
-  } catch (e) {
-    console.log('OTA update check failed:', e.message);
   }
 }
 
 export default function App() {
   useEffect(() => {
-    checkForOTAUpdate();
-    
     // Request GPS and Notification permissions on app launch
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Permission to access location was denied');
-      }
-
+      await requestLocationPermission();
       await requestNotificationPermissions();
     })();
 
@@ -71,7 +61,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <StatusBar style="light" />
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
         <AppNavigator />
       </NavigationContainer>
     </SafeAreaProvider>

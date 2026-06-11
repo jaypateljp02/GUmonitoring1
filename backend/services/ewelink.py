@@ -149,14 +149,16 @@ class EwelinkClient:
         
         if temperature is not None:
             temp_val = float(temperature)
-            if temp_val > 100 or temp_val < -100:
+            is_int = isinstance(temperature, int) or (isinstance(temperature, str) and "." not in temperature)
+            if is_int or temp_val > 100 or temp_val < -100:
                 temp_val = temp_val / 100.0
         else:
             temp_val = None
 
         if humidity is not None:
             hum_val = float(humidity)
-            if hum_val > 100:
+            is_int = isinstance(humidity, int) or (isinstance(humidity, str) and "." not in humidity)
+            if is_int or hum_val > 100:
                 hum_val = hum_val / 100.0
         else:
             hum_val = None

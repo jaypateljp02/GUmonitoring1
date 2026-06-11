@@ -1,7 +1,8 @@
 """Room routes."""
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from backend.database import get_db
 from backend.models.room import Room
@@ -42,3 +43,19 @@ def create_room(req: RoomCreate, db: Session = Depends(get_db), user: TokenUser 
     db.commit()
     db.refresh(room)
     return RoomResponse.model_validate(room)
+
+
+class RoomCoordinatesUpdate(BaseModel):
+    map_x: Optional[str] = None
+    map_y: Optional[str] = None
+
+
+@router.put("/{room_id}/coordinates", response_model=MessageResponse)
+def update_room_coordinates(room_id: str, req: RoomCoordinatesUpdate, db: Session = Depends(get_db)):
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room.map_x = req.map_x
+    room.map_y = req.map_y
+    db.commit()
+    return MessageResponse(message="Room coordinates updated successfully")

@@ -231,16 +231,20 @@ export default function SensorListScreen({ navigation }) {
       }
     >
       <View style={styles.headerRow}>
-        <View>
+        <View style={{ flex: 1, marginRight: 10 }}>
           <Text style={styles.header}>Ground Up</Text>
           <Text style={styles.subheader}>Cold Storage & Room Telemetry</Text>
-          <Text style={styles.timeText}>
-            {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <View style={[styles.topBadge, { backgroundColor: '#E8F0FE', borderColor: '#D2E3FC' }]}>
+            <Text style={{ color: '#1A73E8', fontSize: 11, fontWeight: 'bold' }}>
+              🕒 {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.logoutBtn, { marginTop: 0 }]} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={{ marginBottom: 16 }}>
@@ -341,10 +345,17 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 40, marginBottom: 20 },
   header: { fontSize: 30, fontWeight: '800', color: '#111827', marginBottom: 2 },
   subheader: { fontSize: 14, color: '#6B7280', marginBottom: 6 },
-  timeText: { fontSize: 13, fontWeight: 'bold', color: '#3B82F6', marginBottom: 8 },
-  logoutBtn: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, marginTop: 4 },
+  topBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  logoutBtn: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   logoutText: { color: '#991B1B', fontWeight: 'bold', fontSize: 13 },
-  
   sectionTitle: { fontSize: 12, fontWeight: '800', color: '#4B5563', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 },
 
   sensorCard: {

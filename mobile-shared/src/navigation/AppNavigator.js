@@ -9,6 +9,7 @@ import SensorListScreen from '../screens/SensorListScreen';
 import FloorPlanScreen from '../screens/FloorPlanScreen';
 import DashboardScreen from '../screens/DashboardScreen'; 
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import TapoPlugsScreen from '../screens/TapoPlugsScreen';
 
 import { getAuthToken } from '../services/api';
 
@@ -39,6 +40,14 @@ function MainTabNavigator() {
         options={{
           tabBarLabel: 'Facility Map',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🗺️</Text>,
+        }}
+      />
+      <Tab.Screen 
+        name="Plugs" 
+        component={TapoPlugsScreen} 
+        options={{
+          tabBarLabel: 'Tapo Plugs',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔌</Text>,
         }}
       />
     </Tab.Navigator>

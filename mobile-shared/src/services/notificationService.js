@@ -1,57 +1,49 @@
-import * as Notifications from 'expo-notifications';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import { Platform } from 'react-native';
-
-// Configure how notifications are handled when the app is open (foreground)
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldMutateNotification: false,
-    shouldBadge: false,
-  }),
-});
 
 export const requestNotificationPermissions = async () => {
   if (Platform.OS === 'web') return false;
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') {
-    console.log('Notification permission not granted');
+  try {
+    const settings = await notifee.requestPermission();
+    if (settings.authorizationStatus) {
+      console.log('Notification permission granted');
+      return true;
+    } else {
+      console.log('Notification permission denied');
+      return false;
+    }
+  } catch (e) {
+    console.log('Failed to request notification permission:', e);
     return false;
   }
-
-  // Set up android specific channel
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
-  }
-
-  return true;
 };
 
 // Send a local notification instantly
 export const triggerLocalNotification = async (title, body, data = {}) => {
   try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.MAX,
+    // Request permission if not already granted
+    await notifee.requestPermission();
+
+    // Create a channel (required for Android)
+    const channelId = await notifee.createChannel({
+      id: 'default',
+      name: 'Default Channel',
+      importance: AndroidImportance.HIGH,
+    });
+
+    // Display the notification
+    await notifee.displayNotification({
+      title,
+      body,
+      data,
+      android: {
+        channelId,
+        importance: AndroidImportance.HIGH,
+        pressAction: {
+          id: 'default',
+        },
       },
-      trigger: null, // trigger immediately
     });
   } catch (e) {
     console.log('Failed to trigger local notification:', e);

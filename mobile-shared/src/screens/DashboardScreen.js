@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { api } from '../services/api';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
 
 export default function DashboardScreen({ route, navigation }) {
   const device = route.params.device;
@@ -13,6 +13,14 @@ export default function DashboardScreen({ route, navigation }) {
   const [maxThreshold, setMaxThreshold] = useState('');
   const [minHumThreshold, setMinHumThreshold] = useState('');
   const [maxHumThreshold, setMaxHumThreshold] = useState('');
+  
+  // Webhook alert URLs
+  const [alertWebhook, setAlertWebhook] = useState('');
+  const [recoveryWebhook, setRecoveryWebhook] = useState('');
+
+  // Plug Live Data state
+  const [plugData, setPlugData] = useState(null);
+  const [isTogglingPlug, setIsTogglingPlug] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
   const fetchThresholds = async () => {
@@ -22,9 +30,13 @@ export default function DashboardScreen({ route, navigation }) {
       if (tempSensor) {
         setMinThreshold(tempSensor.min_threshold !== null ? String(tempSensor.min_threshold) : '');
         setMaxThreshold(tempSensor.max_threshold !== null ? String(tempSensor.max_threshold) : '');
+        setAlertWebhook(tempSensor.alert_webhook_url || '');
+        setRecoveryWebhook(tempSensor.recovery_webhook_url || '');
       } else {
         setMinThreshold('');
         setMaxThreshold('');
+        setAlertWebhook('');
+        setRecoveryWebhook('');
       }
 
       const humSensor = res.data.find(s => s.type === 'humidity');
@@ -43,18 +55,46 @@ export default function DashboardScreen({ route, navigation }) {
   const fetchTelemetry = async () => {
     try {
       const response = await api.get(`/sensors/device/${device.id}/telemetry?days=1`);
-      if (response.data && response.data.length > 0) {
-        setTelemetry(response.data[0]);
+      const telemetryData = (response.data && response.data.telemetry) ? response.data.telemetry : (Array.isArray(response.data) ? response.data : null);
+      if (telemetryData && telemetryData.length > 0) {
+        setTelemetry(telemetryData[0]);
       }
       
       const metricsRes = await api.get(`/sensors/device/${device.id}/metrics/24h`);
       if (metricsRes.data) {
         setMetrics24h(metricsRes.data);
       }
+
+      // Poll smart plug state
+      const plugRes = await api.get(`/sensors/device/${device.id}/plug`);
+      if (plugRes.data && plugRes.data.supported) {
+        setPlugData(plugRes.data);
+      } else {
+        setPlugData(null);
+      }
     } catch (err) {
-      console.log('Error fetching telemetry:', err);
+      console.log('Error fetching telemetry/plug:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTogglePlug = async () => {
+    if (!plugData) return;
+    const nextState = plugData.state === 'on' ? 'off' : 'on';
+    try {
+      setIsTogglingPlug(true);
+      await api.post(`/sensors/device/${device.id}/plug/toggle`, { state: nextState });
+      
+      // Refresh plug state
+      const plugRes = await api.get(`/sensors/device/${device.id}/plug`);
+      if (plugRes.data && plugRes.data.supported) {
+        setPlugData(plugRes.data);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to toggle plug power state.');
+    } finally {
+      setIsTogglingPlug(false);
     }
   };
 
@@ -118,11 +158,12 @@ export default function DashboardScreen({ route, navigation }) {
       const response = await api.get(`/sensors/device/${device.id}/export`, {
         responseType: 'text'
       });
-      const fileUri = `${FileSystem.documentDirectory}telemetry_${device.id}.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
-      }
+      const fileUri = `${RNFS.DocumentDirectoryPath}/telemetry_${device.id}.csv`;
+      await RNFS.writeFile(fileUri, response.data, 'utf8');
+      await Share.open({
+        url: `file://${fileUri}`,
+        type: 'text/csv',
+      });
     } catch (e) {
       console.log('Export failed', e);
       Alert.alert('Error', 'Failed to export telemetry data');
@@ -148,16 +189,18 @@ export default function DashboardScreen({ route, navigation }) {
     const body = {
       temp_min: minVal,
       temp_max: maxVal,
+      temp_alert_webhook_url: alertWebhook || null,
+      temp_recovery_webhook_url: recoveryWebhook || null,
       hum_min: minHumVal,
       hum_max: maxHumVal
     };
     try {
       await api.put(`/sensors/device/${device.id}/thresholds`, body);
-      Alert.alert('Success', 'Alert thresholds updated successfully!');
+      Alert.alert('Success', 'Configuration settings updated successfully!');
       fetchThresholds();
       fetchTelemetry();
     } catch (e) {
-      Alert.alert('Error', 'Failed to update thresholds');
+      Alert.alert('Error', 'Failed to update configuration settings');
     }
   };
 
@@ -362,13 +405,39 @@ export default function DashboardScreen({ route, navigation }) {
             />
           </View>
         </View>
+
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>Webhook Alert URLs</Text>
+        <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>ALERT WEBHOOK (ON)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={alertWebhook}
+              onChangeText={setAlertWebhook}
+              placeholder="https://..."
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>RECOVERY WEBHOOK (OFF)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={recoveryWebhook}
+              onChangeText={setRecoveryWebhook}
+              placeholder="https://..."
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+
+
         
         <TouchableOpacity 
           style={styles.saveButton} 
           onPress={handleSaveThresholds}
           activeOpacity={0.8}
         >
-          <Text style={styles.saveButtonText}>Apply Threshold Updates</Text>
+          <Text style={styles.saveButtonText}>Apply Settings Updates</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -511,5 +580,16 @@ const styles = StyleSheet.create({
   inputLabel: { color: '#6B7280', fontSize: 10, fontWeight: '800', marginBottom: 8, letterSpacing: 0.5 },
   textInput: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 14, color: '#111827', fontSize: 15 },
   saveButton: { backgroundColor: '#3B82F6', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
-  saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' }
+  saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' },
+  
+  plugCard: {
+    borderRadius: 24, padding: 24, marginBottom: 24,
+    borderWidth: 1, borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  }
 });

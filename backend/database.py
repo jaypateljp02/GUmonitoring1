@@ -56,6 +56,12 @@ def ensure_db_ready():
             # Fix room_id to be nullable (model says nullable=True, but old DB may have NOT NULL)
             conn.execute(text("ALTER TABLE monitoring.sensors ALTER COLUMN room_id DROP NOT NULL"))
             
+            # Add Tapo columns
+            conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS tapo_ip VARCHAR(50)"))
+            conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS tapo_username VARCHAR(100)"))
+            conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS tapo_password VARCHAR(100)"))
+            conn.execute(text("ALTER TABLE monitoring.sensors ADD COLUMN IF NOT EXISTS tapo_billing_rate NUMERIC DEFAULT 10.0"))
+
             # Add map coordinates to rooms table
             conn.execute(text("ALTER TABLE monitoring.rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)"))
             conn.execute(text("ALTER TABLE monitoring.rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)"))

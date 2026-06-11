@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { api } from '../services/api';
 import { LineChart } from 'react-native-chart-kit';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
 
 export default function AnalyticsScreen({ route }) {
   const { width } = useWindowDimensions();
   const device = route?.params?.device || { id: 'a4b002884e', name: 'Device 1', icon: '❄️' };
   const SENSOR_ID = device.id;
   const [telemetryLogs, setTelemetryLogs] = useState([]);
+  const [offlinePeriods, setOfflinePeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Custom selection states
@@ -50,6 +51,19 @@ export default function AnalyticsScreen({ route }) {
     fetchThresholds();
   }, [SENSOR_ID]);
 
+  // Auto-adjust interval when timeframe changes
+  useEffect(() => {
+    if (timeFrame === '1D') {
+      setIntervalMinutes(1);
+    } else if (timeFrame === '3D') {
+      setIntervalMinutes(30);
+    } else if (timeFrame === '7D') {
+      setIntervalMinutes(60);
+    } else if (timeFrame === '30D') {
+      setIntervalMinutes(120);
+    }
+  }, [timeFrame]);
+
   // Fetch telemetry logs whenever parameters change
   useEffect(() => {
     const fetchData = async () => {
@@ -60,13 +74,15 @@ export default function AnalyticsScreen({ route }) {
           const endpoint = isMonthly ? `/sensors/device/${SENSOR_ID}/metrics/monthly` : `/sensors/device/${SENSOR_ID}/metrics/rolling?days=30`;
           const response = await api.get(endpoint);
           setMonthlyData(response.data.daily_metrics || []);
+          setOfflinePeriods([]);
         } else {
           const numDays = parseInt(timeFrame.replace('D', ''));
           const response = await api.get(`/sensors/device/${SENSOR_ID}/telemetry`, {
             params: { days: numDays, interval_minutes: intervalMinutes }
           });
-          // Reverse because backend sorts by descending (newest first)
-          setTelemetryLogs(response.data.reverse());
+          const telemetryData = response.data.telemetry || [];
+          setTelemetryLogs(telemetryData.reverse());
+          setOfflinePeriods(response.data.offline_periods || []);
         }
       } catch (err) {
         console.log('Error fetching analytics', err);
@@ -105,11 +121,12 @@ export default function AnalyticsScreen({ route }) {
         params: { days: exportDays, interval_minutes: intervalMinutes },
         responseType: 'text'
       });
-      const fileUri = `${FileSystem.documentDirectory}telemetry_${SENSOR_ID}_${timeFrame}_${intervalMinutes}m.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
-      }
+      const fileUri = `${RNFS.DocumentDirectoryPath}/telemetry_${SENSOR_ID}_${timeFrame}_${intervalMinutes}m.csv`;
+      await RNFS.writeFile(fileUri, response.data, 'utf8');
+      await Share.open({
+        url: `file://${fileUri}`,
+        type: 'text/csv',
+      });
     } catch (e) {
       console.log('Export failed', e);
       Alert.alert('Error', 'Failed to export telemetry data');
@@ -369,9 +386,30 @@ export default function AnalyticsScreen({ route }) {
     propsForDots: { r: "3", strokeWidth: "1", stroke: "#3B82F6" }
   };
 
+  const latestTelemetry = telemetryLogs[telemetryLogs.length - 1] || null;
+  const latestTimeStr = latestTelemetry ? latestTelemetry.timestamp : null;
+  const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
+  const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+  const isOffline = latestTelemetry && !isOnline;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>{device.icon} {device.name} Analytics</Text>
+      {/* Top Header Row with battery & time in the right corner */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
+        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flexShrink: 1 }]}>{device.icon} {device.name} Analytics</Text>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E6F4EA', borderColor: isOffline ? '#D1D5DB' : '#C2E7C9' }]}>
+            <Text style={{ color: isOffline ? '#5E5E5E' : '#137333', fontSize: 11, fontWeight: 'bold' }}>
+              🔋 {latestTelemetry && latestTelemetry.battery_level !== undefined && latestTelemetry.battery_level !== null ? `${parseInt(latestTelemetry.battery_level)}%` : '--'}
+            </Text>
+          </View>
+          <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E8F0FE', borderColor: isOffline ? '#D1D5DB' : '#D2E3FC' }]}>
+            <Text style={{ color: isOffline ? '#5E5E5E' : '#1A73E8', fontSize: 11, fontWeight: 'bold' }}>
+              🕒 {latestTelemetry ? new Date(latestTelemetry.timestamp.endsWith('Z') ? latestTelemetry.timestamp : latestTelemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+            </Text>
+          </View>
+        </View>
+      </View>
       
       {/* Time Frame selector */}
       <Text style={styles.selectorTitle}>Time Frame</Text>
@@ -486,6 +524,25 @@ export default function AnalyticsScreen({ route }) {
           )}
         </View>
       )}
+
+      {/* Offline History Log */}
+      {!loading && offlinePeriods && offlinePeriods.length > 0 && (
+        <View style={styles.offlineContainer}>
+          <Text style={styles.offlineTitle}>⚠️ Offline History Log</Text>
+          {offlinePeriods.map((period, index) => (
+            <View key={index} style={styles.offlineRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.offlineMsg}>
+                  Offline: {period.start} to {period.end}
+                </Text>
+              </View>
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{period.duration_minutes} mins</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
  
       <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV} activeOpacity={0.8}>
         <Text style={styles.exportButtonText}>📥 Export CSV Audit Log</Text>
@@ -526,6 +583,15 @@ export default function AnalyticsScreen({ route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
+  topBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
   header: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
   selectorTitle: { fontSize: 11, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   selectorRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
@@ -671,5 +737,52 @@ const styles = StyleSheet.create({
   tableCell: {
     fontSize: 14,
     color: '#374151',
+  },
+  offlineContainer: {
+    marginTop: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  offlineTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginBottom: 16,
+  },
+  offlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  offlineMsg: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991B1B',
+    lineHeight: 18,
+  },
+  durationBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    marginLeft: 10,
+  },
+  durationText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

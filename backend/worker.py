@@ -12,6 +12,8 @@ from backend.models.device_telemetry import DeviceTelemetry
 from backend.models.sensor import Sensor
 from backend.models.reading import SensorReading
 from backend.models.alert import Alert
+from backend.models.plug_telemetry import PlugTelemetry
+from backend.services.tapo import get_tapo_telemetry_cached
 from backend.services.ewelink import EwelinkClient
 
 load_dotenv()
@@ -214,6 +216,28 @@ async def ingestion_loop():
                     bat_val = 100.0
                     timestamp_parsed = datetime.utcnow()
 
+                    # Fetch and log Tapo Plug telemetry if configured on this device
+                    tapo_sensor = next((s for s in sensors if s.tapo_ip and s.tapo_username and s.tapo_password), None)
+                    if tapo_sensor:
+                        try:
+                            tapo_data = await get_tapo_telemetry_cached(
+                                tapo_sensor.tapo_ip, tapo_sensor.tapo_username, tapo_sensor.tapo_password, target_device, force_refresh=True
+                            )
+                            if tapo_data and tapo_data.get("state") != "offline" and "error" not in tapo_data:
+                                plug_log = PlugTelemetry(
+                                    device_id=target_device,
+                                    timestamp=timestamp_parsed,
+                                    apower=tapo_data["apower"],
+                                    voltage=tapo_data["voltage"],
+                                    current=tapo_data["current"],
+                                    today_energy=tapo_data["today_energy"],
+                                    month_energy=tapo_data["month_energy"]
+                                )
+                                db.add(plug_log)
+                                logger.info(f"Worker logged Tapo telemetry for {target_device} at {tapo_sensor.tapo_ip}: {tapo_data['apower']}W")
+                        except Exception as te:
+                            logger.error(f"Worker failed to log Tapo telemetry for device {target_device}: {te}")
+
                     # Find device telemetry in thingList if using live mode
                     device_data = None
                     if use_live and thing_list:
@@ -236,11 +260,13 @@ async def ingestion_loop():
                             # Clean values
                             if raw_temp is not None:
                                 temp_val = float(raw_temp)
-                                if temp_val > 100 or temp_val < -100:
+                                is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
+                                if is_int or temp_val > 100 or temp_val < -100:
                                     temp_val = temp_val / 100.0
                             if raw_hum is not None:
                                 hum_val = float(raw_hum)
-                                if hum_val > 100:
+                                is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
+                                if is_int or hum_val > 100:
                                     hum_val = hum_val / 100.0
                             if raw_bat is not None:
                                 bat_val = float(raw_bat)

@@ -12,11 +12,17 @@ class RoomCreate(BaseModel):
 
 class SensorResponse(BaseModel):
     id: UUID
-    room_id: UUID
+    room_id: Optional[UUID] = None
     type: str
     min_threshold: Optional[Decimal] = None
     max_threshold: Optional[Decimal] = None
     device_id: Optional[str] = None
+    alert_webhook_url: Optional[str] = None
+    recovery_webhook_url: Optional[str] = None
+    tapo_ip: Optional[str] = None
+    tapo_username: Optional[str] = None
+    tapo_password: Optional[str] = None
+    tapo_billing_rate: Optional[Decimal] = None
     active: bool
     created_at: datetime
     class Config:
@@ -117,3 +123,12 @@ class BatchContextResponse(BaseModel):
     hum_min: Optional[Decimal] = None
     hum_max: Optional[Decimal] = None
     telemetry_logs: List[DeviceTelemetryResponse] = []
+
+class OfflinePeriod(BaseModel):
+    start: str
+    end: str
+    duration_minutes: int
+
+class DeviceTelemetryHistoryResponse(BaseModel):
+    telemetry: List[DeviceTelemetryResponse]
+    offline_periods: List[OfflinePeriod]

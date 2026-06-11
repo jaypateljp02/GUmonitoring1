@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { api } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
-import { BlurView } from 'expo-blur';
+
+
 
 const parseDate = (timestampStr) => {
   if (!timestampStr) return null;
@@ -90,60 +91,73 @@ export default function FloorPlanScreen() {
           resizeMode="contain"
         />
 
-        {rooms.map(room => {
-          if (!room.map_x || !room.map_y) return null;
-          
-          // Parse percentage (e.g. "45%") to absolute positioning
-          const left = room.map_x;
-          const top = room.map_y;
-          
-          // Get live temperature for this room
-          const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-          const data = tempSensor ? liveData[tempSensor.id] : null;
-          const temp = data ? `${parseFloat(data.temperature)}°C` : '--';
-          
-          const latestTimeStr = data ? data.timestamp : null;
-          const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-          const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
-          const isOffline = data && !isOnline;
+        {(() => {
+          let unplacedCount = 0;
+          return rooms.map(room => {
+            const isPlaced = room.map_x && room.map_y;
+            let left, top;
+            if (isPlaced) {
+              left = room.map_x;
+              top = room.map_y;
+            } else {
+              left = `${8 + (unplacedCount * 23)}%`;
+              top = '88%';
+              unplacedCount++;
+            }
+            
+            // Get live temperature for this room
+            const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+            const data = tempSensor ? liveData[tempSensor.id] : null;
+            const temp = data ? `${parseFloat(data.temperature)}°C` : '--';
+            
+            const latestTimeStr = data ? data.timestamp : null;
+            const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
+            const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+            const isOffline = data && !isOnline;
 
-          // Check for alerts
-          const isAlert = data && !isOffline && (
-            (tempSensor.min_threshold !== null && data.temperature < tempSensor.min_threshold) ||
-            (tempSensor.max_threshold !== null && data.temperature > tempSensor.max_threshold)
-          );
+            // Check for alerts
+            const isAlert = data && !isOffline && (
+              (tempSensor.min_threshold !== null && data.temperature < tempSensor.min_threshold) ||
+              (tempSensor.max_threshold !== null && data.temperature > tempSensor.max_threshold)
+            );
 
-          return (
-            <TouchableOpacity 
-              key={room.id}
-              style={[styles.markerContainer, { left, top }]}
-              onPress={() => handleMarkerPress(room)}
-              activeOpacity={0.7}
-            >
-              {isAlert && <View style={styles.pulseRing} />}
-              <BlurView 
-                intensity={80} 
-                style={[
-                  styles.markerBadge, 
-                  isAlert && styles.markerBadgeAlert,
-                  isOffline && styles.markerBadgeOffline
-                ]}
+            return (
+              <TouchableOpacity 
+                key={room.id}
+                style={[styles.markerContainer, { left, top }]}
+                onPress={() => handleMarkerPress(room)}
+                activeOpacity={0.7}
               >
-                <View style={[styles.markerDot, isOffline && styles.markerDotOffline]} />
-                <View>
-                  <Text style={styles.markerName}>{room.name}</Text>
-                  <Text style={[
-                    styles.markerTemp, 
-                    isAlert && styles.markerTempAlert,
-                    isOffline && styles.markerTempOffline
-                  ]}>
-                    {temp}
-                  </Text>
+                {isAlert && <View style={styles.pulseRing} />}
+                <View 
+                  style={[
+                    styles.markerBadge, 
+                    isAlert && styles.markerBadgeAlert,
+                    isOffline && styles.markerBadgeOffline,
+                    !isPlaced && styles.markerBadgeUnplaced
+                  ]}
+                >
+                  {!isPlaced && (
+                    <View style={styles.newBadge}>
+                      <Text style={styles.newBadgeText}>NEW</Text>
+                    </View>
+                  )}
+                  {isPlaced && <View style={[styles.markerDot, isOffline && styles.markerDotOffline]} />}
+                  <View>
+                    <Text style={styles.markerName} numberOfLines={1} ellipsizeMode="tail">{room.name}</Text>
+                    <Text style={[
+                      styles.markerTemp, 
+                      isAlert && styles.markerTempAlert,
+                      isOffline && styles.markerTempOffline
+                    ]}>
+                      {temp}
+                    </Text>
+                  </View>
                 </View>
-              </BlurView>
-            </TouchableOpacity>
-          );
-        })}
+              </TouchableOpacity>
+            );
+          });
+        })()}
       </View>
     </View>
   );
@@ -224,6 +238,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textTransform: 'uppercase',
+    maxWidth: 70,
+  },
+  markerBadgeUnplaced: {
+    borderColor: '#F97316',
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(249, 115, 22, 0.15)',
+  },
+  newBadge: {
+    backgroundColor: '#F97316',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  newBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
   },
   markerTemp: {
     color: '#FFFFFF',
