@@ -369,7 +369,7 @@
     <div id="tapoPlugsWrapper" style="display: none; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <div class="section-title" style="margin-bottom: 0;">Tapo Plugs Dashboard</div>
-        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: none;" onclick="openAddTapoModal()">+ Add Tapo Plug</button>
+        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Tapo Plug</button>
       </div>
       <div id="tapoPlugsList"></div>
     </div>
@@ -782,7 +782,7 @@
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
       const addBtn = document.getElementById('addTapoPlugBtn');
       if (addBtn) {
-        addBtn.style.display = unconfiguredRooms.length > 0 ? 'inline-block' : 'none';
+        
       }
 
       Object.keys(tapoPlugsData).forEach(roomId => {
@@ -1011,7 +1011,7 @@
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
       const addBtn = document.getElementById('addTapoPlugBtn');
       if (addBtn) {
-        addBtn.style.display = unconfiguredRooms.length > 0 ? 'inline-block' : 'none';
+        
       }
       
       let html = '';
