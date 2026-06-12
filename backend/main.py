@@ -61,8 +61,12 @@ def startup_event():
         logger.error(f"Seed error: {e}")
 
     # 3. Start worker
-    worker_thread = threading.Thread(target=start_worker, daemon=True)
-    worker_thread.start()
+    disable_worker = os.getenv("DISABLE_WORKER", "false").lower() == "true"
+    if not disable_worker:
+        worker_thread = threading.Thread(target=start_worker, daemon=True)
+        worker_thread.start()
+    else:
+        print("Worker thread disabled via DISABLE_WORKER=true")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
