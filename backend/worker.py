@@ -371,6 +371,16 @@ async def ingestion_loop():
 
         except Exception as e:
             logger.error(f"Error in ingestion loop: {e}")
+            try:
+                alert = Alert(
+                    message=f"Worker Loop Crashed: {str(e)[:200]}",
+                    severity="critical"
+                )
+                db.add(alert)
+                db.commit()
+            except:
+                pass
+            db.rollback()
         finally:
             db.close()
             
@@ -382,4 +392,16 @@ async def ingestion_loop():
 def start_worker():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(ingestion_loop())
+    try:
+        loop.run_until_complete(ingestion_loop())
+    except Exception as e:
+        logger.error(f"Worker completely crashed: {e}")
+        from backend.database import SessionLocal
+        from backend.models import Alert
+        try:
+            db = SessionLocal()
+            alert = Alert(message=f"FATAL WORKER CRASH: {str(e)[:200]}", severity="critical")
+            db.add(alert)
+            db.commit()
+        except:
+            pass
