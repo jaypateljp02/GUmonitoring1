@@ -794,10 +794,14 @@
         // Update badge
         const badgeEl = document.getElementById(`plugBadge-${roomId}`);
         if (badgeEl) {
-          if (error || (data && !data.supported) || (data && data.error)) {
+          if (error || (data && !data.supported) || (data && data.state === 'offline')) {
             badgeEl.className = 'sensor-badge badge-offline';
             badgeEl.style.cssText = 'margin: 0; padding: 2px 8px; border-radius: 6px;';
             badgeEl.textContent = 'OFFLINE';
+          } else if (data && data.supported && data.last_known) {
+            badgeEl.className = 'sensor-badge';
+            badgeEl.style.cssText = 'margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2);';
+            badgeEl.textContent = 'LAST KNOWN';
           } else if (data && data.supported) {
             const isOn = data.state === 'on';
             badgeEl.className = 'sensor-badge';
@@ -824,13 +828,23 @@
           if (mk) mk.textContent = data.month_kwh.toFixed(3) + ' kWh';
           if (mb) mb.textContent = '₹ ' + data.month_bill.toFixed(2);
 
-          // Update toggle button
+          // Update toggle button - disable if last_known (can't control plug from cloud)
           const toggleBtn = document.getElementById(`plugToggleBtn-${roomId}`);
           if (toggleBtn) {
-            const isOn = data.state === 'on';
-            toggleBtn.className = `action-btn ${isOn ? 'red' : 'blue'}`;
-            toggleBtn.textContent = `Turn ${isOn ? 'OFF' : 'ON'}`;
-            toggleBtn.setAttribute('onclick', `toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')`);
+            if (data.last_known) {
+              toggleBtn.className = 'action-btn';
+              toggleBtn.textContent = '🌐 LAN Only';
+              toggleBtn.setAttribute('onclick', '');
+              toggleBtn.disabled = true;
+              toggleBtn.style.opacity = '0.5';
+            } else {
+              const isOn = data.state === 'on';
+              toggleBtn.className = `action-btn ${isOn ? 'red' : 'blue'}`;
+              toggleBtn.textContent = `Turn ${isOn ? 'OFF' : 'ON'}`;
+              toggleBtn.setAttribute('onclick', `toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')`);
+              toggleBtn.disabled = false;
+              toggleBtn.style.opacity = '1';
+            }
           }
         }
       });
@@ -1044,18 +1058,22 @@
         let analyticsHtml = '';
         let badgeHtml = '';
         
-        if (error || (data && !data.supported) || (data && data.error)) {
+        if (error || (data && !data.supported) || (data && data.state === 'offline')) {
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
           const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
-          telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}</div>`;
-        } else if (data && data.supported) {
-          const isOn = data.state === 'on';
-          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
-          
+          const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
+          const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
+          telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}${cloudNote}</div>`;
+        } else if (data && data.supported && data.last_known) {
+          // Last known data from DB — plug unreachable directly but worker logged it
+          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2);">LAST KNOWN</span>`;
           telemetryHtml = `
+            <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; font-size: 10px; color: #92400e; text-align: center;">
+              ⚠️ Showing last known data (${data.last_known_at}) — plug unreachable from cloud. LAN access required for live control.
+            </div>
             <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
               <div style="flex: 1; text-align: center;">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ ACTIVE POWER</div>
+                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ LAST POWER</div>
                 <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
               </div>
               <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
@@ -1068,7 +1086,6 @@
               </div>
             </div>
           `;
-          
           billingHtml = `
             <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
               <div style="text-align: center; flex: 1;">
@@ -1084,13 +1101,11 @@
               </div>
             </div>
           `;
-          
           toggleBtnHtml = `
-            <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
-              Turn ${isOn ? 'OFF' : 'ON'}
+            <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
+              🌐 LAN Only (Toggle not available from cloud)
             </button>
           `;
-          
           analyticsHtml = `
             <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
               <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${tempSensor.device_id}')">
@@ -1118,24 +1133,19 @@
                     </select>
                   </div>
                 </div>
-
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
-                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">
-                    📥 Export CSV
-                  </a>
+                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
                 </div>
                 <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugPowerChart-${roomId}"></canvas>
                 </div>
-
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">ENERGY ACCUMULATION (KWH)</span>
                 </div>
                 <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugEnergyChart-${roomId}"></canvas>
                 </div>
-
                 <div id="plugOfflineCard-${roomId}" style="display: none; padding: 10px; background: #FFF; border: 1px solid #FCA5A5; border-radius: 12px; margin-top: 10px;">
                   <div style="font-size: 9px; font-weight: 800; color: #EF4444; margin-bottom: 6px;">⚠️ Outage & Offline Logs</div>
                   <div id="plugOfflineList-${roomId}" style="display: flex; flex-direction: column; gap: 4px; font-size: 10px; max-height: 80px; overflow-y: auto;"></div>
@@ -2276,7 +2286,7 @@
       document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + ' Monitor</span>';
       
       document.getElementById('daysSelect').value = '7';
-      document.getElementById('intervalSelect').value = '1';
+      document.getElementById('intervalSelect').value = '60'; // 1-hour intervals for 7-day default (avoids too-many-points bug)
       document.getElementById('customDateRangeRow').style.display = 'none';
       
       // Default to horizontal on open
@@ -2300,8 +2310,9 @@
       document.getElementById('btn-vert-ext').style.boxShadow = 'none';
       document.getElementById('extremesChartWrapper').style.height = '150px';
 
-      document.getElementById('analyticsContent').style.display = 'none';
-      document.getElementById('analyticsArrow').textContent = '▼';
+      // Open analytics panel by default so charts render in visible container (hidden canvas = zero-size bug)
+      document.getElementById('analyticsContent').style.display = 'block';
+      document.getElementById('analyticsArrow').textContent = '▲';
       document.getElementById('thresholdsContent').style.display = 'none';
       document.getElementById('thresholdsArrow').textContent = '▼';
 

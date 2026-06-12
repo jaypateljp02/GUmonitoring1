@@ -583,42 +583,76 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
-    """Dynamic endpoint to fetch plug telemetry (voltage, current, power) from Tapo."""
+    """Dynamic endpoint to fetch plug telemetry (voltage, current, power) from Tapo.
+    Falls back to last known DB record when direct LAN connection is unavailable (e.g. cloud deployment).
+    """
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
         Sensor.type == "temperature",
         Sensor.active == True
     ).first()
 
-    # If Tapo config exists, query it locally
+    # If Tapo config exists, try to query it directly (works on local LAN)
     if sensor and sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+        rate = float(sensor.tapo_billing_rate) if sensor.tapo_billing_rate is not None else 10.0
+        
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
             telemetry = await get_tapo_telemetry_cached(
                 sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
             )
-            # Calculate billing estimates using custom rate (default to 10.0 if not set)
-            rate = float(sensor.tapo_billing_rate) if sensor.tapo_billing_rate is not None else 10.0
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
-            today_bill = today_kwh * rate
-            month_bill = month_kwh * rate
             
             return {
                 **telemetry,
                 "today_kwh": round(today_kwh, 3),
                 "month_kwh": round(month_kwh, 3),
-                "today_bill": round(today_bill, 2),
-                "month_bill": round(month_bill, 2),
+                "today_bill": round(today_kwh * rate, 2),
+                "month_bill": round(month_kwh * rate, 2),
                 "billing_rate": rate,
                 "supported": True,
                 "type": "tapo"
             }
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(f"Failed to fetch Tapo plug telemetry: {e}")
+            log = logging.getLogger(__name__)
+            log.error(f"Direct Tapo connection failed for {device_id} ({sensor.tapo_ip}): {e}")
+            
+            # Fallback: serve the most recent PlugTelemetry record stored by the background worker.
+            # The worker runs on the same LAN as the plug so it CAN reach it. The API server
+            # on a cloud host (e.g. Render) cannot reach a local-network IP, so we serve the
+            # last logged value instead of returning zeros / OFFLINE.
+            from backend.models.plug_telemetry import PlugTelemetry
+            last_log = db.query(PlugTelemetry).filter(
+                PlugTelemetry.device_id == device_id
+            ).order_by(PlugTelemetry.timestamp.desc()).first()
+            
+            if last_log:
+                today_kwh = float(last_log.today_energy) / 1000.0
+                month_kwh = float(last_log.month_energy) / 1000.0
+                log.info(f"Serving last DB plug record for {device_id} logged at {last_log.timestamp}")
+                return {
+                    "state": "unknown",
+                    "voltage": float(last_log.voltage),
+                    "current": float(last_log.current),
+                    "apower": float(last_log.apower),
+                    "today_energy": float(last_log.today_energy),
+                    "month_energy": float(last_log.month_energy),
+                    "today_kwh": round(today_kwh, 3),
+                    "month_kwh": round(month_kwh, 3),
+                    "today_bill": round(today_kwh * rate, 2),
+                    "month_bill": round(month_kwh * rate, 2),
+                    "billing_rate": rate,
+                    "supported": True,
+                    "type": "tapo",
+                    "last_known": True,
+                    "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
+                }
+            
+            # No DB records at all — device was never reachable
             return {
-                "state": "off",
+                "state": "offline",
                 "voltage": 0.0,
                 "current": 0.0,
                 "apower": 0.0,
