@@ -27,7 +27,9 @@ def startup_event():
         ensure_db_ready()
         logger.info("DB init complete.")
     except Exception as e:
+        import traceback
         logger.error(f"DB init error: {e}")
+        logger.error(traceback.format_exc())
 
     # 2. Seed 3 devices (idempotent)
     DEVICES = [
@@ -68,6 +70,12 @@ app.include_router(sensors.router)
 app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
+
+@app.get("/", tags=["Dashboard"], include_in_schema=False)
+def root_redirect():
+    """Redirect root to the dashboard."""
+    return RedirectResponse(url="/health")
+
 
 @app.get("/health", tags=["Dashboard"])
 def dashboard():
