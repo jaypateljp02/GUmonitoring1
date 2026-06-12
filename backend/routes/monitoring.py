@@ -42,6 +42,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
             is_online = (datetime.utcnow() - latest.timestamp) < timedelta(minutes=2)
             device_data.append({
                 "sensor_id": str(s.id),
+                "device_id": s.device_id,
                 "room_id": str(s.room_id) if s.room_id else None,
                 "type": s.type,
                 "name": s.name,

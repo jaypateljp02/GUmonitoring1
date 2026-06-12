@@ -84,14 +84,6 @@ def dashboard():
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
-@app.get("/worker-status", tags=["Dashboard"])
-def get_worker_status():
-    try:
-        from backend.worker import WORKER_STATE
-        return WORKER_STATE
-    except Exception as e:
-        return {"error": str(e)}
-
 
 @app.get("/floorplan.jpg", tags=["Dashboard"])
 def get_floorplan():
