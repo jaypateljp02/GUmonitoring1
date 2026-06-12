@@ -1,0 +1,4 @@
+# This file exists for backward compatibility with deploy platforms
+# that still reference the old api/ directory path.
+# The canonical requirements are in the root requirements.txt
+-r ../requirements.txt
