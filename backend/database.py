@@ -58,6 +58,16 @@ def ensure_db_ready():
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_billing_rate NUMERIC DEFAULT 10.0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)",
+        # plug_commands table — created by create_all above, but keep explicit migration for safety
+        """CREATE TABLE IF NOT EXISTS plug_commands (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            device_id VARCHAR(50) NOT NULL,
+            command VARCHAR(10) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT NOW(),
+            executed_at TIMESTAMP,
+            error VARCHAR(500)
+        )""",
     ]
     for stmt in migrations:
         try:
