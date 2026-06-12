@@ -80,7 +80,9 @@ def root_redirect():
 @app.get("/health", tags=["Dashboard"])
 def dashboard():
     html_path = os.path.join(os.path.dirname(__file__), "..", "web", "index.html")
-    return FileResponse(html_path, media_type="text/html")
+    response = FileResponse(html_path, media_type="text/html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @app.get("/floorplan.jpg", tags=["Dashboard"])
