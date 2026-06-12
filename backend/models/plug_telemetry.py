@@ -8,8 +8,8 @@ class PlugTelemetry(Base):
     __tablename__ = "plug_telemetry"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    device_id = Column(String(50), nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    device_id = Column(String(50), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     apower = Column(Numeric, nullable=False)        # Active Power in Watts
     voltage = Column(Numeric, nullable=False)       # Voltage in Volts
     current = Column(Numeric, nullable=False)       # Current in Amperes

@@ -58,6 +58,10 @@ def ensure_db_ready():
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_billing_rate NUMERIC DEFAULT 10.0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)",
+        "CREATE INDEX IF NOT EXISTS ix_device_telemetry_device_id ON device_telemetry (device_id)",
+        "CREATE INDEX IF NOT EXISTS ix_device_telemetry_timestamp ON device_telemetry (timestamp)",
+        "CREATE INDEX IF NOT EXISTS ix_plug_telemetry_device_id ON plug_telemetry (device_id)",
+        "CREATE INDEX IF NOT EXISTS ix_plug_telemetry_timestamp ON plug_telemetry (timestamp)",
         # plug_commands table — created by create_all above, but keep explicit migration for safety
         """CREATE TABLE IF NOT EXISTS plug_commands (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -82,229 +82,140 @@ def update_thresholds(
     db.commit()
     return MessageResponse(message="Thresholds updated")
 
-def aggregate_telemetry(logs: List[DeviceTelemetry], interval_minutes: int = 30) -> List[DeviceTelemetryResponse]:
-    if not logs:
-        return []
-    
-    # Sort logs ascending by timestamp for proper grouping
-    sorted_logs = sorted(logs, key=lambda x: x.timestamp)
-    
-    # If interval is raw/no-aggregation, return directly
-    if interval_minutes <= 1:
-        return [
-            DeviceTelemetryResponse(
-                id=log.id,
-                device_id=log.device_id,
-                timestamp=log.timestamp.replace(second=0, microsecond=0),
-                temperature=Decimal(str(round(log.temperature, 2))),
-                humidity=Decimal(str(round(log.humidity, 2))),
-                battery_level=Decimal(str(round(log.battery_level, 2)))
-            )
-            for log in reversed(sorted_logs)
-        ]
-        
-    aggregated = []
-    current_bucket_start = None
-    bucket_temps = []
-    bucket_hums = []
-    bucket_bats = []
-    
-    epoch = datetime(1970, 1, 1)
-    
-    for log in sorted_logs:
-        # Round timestamp dynamically to any interval_minutes using epoch
-        delta = log.timestamp - epoch
-        total_minutes = int(delta.total_seconds() // 60)
-        rounded_minutes = (total_minutes // interval_minutes) * interval_minutes
-        bucket_time = epoch + timedelta(minutes=rounded_minutes)
-        
-        if current_bucket_start is None:
-            current_bucket_start = bucket_time
-            
-        if bucket_time == current_bucket_start:
-            bucket_temps.append(log.temperature)
-            bucket_hums.append(log.humidity)
-            bucket_bats.append(log.battery_level)
-        else:
-            # Save the average for the finished bucket
-            avg_temp = sum(bucket_temps) / len(bucket_temps)
-            avg_hum = sum(bucket_hums) / len(bucket_hums)
-            avg_bat = sum(bucket_bats) / len(bucket_bats)
-            
-            aggregated.append(DeviceTelemetryResponse(
-                id=sorted_logs[0].id,
-                device_id=sorted_logs[0].device_id,
-                timestamp=current_bucket_start,
-                temperature=Decimal(str(round(avg_temp, 2))),
-                humidity=Decimal(str(round(avg_hum, 2))),
-                battery_level=Decimal(str(round(avg_bat, 2)))
-            ))
-            
-            # Start new bucket
-            current_bucket_start = bucket_time
-            bucket_temps = [log.temperature]
-            bucket_hums = [log.humidity]
-            bucket_bats = [log.battery_level]
-            
-    # Don't forget the last bucket
-    if current_bucket_start is not None:
-        avg_temp = sum(bucket_temps) / len(bucket_temps)
-        avg_hum = sum(bucket_hums) / len(bucket_hums)
-        avg_bat = sum(bucket_bats) / len(bucket_bats)
-        aggregated.append(DeviceTelemetryResponse(
-            id=sorted_logs[0].id,
-            device_id=sorted_logs[0].device_id,
-            timestamp=current_bucket_start,
-            temperature=Decimal(str(round(avg_temp, 2))),
-            humidity=Decimal(str(round(avg_hum, 2))),
-            battery_level=Decimal(str(round(avg_bat, 2)))
-        ))
-        
-    # Return sorted descending (newest first)
-    return list(reversed(aggregated))
 
-def calculate_offline_periods(logs, threshold_minutes: int = 3) -> List[dict]:
-    if not logs:
-        return []
+def aggregate_telemetry(db: Session, device_id: str, start_time: datetime, end_time: datetime, interval_minutes: int) -> List[DeviceTelemetryResponse]:
+    from sqlalchemy import text
+    from decimal import Decimal
+    import uuid
     
-    # Sort logs chronologically (ascending)
-    sorted_logs = sorted(logs, key=lambda x: x.timestamp)
-    offline_periods = []
-    
-    for i in range(len(sorted_logs) - 1):
-        t1 = sorted_logs[i].timestamp
-        t2 = sorted_logs[i+1].timestamp
-        diff_mins = (t2 - t1).total_seconds() / 60.0
+    if interval_minutes <= 1:
+        logs = db.query(DeviceTelemetry).filter(
+            DeviceTelemetry.device_id == device_id,
+            DeviceTelemetry.timestamp >= start_time,
+            DeviceTelemetry.timestamp <= end_time
+        ).order_by(DeviceTelemetry.timestamp.desc()).all()
+        return [DeviceTelemetryResponse.model_validate(log) for log in logs]
         
-        if diff_mins > threshold_minutes:
-            offline_periods.append({
-                "start": t1.strftime("%Y-%m-%d %H:%M:%S"),
-                "end": t2.strftime("%Y-%m-%d %H:%M:%S"),
-                "duration_minutes": int(round(diff_mins))
-            })
-            
-    # Check if currently offline (if last log is older than threshold)
-    if sorted_logs:
-        last_t = sorted_logs[-1].timestamp
-        now = datetime.utcnow()
-        diff_now = (now - last_t).total_seconds() / 60.0
+    interval_seconds = interval_minutes * 60
+    agg_query = text('''
+        SELECT
+            to_timestamp(floor(extract(epoch from timestamp) / :interval) * :interval) as bucket,
+            AVG(temperature) as temperature,
+            AVG(humidity) as humidity,
+            AVG(battery_level) as battery_level
+        FROM device_telemetry
+        WHERE device_id = :device_id AND timestamp >= :start_time AND timestamp <= :end_time
+        GROUP BY bucket
+        ORDER BY bucket DESC
+    ''')
+    agg_results = db.execute(agg_query, {"device_id": device_id, "start_time": start_time, "end_time": end_time, "interval": interval_seconds}).fetchall()
+    
+    return [
+        DeviceTelemetryResponse(
+            id=uuid.uuid4(),
+            device_id=device_id,
+            timestamp=row.bucket,
+            temperature=Decimal(str(round(row.temperature, 2))) if row.temperature else Decimal(0),
+            humidity=Decimal(str(round(row.humidity, 2))) if row.humidity else Decimal(0),
+            battery_level=Decimal(str(round(row.battery_level, 2))) if row.battery_level else Decimal(0)
+        )
+        for row in agg_results
+    ]
+
+def calculate_offline_periods(db: Session, table_name: str, device_id: str, start_time: datetime, threshold_minutes: int = 3) -> List[dict]:
+    from sqlalchemy import text
+    
+    offline_query = text(f'''
+        SELECT 
+            start_t as start, 
+            end_t as end, 
+            duration_minutes 
+        FROM (
+            SELECT 
+                lag(timestamp) OVER (ORDER BY timestamp ASC) as start_t,
+                timestamp as end_t,
+                EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (ORDER BY timestamp ASC)))/60.0 as duration_minutes
+            FROM {table_name}
+            WHERE device_id = :device_id AND timestamp >= :start_time
+        ) as gaps
+        WHERE duration_minutes > :threshold
+    ''')
+    offline_results = db.execute(offline_query, {"device_id": device_id, "start_time": start_time, "threshold": float(threshold_minutes)}).fetchall()
+    
+    offline_periods = [{
+        "start": row.start.strftime("%Y-%m-%d %H:%M:%S"),
+        "end": row.end.strftime("%Y-%m-%d %H:%M:%S"),
+        "duration_minutes": int(round(row.duration_minutes))
+    } for row in offline_results]
+    
+    latest_query = text(f"SELECT timestamp FROM {table_name} WHERE device_id = :device_id ORDER BY timestamp DESC LIMIT 1")
+    latest = db.execute(latest_query, {"device_id": device_id}).first()
+    if latest:
+        diff_now = (datetime.utcnow() - latest[0]).total_seconds() / 60.0
         if diff_now > threshold_minutes:
             offline_periods.append({
-                "start": last_t.strftime("%Y-%m-%d %H:%M:%S"),
+                "start": latest[0].strftime("%Y-%m-%d %H:%M:%S"),
                 "end": "Present",
                 "duration_minutes": int(round(diff_now))
             })
             
     return offline_periods
 
-def aggregate_plug_telemetry(logs, interval_minutes: int = 30) -> list:
-    if not logs:
-        return []
-    
-    # Sort logs ascending by timestamp
-    sorted_logs = sorted(logs, key=lambda x: x.timestamp)
-    
-    # If interval is raw/no-aggregation, return directly
+def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, end_time: datetime, interval_minutes: int) -> list:
+    from sqlalchemy import text
     if interval_minutes <= 1:
-        return [
-            {
-                "id": str(log.id),
-                "device_id": log.device_id,
-                "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                "apower": float(log.apower),
-                "voltage": float(log.voltage),
-                "current": float(log.current),
-                "today_energy": float(log.today_energy),
-                "month_energy": float(log.month_energy)
-            }
-            for log in sorted_logs
-        ]
+        from backend.models.plug_telemetry import PlugTelemetry
+        logs = db.query(PlugTelemetry).filter(
+            PlugTelemetry.device_id == device_id,
+            PlugTelemetry.timestamp >= start_time,
+            PlugTelemetry.timestamp <= end_time
+        ).order_by(PlugTelemetry.timestamp.desc()).all()
+        return [{
+            "id": str(log.id),
+            "device_id": log.device_id,
+            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "apower": float(log.apower),
+            "voltage": float(log.voltage),
+            "current": float(log.current),
+            "today_energy": float(log.today_energy),
+            "month_energy": float(log.month_energy)
+        } for log in logs]
         
-    aggregated = []
-    current_bucket_start = None
-    bucket_apower = []
-    bucket_voltage = []
-    bucket_current = []
-    bucket_today = []
-    bucket_month = []
+    interval_seconds = interval_minutes * 60
+    agg_query = text('''
+        SELECT
+            to_timestamp(floor(extract(epoch from timestamp) / :interval) * :interval) as bucket,
+            AVG(apower) as apower,
+            AVG(voltage) as voltage,
+            AVG(current) as current,
+            MAX(today_energy) as today_energy,
+            MAX(month_energy) as month_energy
+        FROM plug_telemetry
+        WHERE device_id = :device_id AND timestamp >= :start_time AND timestamp <= :end_time
+        GROUP BY bucket
+        ORDER BY bucket DESC
+    ''')
+    agg_results = db.execute(agg_query, {"device_id": device_id, "start_time": start_time, "end_time": end_time, "interval": interval_seconds}).fetchall()
     
-    epoch = datetime(1970, 1, 1)
-    
-    for log in sorted_logs:
-        delta = log.timestamp - epoch
-        total_minutes = int(delta.total_seconds() // 60)
-        rounded_minutes = (total_minutes // interval_minutes) * interval_minutes
-        bucket_time = epoch + timedelta(minutes=rounded_minutes)
-        
-        if current_bucket_start is None:
-            current_bucket_start = bucket_time
-            
-        if bucket_time == current_bucket_start:
-            bucket_apower.append(float(log.apower))
-            bucket_voltage.append(float(log.voltage))
-            bucket_current.append(float(log.current))
-            bucket_today.append(float(log.today_energy))
-            bucket_month.append(float(log.month_energy))
-        else:
-            # Save the average for the finished bucket
-            avg_apower = sum(bucket_apower) / len(bucket_apower)
-            avg_voltage = sum(bucket_voltage) / len(bucket_voltage)
-            avg_current = sum(bucket_current) / len(bucket_current)
-            max_today = max(bucket_today) if bucket_today else 0.0
-            max_month = max(bucket_month) if bucket_month else 0.0
-            
-            aggregated.append({
-                "device_id": sorted_logs[0].device_id,
-                "timestamp": current_bucket_start.strftime("%Y-%m-%d %H:%M:%S"),
-                "apower": round(avg_apower, 1),
-                "voltage": round(avg_voltage, 1),
-                "current": round(avg_current, 3),
-                "today_energy": round(max_today, 1),
-                "month_energy": round(max_month, 1)
-            })
-            
-            # Start new bucket
-            current_bucket_start = bucket_time
-            bucket_apower = [float(log.apower)]
-            bucket_voltage = [float(log.voltage)]
-            bucket_current = [float(log.current)]
-            bucket_today = [float(log.today_energy)]
-            bucket_month = [float(log.month_energy)]
-            
-    if current_bucket_start is not None:
-        avg_apower = sum(bucket_apower) / len(bucket_apower)
-        avg_voltage = sum(bucket_voltage) / len(bucket_voltage)
-        avg_current = sum(bucket_current) / len(bucket_current)
-        max_today = max(bucket_today) if bucket_today else 0.0
-        max_month = max(bucket_month) if bucket_month else 0.0
-        
-        aggregated.append({
-            "device_id": sorted_logs[0].device_id,
-            "timestamp": current_bucket_start.strftime("%Y-%m-%d %H:%M:%S"),
-            "apower": round(avg_apower, 1),
-            "voltage": round(avg_voltage, 1),
-            "current": round(avg_current, 3),
-            "today_energy": round(max_today, 1),
-            "month_energy": round(max_month, 1)
-        })
-        
-    return aggregated
+    return [{
+        "device_id": device_id,
+        "timestamp": row.bucket.strftime("%Y-%m-%d %H:%M:%S"),
+        "apower": round(row.apower, 1) if row.apower else 0.0,
+        "voltage": round(row.voltage, 1) if row.voltage else 0.0,
+        "current": round(row.current, 3) if row.current else 0.0,
+        "today_energy": round(row.today_energy, 1) if row.today_energy else 0.0,
+        "month_energy": round(row.month_energy, 1) if row.month_energy else 0.0
+    } for row in agg_results]
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
 def get_device_telemetry(
     device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
 ):
     cutoff = datetime.utcnow() - timedelta(days=days)
-    logs = db.query(DeviceTelemetry).filter(
-        DeviceTelemetry.device_id == device_id,
-        DeviceTelemetry.timestamp >= cutoff
-    ).order_by(DeviceTelemetry.timestamp.desc()).all()
+    end_time = datetime.utcnow()
     
-    # Calculate offline periods using raw logs
-    offline_periods = calculate_offline_periods(logs)
-    
-    # Aggregate telemetry logs
-    aggregated_logs = aggregate_telemetry(logs, interval_minutes=interval_minutes)
+    offline_periods = calculate_offline_periods(db, "device_telemetry", device_id, cutoff)
+    aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     return DeviceTelemetryHistoryResponse(
         telemetry=aggregated_logs,
@@ -436,7 +347,8 @@ def export_device_telemetry(
         DeviceTelemetry.timestamp >= cutoff
     ).order_by(DeviceTelemetry.timestamp.desc()).all()
     
-    aggregated_logs = aggregate_telemetry(logs, interval_minutes=interval_minutes)
+    end_time = datetime.utcnow()
+    aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     output = StringIO()
     writer = csv.writer(output)
@@ -598,9 +510,10 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
-            telemetry = await get_tapo_telemetry_cached(
+            import asyncio
+            telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
                 sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
-            )
+            ), timeout=1.5)
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
             
@@ -689,10 +602,11 @@ def get_plug_telemetry_history(
     ).order_by(PlugTelemetry.timestamp.asc()).all()  # Sort ascending for charts
     
     # Calculate offline periods using raw logs
-    offline_periods = calculate_offline_periods(logs)
+    offline_periods = calculate_offline_periods(db, "plug_telemetry", device_id, cutoff)
     
     # Aggregate plug telemetry logs
-    aggregated_logs = aggregate_plug_telemetry(logs, interval_minutes=interval_minutes)
+    end_time = datetime.utcnow()
+    aggregated_logs = aggregate_plug_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     return {
         "history": aggregated_logs,
@@ -712,7 +626,8 @@ def export_plug_telemetry(
     ).order_by(PlugTelemetry.timestamp.desc()).all()
     
     # Export aggregated logs
-    aggregated_logs = aggregate_plug_telemetry(logs, interval_minutes=interval_minutes)
+    end_time = datetime.utcnow()
+    aggregated_logs = aggregate_plug_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     output = StringIO()
     writer = csv.writer(output)
@@ -793,7 +708,7 @@ def get_batch_context(
     ).first()
     
     # Send aggregated logs (30min) instead of strictly raw if the timeframe is long
-    aggregated_logs = aggregate_telemetry(logs, interval_minutes=30)
+    aggregated_logs = aggregate_telemetry(db, device_id, start_time, end_time, 30)
     
     return BatchContextResponse(
         device_id=device_id,

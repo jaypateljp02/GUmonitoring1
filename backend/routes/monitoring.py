@@ -32,12 +32,24 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
 
     # Get live devices status
     sensors = db.query(Sensor).filter(Sensor.active == True).all()
+    # Pre-fetch the latest telemetry for all active devices in one query using DISTINCT ON
+    active_device_ids = list(set([s.device_id for s in sensors if s.device_id]))
+    telemetry_map = {}
+    if active_device_ids:
+        latest_telemetries = db.query(DeviceTelemetry).filter(
+            DeviceTelemetry.device_id.in_(active_device_ids)
+        ).distinct(DeviceTelemetry.device_id).order_by(
+            DeviceTelemetry.device_id, DeviceTelemetry.timestamp.desc()
+        ).all()
+        telemetry_map = {t.device_id: t for t in latest_telemetries}
+
     device_data = []
     
     for s in sensors:
         if not s.device_id: 
             continue
-        latest = db.query(DeviceTelemetry).filter(DeviceTelemetry.device_id == s.device_id).order_by(DeviceTelemetry.timestamp.desc()).first()
+        
+        latest = telemetry_map.get(s.device_id)
         if latest:
             is_online = (datetime.utcnow() - latest.timestamp) < timedelta(minutes=15)
             device_data.append({
