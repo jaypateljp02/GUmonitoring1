@@ -208,7 +208,7 @@ async def ingestion_loop():
             thing_list = None
             if use_live:
                 try:
-                    thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=10.0)
+                    thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=15.0)
                     if thing_list is None:
                         logger.warning("Failed to fetch devices. Retrying login...")
                         login_success = False
@@ -217,11 +217,21 @@ async def ingestion_loop():
                         except Exception:
                             pass
                         if login_success:
-                            thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=10.0)
+                            thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=15.0)
                 except Exception as e:
                     logger.error(f"Failed to fetch devices from eWeLink API (Timeout/Error): {e}")
                     thing_list = None
                     use_live = False
+
+            # If the API failed to fetch devices entirely but we are in live mode,
+            # we should skip this loop to avoid marking everything as offline.
+            if use_live and thing_list is None:
+                logger.warning("Skipping device processing this cycle due to eWeLink API failure.")
+                sync_counter += 1
+                elapsed = time.time() - start_time
+                sleep_time = max(0, 60.0 - elapsed)
+                await asyncio.sleep(sleep_time)
+                continue
             
             # Process each active device
             for target_device, sensors in devices_map.items():
