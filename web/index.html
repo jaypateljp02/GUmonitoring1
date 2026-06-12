@@ -1738,7 +1738,7 @@
     }
 
     pollList();
-    const listInterval = setInterval(pollList, 10000);
+    const listInterval = setInterval(pollList, 30000);
 
     async function fetchActiveThresholds(deviceId) {
       try {
@@ -2320,7 +2320,7 @@
       await updateAnalyticsOptions();
       
       pollDetail();
-      detailInterval = setInterval(pollDetail, 5000);
+      detailInterval = setInterval(pollDetail, 30000);
     }
 
     function showList() {
