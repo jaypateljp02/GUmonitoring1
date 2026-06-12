@@ -52,8 +52,8 @@ async def get_tapo_telemetry_cached(ip: str, username: str, password: str, devic
         return cached["data"]
         
     try:
-        # Query physical device
-        data = await get_tapo_telemetry_async(ip, username, password)
+        # Query physical device with 5s timeout to prevent loop freezing on cloud
+        data = await asyncio.wait_for(get_tapo_telemetry_async(ip, username, password), timeout=5.0)
         TAPO_CACHE[device_id] = {
             "data": data,
             "fetched_at": now,
@@ -84,11 +84,11 @@ async def tapo_control_async(ip: str, username: str, password: str, state: str, 
     global TAPO_CACHE
     try:
         client = ApiClient(username, password)
-        device = await client.p110(ip)
+        device = await asyncio.wait_for(client.p110(ip), timeout=5.0)
         if state.lower() == "on":
-            await device.on()
+            await asyncio.wait_for(device.on(), timeout=5.0)
         else:
-            await device.off()
+            await asyncio.wait_for(device.off(), timeout=5.0)
             
         # Update cache immediately if device_id is provided
         if device_id and device_id in TAPO_CACHE:
