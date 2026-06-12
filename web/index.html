@@ -760,19 +760,20 @@
       
       await Promise.all(fetchPromises);
       
-      // Compute fingerprint: which rooms are configured (not 'Unconfigured')
-      const configuredRooms = Object.keys(tapoPlugsData).filter(roomId => {
+      // Compute fingerprint: which rooms are configured and their error/status states
+      const fingerprint = Object.keys(tapoPlugsData).sort().map(roomId => {
         const item = tapoPlugsData[roomId];
-        return item && item.error !== 'Unconfigured';
-      });
-      const newKey = configuredRooms.sort().join(',');
+        const isUnconfigured = item && item.error === 'Unconfigured';
+        const hasError = item && (item.error || (item.data && item.data.error) || (item.data && !item.data.supported));
+        return `${roomId}:${isUnconfigured}:${!!hasError}`;
+      }).join('|');
       
-      if (forceFullRender || newKey !== previousConfiguredRoomsKey) {
-        // Room set changed — full re-render needed
-        previousConfiguredRoomsKey = newKey;
+      if (forceFullRender || fingerprint !== previousConfiguredRoomsKey) {
+        // Room set or status changed — full re-render needed
+        previousConfiguredRoomsKey = fingerprint;
         renderTapoPlugs();
       } else {
-        // Same rooms — just update live values in-place (no chart destruction)
+        // Same rooms and statuses — just update live values in-place (no chart destruction)
         updateTapoPlugsInPlace();
       }
     }
@@ -793,7 +794,7 @@
         // Update badge
         const badgeEl = document.getElementById(`plugBadge-${roomId}`);
         if (badgeEl) {
-          if (error) {
+          if (error || (data && !data.supported) || (data && data.error)) {
             badgeEl.className = 'sensor-badge badge-offline';
             badgeEl.style.cssText = 'margin: 0; padding: 2px 8px; border-radius: 6px;';
             badgeEl.textContent = 'OFFLINE';
@@ -1043,9 +1044,10 @@
         let analyticsHtml = '';
         let badgeHtml = '';
         
-        if (error) {
+        if (error || (data && !data.supported) || (data && data.error)) {
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
-          telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 10px 0;">🔌 Tapo Plug Offline: ${error}</div>`;
+          const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
+          telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}</div>`;
         } else if (data && data.supported) {
           const isOn = data.state === 'on';
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
