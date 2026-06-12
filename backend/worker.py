@@ -132,16 +132,10 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
         else:
             hum_sensor.active = True
 
-    # 4. Deactivate mock/removed sensors and clean up inactive rooms
-    if synced_device_ids:
-        # Deactivate sensors not in eWeLink list
-        db.query(Sensor).filter(Sensor.device_id.notin_(synced_device_ids)).update({"active": False}, synchronize_session=False)
-        
-        # Deactivate rooms that have no active sensors
-        active_room_ids = db.query(Sensor.room_id).filter(Sensor.active == True).distinct().all()
-        active_room_ids = [r[0] for r in active_room_ids if r[0]]
-        
-        db.query(Room).filter(Room.id.notin_(active_room_ids)).update({"active": False}, synchronize_session=False)
+    # 4. Do not aggressively deactivate sensors/rooms. 
+    # If a device is removed from eWeLink, it will naturally appear as "OFFLINE" 
+    # due to the timestamp threshold. Deactivating it hides it completely and 
+    # causes UI flapping if the eWeLink API returns a partial list.
         
     db.commit()
     logger.info(f"Sync complete. Synced device IDs: {synced_device_ids}")
