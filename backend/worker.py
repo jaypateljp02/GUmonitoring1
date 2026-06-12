@@ -147,7 +147,16 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
     logger.info(f"Sync complete. Synced device IDs: {synced_device_ids}")
     return synced_device_ids
 
+WORKER_STATE = {
+    "status": "stopped",
+    "last_tick": "never",
+    "current_action": "none",
+    "exceptions": []
+}
+
 async def ingestion_loop():
+    global WORKER_STATE
+    WORKER_STATE["status"] = "starting"
     email = os.getenv("EWELINK_EMAIL")
     password = os.getenv("EWELINK_PASSWORD")
     region = os.getenv("EWELINK_REGION", "as")
@@ -183,16 +192,22 @@ async def ingestion_loop():
     sync_counter = 0
 
     while True:
+        WORKER_STATE["status"] = "running"
+        WORKER_STATE["current_action"] = "starting_tick"
+        WORKER_STATE["last_tick"] = str(datetime.utcnow())
+        
         start_time = time.time()
         db = SessionLocal()
         try:
             # Sync devices periodically (every 10 minutes / 10 loops)
             if use_live and sync_counter >= 10:
                 try:
+                    WORKER_STATE["current_action"] = "syncing_devices"
                     await asyncio.wait_for(sync_ewelink_devices(db, client), timeout=20.0)
                     sync_counter = 0
                 except Exception as e:
                     logger.error(f"Failed to sync devices: {e}")
+                    WORKER_STATE["exceptions"].append(f"sync: {e}")
             
             # Fetch all active sensors from the DB
             active_sensors = db.query(Sensor).filter(Sensor.active == True).all()
