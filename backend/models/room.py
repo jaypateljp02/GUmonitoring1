@@ -6,11 +6,10 @@ from backend.database import Base
 
 class Room(Base):
     __tablename__ = "rooms"
-    __table_args__ = {"schema": "monitoring"}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
-    type = Column(Enum("room", "fridge", "freezer", name="room_type", schema="monitoring", create_type=False), nullable=False)
+    type = Column(Enum("room", "fridge", "freezer", name="room_type", create_type=False), nullable=False)
     description = Column(Text)
     map_x = Column(String(20), nullable=True)  # Percentage string like '45%'
     map_y = Column(String(20), nullable=True)

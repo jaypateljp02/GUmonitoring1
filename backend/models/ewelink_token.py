@@ -4,7 +4,6 @@ from datetime import datetime
 
 class EwelinkToken(Base):
     __tablename__ = "ewelink_tokens"
-    __table_args__ = {"schema": "monitoring"}
 
     id = Column(String(50), primary_key=True, default="default")
     access_token = Column(String(500), nullable=False)
