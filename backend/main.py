@@ -117,14 +117,8 @@ def update_apk_url_cache():
 @app.get("/download/apk", tags=["App"])
 def download_apk(background_tasks: BackgroundTasks):
     global APK_CACHE
-    # Refresh cache in background if older than 5 minutes
-    if datetime.utcnow() - APK_CACHE["last_fetched"] > timedelta(minutes=5):
-        background_tasks.add_task(update_apk_url_cache)
-        
-    if APK_CACHE["url"]:
-        return RedirectResponse(url=APK_CACHE["url"])
-        
-    # Fallback to local compiled file
+    
+    # Try local compiled file first (recommended for core React Native local builds)
     apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
     if os.path.exists(apk_path):
         return FileResponse(
@@ -133,6 +127,13 @@ def download_apk(background_tasks: BackgroundTasks):
             filename="GUMonitoring.apk"
         )
         
+    # Refresh cache in background if older than 5 minutes
+    if datetime.utcnow() - APK_CACHE["last_fetched"] > timedelta(minutes=5):
+        background_tasks.add_task(update_apk_url_cache)
+        
+    if APK_CACHE["url"]:
+        return RedirectResponse(url=APK_CACHE["url"])
+        
     # If no cache and no local file, attempt synchronous fetch
     update_apk_url_cache()
     if APK_CACHE["url"]:
@@ -140,6 +141,6 @@ def download_apk(background_tasks: BackgroundTasks):
         
     raise HTTPException(
         status_code=404,
-        detail="APK file not found. Cloud compilation may still be in progress."
+        detail="APK file not found. Local build or cloud compilation may still be in progress."
     )
 

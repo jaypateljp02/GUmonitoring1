@@ -2498,19 +2498,11 @@
       }
     }
 
-    // Only show Android APK download card on Android devices
-    function checkAndroidUserAgent() {
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      const downloadCard = document.getElementById('downloadCard');
-      if (downloadCard) {
-        if (isAndroid) {
-          downloadCard.style.display = 'block';
-        } else {
-          downloadCard.style.display = 'none';
-        }
-      }
+    // Keep APK download card visible on all devices
+    const downloadCard = document.getElementById('downloadCard');
+    if (downloadCard) {
+      downloadCard.style.display = 'block';
     }
-    checkAndroidUserAgent();
   </script>
 </body>
 </html>
