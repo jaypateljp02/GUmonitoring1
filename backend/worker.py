@@ -158,12 +158,19 @@ async def ingestion_loop():
     if email and password:
         logger.info(f"Initializing official eWeLink client for {email}...")
         client = EwelinkClient(email=email, password=password, region=region)
-        if await client.login():
+        
+        login_success = False
+        try:
+            login_success = await asyncio.wait_for(client.login(), timeout=10.0)
+        except Exception as e:
+            logger.error(f"eWeLink login timed out or failed: {e}")
+            
+        if login_success:
             use_live = True
             # Sync devices immediately on login success
             db = SessionLocal()
             try:
-                await sync_ewelink_devices(db, client)
+                await asyncio.wait_for(sync_ewelink_devices(db, client), timeout=20.0)
             except Exception as e:
                 logger.error(f"Failed to sync devices on startup: {e}")
             finally:
@@ -182,7 +189,7 @@ async def ingestion_loop():
             # Sync devices periodically (every 10 minutes / 10 loops)
             if use_live and sync_counter >= 10:
                 try:
-                    await sync_ewelink_devices(db, client)
+                    await asyncio.wait_for(sync_ewelink_devices(db, client), timeout=20.0)
                     sync_counter = 0
                 except Exception as e:
                     logger.error(f"Failed to sync devices: {e}")
@@ -200,11 +207,21 @@ async def ingestion_loop():
 
             thing_list = None
             if use_live:
-                thing_list = await client.get_all_devices()
-                if thing_list is None:
-                    logger.warning("Failed to fetch devices. Retrying login...")
-                    if await client.login():
-                        thing_list = await client.get_all_devices()
+                try:
+                    thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=10.0)
+                    if thing_list is None:
+                        logger.warning("Failed to fetch devices. Retrying login...")
+                        login_success = False
+                        try:
+                            login_success = await asyncio.wait_for(client.login(), timeout=10.0)
+                        except Exception:
+                            pass
+                        if login_success:
+                            thing_list = await asyncio.wait_for(client.get_all_devices(), timeout=10.0)
+                except Exception as e:
+                    logger.error(f"Failed to fetch devices from eWeLink API (Timeout/Error): {e}")
+                    thing_list = None
+                    use_live = False
             
             # Process each active device
             for target_device, sensors in devices_map.items():
