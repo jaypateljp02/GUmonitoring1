@@ -22,7 +22,7 @@ import calendar
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
 def verify_edge_api_key(x_api_key: str = Header(...)):
-    expected_key = os.getenv("EDGE_API_KEY", os.getenv("JWT_SECRET", "default-secret"))
+    expected_key = os.getenv("EDGE_API_KEY", "factory-tapo-123")
     if x_api_key != expected_key:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return x_api_key
