@@ -651,9 +651,12 @@
 
   <script>
     Chart.register(ChartDataLabels);
+    // Determine API endpoint: use localhost/LAN IP if on local network, else use cloud API
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.');
+    const API = isLocal ? `http://${hostname}:8000` : 'https://gumonitoring.onrender.com';
     let rooms = [];
     let liveData = {};
-    const API = (window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : 'http://127.0.0.1:8000';
     let currentDevice = null;
     let detailInterval = null;
     let tempMin = null;
