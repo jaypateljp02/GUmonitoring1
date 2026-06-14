@@ -228,8 +228,13 @@ async def ingestion_loop():
                 continue
             
             # Process each active device
-            for target_device, sensors in devices_map.items():
+            for target_device in devices_map.keys():
                 try:
+                    # Re-fetch sensors for this device to avoid SQLAlchemy expire_on_commit ObjectDeletedErrors
+                    sensors = db.query(Sensor).filter(Sensor.device_id == target_device, Sensor.active == True).all()
+                    if not sensors:
+                        continue
+                        
                     mode = sensors[0].mock_mode if sensors else "normal"
                     
                     temp_val = None
