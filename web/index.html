@@ -2421,45 +2421,7 @@
             }
           } catch(e) {}
 
-          // Poll Smart Plug status
-          try {
-            const plugRes = await fetch(`${API}/sensors/device/${currentDevice.id}/plug`);
-            if (plugRes.ok) {
-              const plugData = await plugRes.json();
-              const plugCard = document.getElementById('plugCard');
-              if (plugData && plugData.supported) {
-                plugCard.style.display = 'block';
-                document.getElementById('plugPower').textContent = plugData.apower.toFixed(1) + ' W';
-                document.getElementById('plugVoltage').textContent = plugData.voltage.toFixed(1) + ' V';
-                document.getElementById('plugCurrent').textContent = plugData.current.toFixed(3) + ' A';
-                
-                const badge = document.getElementById('plugTypeBadge');
-                badge.textContent = plugData.type.toUpperCase() + ' PLUG: ' + plugData.state.toUpperCase();
-                if (plugData.state === 'on') {
-                  badge.style.background = 'rgba(16, 185, 129, 0.08)';
-                  badge.style.color = '#10b981';
-                  badge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
-                  document.getElementById('btnPlugToggle').textContent = 'Turn Off';
-                  document.getElementById('btnPlugToggle').className = 'action-btn red';
-                } else {
-                  badge.style.background = 'rgba(107, 114, 128, 0.08)';
-                  badge.style.color = '#6b7280';
-                  badge.style.borderColor = 'rgba(107, 114, 128, 0.2)';
-                  document.getElementById('btnPlugToggle').textContent = 'Turn On';
-                  document.getElementById('btnPlugToggle').className = 'action-btn blue';
-                }
-                document.getElementById('btnPlugToggle').dataset.state = plugData.state;
-              } else {
-                plugCard.style.display = 'none';
-              }
-            } else {
-              document.getElementById('plugCard').style.display = 'none';
-            }
-          } catch(plugErr) {
-            console.error("Error polling plug status:", plugErr);
-            document.getElementById('plugCard').style.display = 'none';
-          }
-          
+
         } else {
           document.getElementById('dTemp').textContent = '--';
           document.getElementById('dHum').textContent = '--';
@@ -2469,7 +2431,6 @@
           document.getElementById('dTempMax').textContent = '--';
           document.getElementById('dHumMin').textContent = '--';
           document.getElementById('dHumMax').textContent = '--';
-          document.getElementById('plugCard').style.display = 'none';
           if (topBat) {
             topBat.textContent = '🔋 --';
             topBat.className = 'sensor-badge badge-offline';
@@ -2482,6 +2443,45 @@
           document.getElementById('dWarn').classList.remove('show');
         }
       } catch(e) {}
+      
+      // Poll Smart Plug status regardless of temp/hum telemetry
+      try {
+        const plugRes = await fetch(`${API}/sensors/device/${currentDevice.id}/plug`);
+        if (plugRes.ok) {
+          const plugData = await plugRes.json();
+          const plugCard = document.getElementById('plugCard');
+          if (plugData && plugData.supported) {
+            plugCard.style.display = 'block';
+            document.getElementById('plugPower').textContent = plugData.apower.toFixed(1) + ' W';
+            document.getElementById('plugVoltage').textContent = plugData.voltage.toFixed(1) + ' V';
+            document.getElementById('plugCurrent').textContent = plugData.current.toFixed(3) + ' A';
+            
+            const badge = document.getElementById('plugTypeBadge');
+            badge.textContent = plugData.type.toUpperCase() + ' PLUG: ' + plugData.state.toUpperCase();
+            if (plugData.state === 'on') {
+              badge.style.background = 'rgba(16, 185, 129, 0.08)';
+              badge.style.color = '#10b981';
+              badge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+              document.getElementById('btnPlugToggle').textContent = 'Turn Off';
+              document.getElementById('btnPlugToggle').className = 'action-btn red';
+            } else {
+              badge.style.background = 'rgba(107, 114, 128, 0.08)';
+              badge.style.color = '#6b7280';
+              badge.style.borderColor = 'rgba(107, 114, 128, 0.2)';
+              document.getElementById('btnPlugToggle').textContent = 'Turn On';
+              document.getElementById('btnPlugToggle').className = 'action-btn blue';
+            }
+            document.getElementById('btnPlugToggle').dataset.state = plugData.state;
+          } else {
+            plugCard.style.display = 'none';
+          }
+        } else {
+          document.getElementById('plugCard').style.display = 'none';
+        }
+      } catch(plugErr) {
+        console.error("Error polling plug status:", plugErr);
+        document.getElementById('plugCard').style.display = 'none';
+      }
     }
 
     // Toggle plug state
