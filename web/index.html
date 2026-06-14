@@ -1390,8 +1390,8 @@
         let pinClass = 'offline';
         let dotClass = 'offline';
         
-        if (tempSensor && liveData[tempSensor.id]) {
-          const data = liveData[tempSensor.id];
+        if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
+          const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
           tempStr = temp.toFixed(1) + '°C';
           
@@ -1641,7 +1641,7 @@
             liveData = {};
             if (dashData && dashData.live_devices) {
               dashData.live_devices.forEach(d => {
-                liveData[d.sensor_id] = d;
+                liveData[d.device_id] = d;
               });
               liveDevicesCount = dashData.live_devices.length;
             }
@@ -1658,8 +1658,8 @@
             const card = document.getElementById(`sc-${room.id}`);
             const meta = document.getElementById(`sm-${room.id}`);
 
-            if (tempSensor && liveData[tempSensor.id]) {
-              const data = liveData[tempSensor.id];
+            if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
+              const data = liveData[tempSensor.device_id];
               const temp = parseFloat(data.temperature);
               const battery = parseFloat(data.battery_level).toFixed(0);
               const ts = new Date(data.timestamp.endsWith('Z') ? data.timestamp : data.timestamp + 'Z');
