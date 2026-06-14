@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from tapo import ApiClient
 import random
 
+import traceback
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -42,8 +44,8 @@ async def get_tapo_telemetry_async(ip: str, username: str, password: str) -> dic
     }
 
 
-# Load .env.edge if it exists, otherwise standard .env
-load_dotenv(".env.edge")
+# Load standard .env file
+load_dotenv()
 
 CLOUD_API_URL = os.getenv("CLOUD_API_URL", "http://localhost:8000")
 EDGE_API_KEY = os.getenv("EDGE_API_KEY", "your-secret-key-here")
@@ -99,7 +101,22 @@ async def run_forwarder():
         configs = await fetch_configs()
         
         if not configs:
-            logger.info("No Tapo configurations found. Waiting...")
+            logger.info("No Tapo configurations found on cloud. Checking local .env fallback...")
+            fallback_ip = os.getenv("TAPO_IP")
+            fallback_user = os.getenv("TAPO_USERNAME")
+            fallback_pass = os.getenv("TAPO_PASSWORD")
+            fallback_device = os.getenv("TAPO_DEVICE_ID", "a4b0028991") # Default to Vinegar Room if not specified
+            
+            if fallback_ip and fallback_user and fallback_pass:
+                configs = [{
+                    "device_id": fallback_device,
+                    "tapo_ip": fallback_ip,
+                    "tapo_username": fallback_user,
+                    "tapo_password": fallback_pass
+                }]
+                logger.info(f"Using local fallback config for {fallback_device} at {fallback_ip}")
+            else:
+                logger.info("No local fallback Tapo configurations found either. Waiting...")
         
         for config in configs:
             device_id = config.get("device_id")
@@ -111,15 +128,19 @@ async def run_forwarder():
             
             try:
                 # Query the local Tapo plug
-                tapo_data = await asyncio.wait_for(get_tapo_telemetry_async(ip, username, password), timeout=5.0)
+                tapo_data = await asyncio.wait_for(get_tapo_telemetry_async(ip, username, password), timeout=15.0)
                 
                 if tapo_data and tapo_data.get("state") != "offline" and "error" not in tapo_data:
                     logger.info(f"Retrieved data for {device_id}: {tapo_data['apower']}W")
                     await ingest_telemetry(device_id, tapo_data)
                 else:
                     logger.warning(f"Device {device_id} at {ip} is offline or unreachable.")
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout Error: Could not connect to Tapo plug at {ip} within 15 seconds. Check Wi-Fi or IP address.")
             except Exception as e:
-                logger.error(f"Error processing device {device_id}: {e}")
+                logger.error(f"Error processing device {device_id} at {ip}: {type(e).__name__} - {str(e)}")
+                # Uncomment the line below if you need full debug traces
+                # traceback.print_exc()
                 
         logger.info(f"Sleeping for {POLL_INTERVAL} seconds...")
         await asyncio.sleep(POLL_INTERVAL)

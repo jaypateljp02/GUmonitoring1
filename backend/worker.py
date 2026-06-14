@@ -278,7 +278,7 @@ async def ingestion_loop():
                             if raw_bat is not None:
                                 bat_val = float(raw_bat)
                             
-                            if temp_val is not None and hum_val is not None:
+                            if temp_val is not None or hum_val is not None:
                                 is_device_reporting = True
                     else:
                         # Fallback: Simulator mode logic
