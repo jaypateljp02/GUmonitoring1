@@ -237,27 +237,8 @@ async def ingestion_loop():
                     bat_val = 100.0
                     timestamp_parsed = datetime.utcnow()
 
-                    # Fetch and log Tapo Plug telemetry if configured on this device
-                    tapo_sensor = next((s for s in sensors if s.tapo_ip and s.tapo_username and s.tapo_password), None)
-                    if tapo_sensor:
-                        try:
-                            tapo_data = await get_tapo_telemetry_cached(
-                                tapo_sensor.tapo_ip, tapo_sensor.tapo_username, tapo_sensor.tapo_password, target_device, force_refresh=True
-                            )
-                            if tapo_data and tapo_data.get("state") != "offline" and "error" not in tapo_data:
-                                plug_log = PlugTelemetry(
-                                    device_id=target_device,
-                                    timestamp=timestamp_parsed,
-                                    apower=tapo_data["apower"],
-                                    voltage=tapo_data["voltage"],
-                                    current=tapo_data["current"],
-                                    today_energy=tapo_data["today_energy"],
-                                    month_energy=tapo_data["month_energy"]
-                                )
-                                db.add(plug_log)
-                                logger.info(f"Worker logged Tapo telemetry for {target_device} at {tapo_sensor.tapo_ip}: {tapo_data['apower']}W")
-                        except Exception as te:
-                            logger.error(f"Worker failed to log Tapo telemetry for device {target_device}: {te}")
+                    # Tapo Plug telemetry is now handled by the local Edge Forwarder script
+                    # instead of the cloud worker to avoid local network routing issues.
 
                     # Find device telemetry in thingList if using live mode
                     device_data = None
