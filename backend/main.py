@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from jose import jwt
 import bcrypt
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+import sys
 
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
 from backend.routes import sensors, rooms, alerts, monitoring
@@ -85,40 +87,68 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
+@app.get("/debug-info", tags=["Authentication"])
+def debug_info(db: Session = Depends(get_db)):
+    try:
+        # Check DB connection
+        db.execute(text("SELECT 1"))
+        db_status = "Connected"
+    except Exception as e:
+        db_status = f"Failed: {str(e)}"
+        
+    return {
+        "status": "ok",
+        "deploy_version": "native-bcrypt-v2",
+        "db_status": db_status,
+        "bcrypt_available": "bcrypt" in globals() or "bcrypt" in sys.modules,
+        "time": datetime.utcnow().isoformat()
+    }
+
 @app.post("/auth/login", response_model=LoginResponse, tags=["Authentication"])
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user and return JWT access token."""
-    user = db.query(User).filter(
-        User.email == request.email.strip().lower(),
-        User.active == True
-    ).first()
+    try:
+        user = db.query(User).filter(
+            User.email == request.email.strip().lower(),
+            User.active == True
+        ).first()
 
-    if not user or not verify_password(request.password, user.password):
+        if not user or not verify_password(request.password, user.password):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password",
+            )
+
+        # Expire in 24 hours
+        expire = datetime.utcnow() + timedelta(hours=24)
+        payload = {
+            "sub": str(user.id),
+            "role": user.role,
+            "name": user.name,
+            "exp": expire,
+            "iat": datetime.utcnow(),
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+        return LoginResponse(
+            access_token=token,
+            user=UserResponseModel(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                role=user.role
+            )
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Login error: {tb}")
         raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password",
+            status_code=500,
+            detail=f"Login internal error: {str(e)}. Traceback: {tb}"
         )
-
-    # Expire in 24 hours
-    expire = datetime.utcnow() + timedelta(hours=24)
-    payload = {
-        "sub": str(user.id),
-        "role": user.role,
-        "name": user.name,
-        "exp": expire,
-        "iat": datetime.utcnow(),
-    }
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-    return LoginResponse(
-        access_token=token,
-        user=UserResponseModel(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            role=user.role
-        )
-    )
 
 @app.get("/", tags=["Dashboard"], include_in_schema=False)
 def root_redirect():
