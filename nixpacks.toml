@@ -1,0 +1,2 @@
+[phases.setup]
+nixPkgs = ["...", "cargo", "rustc", "rustfmt", "pkg-config", "openssl"]
