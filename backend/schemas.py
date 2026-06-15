@@ -132,3 +132,18 @@ class OfflinePeriod(BaseModel):
 class DeviceTelemetryHistoryResponse(BaseModel):
     telemetry: List[DeviceTelemetryResponse]
     offline_periods: List[OfflinePeriod]
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class UserResponseModel(BaseModel):
+    id: UUID
+    name: str
+    email: str
+    role: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    user: UserResponseModel
+

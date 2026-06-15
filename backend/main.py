@@ -1,19 +1,23 @@
-"""Monitoring API main entry point."""
-# pyrefly: ignore [missing-import]
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 import subprocess
 import json
 from datetime import datetime, timedelta
-from backend.config import APP_NAME, APP_VERSION
+from jose import jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
+from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
 from backend.routes import sensors, rooms, alerts, monitoring
-from backend.database import SessionLocal, ensure_db_ready
-from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry
+from backend.database import SessionLocal, ensure_db_ready, get_db
+from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry, User
+from backend.schemas import LoginRequest, LoginResponse, UserResponseModel
 import threading
 import os
 import logging
 from backend.worker import start_worker
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -74,6 +78,43 @@ app.include_router(sensors.router)
 app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@app.post("/auth/login", response_model=LoginResponse, tags=["Authentication"])
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate user and return JWT access token."""
+    user = db.query(User).filter(
+        User.email == request.email,
+        User.active == True
+    ).first()
+
+    if not user or not pwd_context.verify(request.password, user.password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
+
+    # Expire in 24 hours
+    expire = datetime.utcnow() + timedelta(hours=24)
+    payload = {
+        "sub": str(user.id),
+        "role": user.role,
+        "name": user.name,
+        "exp": expire,
+        "iat": datetime.utcnow(),
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    return LoginResponse(
+        access_token=token,
+        user=UserResponseModel(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=user.role
+        )
+    )
 
 @app.get("/", tags=["Dashboard"], include_in_schema=False)
 def root_redirect():

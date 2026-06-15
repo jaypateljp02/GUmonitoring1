@@ -6,3 +6,5 @@ from backend.models.device_telemetry import DeviceTelemetry
 from backend.models.ewelink_token import EwelinkToken
 from backend.models.plug_telemetry import PlugTelemetry
 from backend.models.plug_command import PlugCommand
+from backend.models.user import User
+
