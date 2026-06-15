@@ -89,7 +89,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user and return JWT access token."""
     user = db.query(User).filter(
-        User.email == request.email,
+        User.email == request.email.strip().lower(),
         User.active == True
     ).first()
 
