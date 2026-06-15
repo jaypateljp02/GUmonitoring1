@@ -5,7 +5,7 @@ import subprocess
 import json
 from datetime import datetime, timedelta
 from jose import jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
@@ -79,7 +79,11 @@ app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        return False
 
 @app.post("/auth/login", response_model=LoginResponse, tags=["Authentication"])
 def login(request: LoginRequest, db: Session = Depends(get_db)):
@@ -89,7 +93,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         User.active == True
     ).first()
 
-    if not user or not pwd_context.verify(request.password, user.password):
+    if not user or not verify_password(request.password, user.password):
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password",
