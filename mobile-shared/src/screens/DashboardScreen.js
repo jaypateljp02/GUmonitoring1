@@ -224,9 +224,11 @@ export default function DashboardScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       {/* Top Header Row with battery & time in the right corner */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
-        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flexShrink: 1 }]}>{device.icon} {device.name}</Text>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flex: 1, minWidth: 150 }]} numberOfLines={1} ellipsizeMode="tail">
+          {device.icon} {device.name}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0 }}>
           <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E6F4EA', borderColor: isOffline ? '#D1D5DB' : '#C2E7C9' }]}>
             <Text style={{ color: isOffline ? '#5E5E5E' : '#137333', fontSize: 11, fontWeight: 'bold' }}>
               🔋 {telemetry ? `${parseInt(telemetry.battery_level)}%` : '--'}

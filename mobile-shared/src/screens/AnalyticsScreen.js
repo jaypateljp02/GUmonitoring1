@@ -395,9 +395,11 @@ export default function AnalyticsScreen({ route }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       {/* Top Header Row with battery & time in the right corner */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
-        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flexShrink: 1 }]}>{device.icon} {device.name} Analytics</Text>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <Text style={[styles.header, { marginTop: 0, marginBottom: 0, flex: 1, minWidth: 150 }]} numberOfLines={1} ellipsizeMode="tail">
+          {device.icon} {device.name} Analytics
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0 }}>
           <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E6F4EA', borderColor: isOffline ? '#D1D5DB' : '#C2E7C9' }]}>
             <Text style={{ color: isOffline ? '#5E5E5E' : '#137333', fontSize: 11, fontWeight: 'bold' }}>
               🔋 {latestTelemetry && latestTelemetry.battery_level !== undefined && latestTelemetry.battery_level !== null ? `${parseInt(latestTelemetry.battery_level)}%` : '--'}
@@ -449,16 +451,16 @@ export default function AnalyticsScreen({ route }) {
         </View>
       ) : (
         <View>
-          {/* Temperature Chart */}
           {(timeFrame === 'Monthly' || timeFrame === '30D') ? (
             <View>
+              {/* Temperature Extremes Chart */}
               <View style={styles.chartContainer}>
                 <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Temperature Extremes</Text>
                 {monthlyData.length > 0 ? (
                   <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
                     <LineChart
                       data={monthlyChartData}
-                      width={Math.max(width - 40, monthlyData.length * 45)}
+                      width={Math.max(300, width - 40, monthlyData.length * 45)}
                       height={340}
                       yAxisSuffix="°C"
                       yAxisInterval={1}
@@ -469,6 +471,30 @@ export default function AnalyticsScreen({ route }) {
                   </ScrollView>
                 ) : (
                   <Text style={styles.errorText}>No temperature extremes data available for this range.</Text>
+                )}
+              </View>
+
+              {/* Humidity Extremes Chart */}
+              <View style={[styles.chartContainer, { marginTop: 20 }]}>
+                <Text style={styles.chartTitle}>{timeFrame === 'Monthly' ? 'Monthly' : '30-Day'} Humidity Extremes</Text>
+                {monthlyData.length > 0 ? (
+                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                    <LineChart
+                      data={monthlyHumChartData}
+                      width={Math.max(300, width - 40, monthlyData.length * 45)}
+                      height={340}
+                      yAxisSuffix="%"
+                      yAxisInterval={1}
+                      chartConfig={{
+                        ...chartConfigLight,
+                        propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
+                      }}
+                      bezier
+                      style={{ marginVertical: 8, borderRadius: 16 }}
+                    />
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.errorText}>No humidity extremes data available for this range.</Text>
                 )}
               </View>
 
@@ -498,28 +524,60 @@ export default function AnalyticsScreen({ route }) {
                 </View>
               )}
             </View>
-          ) : cleanedLogs.length < 2 ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>No temperature trend data available yet.</Text>
-            </View>
           ) : (
-            <View style={styles.chartContainer}>
-              <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
-              <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
-                <LineChart
-                  data={chartData}
-                  width={Math.max(width - 40, sampledLogs.length * 40)}
-                  height={340}
-                  yAxisSuffix="°C"
-                  yAxisInterval={1}
-                  chartConfig={chartConfigLight}
-                  bezier
-                  style={{
-                    marginVertical: 8,
-                    borderRadius: 16
-                  }}
-                />
-              </ScrollView>
+            <View>
+              {cleanedLogs.length < 2 ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>No temperature trend data available yet.</Text>
+                </View>
+              ) : (
+                <View style={styles.chartContainer}>
+                  <Text style={styles.chartTitle}>{timeFrame} Temperature Trend</Text>
+                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                    <LineChart
+                      data={chartData}
+                      width={Math.max(300, width - 40, sampledLogs.length * 40)}
+                      height={340}
+                      yAxisSuffix="°C"
+                      yAxisInterval={1}
+                      chartConfig={chartConfigLight}
+                      bezier
+                      style={{
+                        marginVertical: 8,
+                        borderRadius: 16
+                      }}
+                    />
+                  </ScrollView>
+                </View>
+              )}
+
+              {cleanedHumLogs.length < 2 ? (
+                <View style={[styles.errorContainer, { marginTop: 20 }]}>
+                  <Text style={styles.errorText}>No humidity trend data available yet.</Text>
+                </View>
+              ) : (
+                <View style={[styles.chartContainer, { marginTop: 20 }]}>
+                  <Text style={styles.chartTitle}>{timeFrame} Humidity Trend</Text>
+                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                    <LineChart
+                      data={humChartData}
+                      width={Math.max(300, width - 40, sampledHumLogs.length * 40)}
+                      height={340}
+                      yAxisSuffix="%"
+                      yAxisInterval={1}
+                      chartConfig={{
+                        ...chartConfigLight,
+                        propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
+                      }}
+                      bezier
+                      style={{
+                        marginVertical: 8,
+                        borderRadius: 16
+                      }}
+                    />
+                  </ScrollView>
+                </View>
+              )}
             </View>
           )}
         </View>

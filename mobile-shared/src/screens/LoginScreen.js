@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { api, setAuthToken, getApiUrl, setApiUrl } from '../services/api';
 
 export default function LoginScreen({ navigation }) {
@@ -8,6 +8,8 @@ export default function LoginScreen({ navigation }) {
   const [apiUrl, setApiUrlState] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [logoPressCount, setLogoPressCount] = useState(0);
+  const [showDevMode, setShowDevMode] = useState(false);
 
   useEffect(() => {
     const loadSavedUrl = async () => {
@@ -16,6 +18,21 @@ export default function LoginScreen({ navigation }) {
     };
     loadSavedUrl();
   }, []);
+
+  const handleLogoPress = () => {
+    const nextCount = logoPressCount + 1;
+    setLogoPressCount(nextCount);
+    if (nextCount >= 5) {
+      setShowDevMode(!showDevMode);
+      setLogoPressCount(0);
+      Alert.alert(
+        "Developer Mode",
+        !showDevMode 
+          ? "Developer settings revealed! You can now configure the backend URL." 
+          : "Developer settings hidden."
+      );
+    }
+  };
 
   const handleLogin = async () => {
     try {
@@ -27,17 +44,17 @@ export default function LoginScreen({ navigation }) {
         await setApiUrl(apiUrl.trim());
       }
       
-      // Standard auth check
-      if (email === 'grounduppune89@gmail.com' && password === 'Groundup') {
-        await setAuthToken('dummy-token');
-        navigation.replace('SensorList');
-      } else {
-        // Fallback for demo/test mode
-        await setAuthToken('demo-token');
-        navigation.replace('SensorList');
-      }
+      const response = await api.post('/auth/login', { email, password });
+      const { access_token } = response.data;
+      await setAuthToken(access_token);
+      navigation.replace('MainTabs');
     } catch (err) {
-      setError('Login failed. Please check your credentials.');
+      console.log('Login error details:', err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError('Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -46,7 +63,9 @@ export default function LoginScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.logo}>🏭</Text>
+        <TouchableOpacity onPress={handleLogoPress} activeOpacity={1}>
+          <Text style={styles.logo}>🏭</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Ground Up</Text>
         <Text style={styles.subtitle}>Cold Room Monitoring Platform</Text>
         
@@ -77,18 +96,20 @@ export default function LoginScreen({ navigation }) {
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>BACKEND API URL</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. https://gumonitoring.onrender.com"
-            placeholderTextColor="#9CA3AF"
-            value={apiUrl}
-            onChangeText={setApiUrlState}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </View>
+        {showDevMode && (
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>BACKEND API URL (DEV ONLY)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. https://gumonitoring.onrender.com"
+              placeholderTextColor="#9CA3AF"
+              value={apiUrl}
+              onChangeText={setApiUrlState}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+        )}
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
           {loading ? (

@@ -102,6 +102,23 @@ export default function SensorListScreen({ navigation }) {
   const [currentUrl, setCurrentUrl] = useState('');
   const [showUrlSettings, setShowUrlSettings] = useState(false);
   const [newUrlInput, setNewUrlInput] = useState('');
+  const [headerPressCount, setHeaderPressCount] = useState(0);
+  const [showDevMode, setShowDevMode] = useState(false);
+
+  const handleHeaderPress = () => {
+    const nextCount = headerPressCount + 1;
+    setHeaderPressCount(nextCount);
+    if (nextCount >= 5) {
+      setShowDevMode(!showDevMode);
+      setHeaderPressCount(0);
+      Alert.alert(
+        "Developer Mode",
+        !showDevMode 
+          ? "Developer settings revealed! You can now configure the connection URL." 
+          : "Developer settings hidden."
+      );
+    }
+  };
 
   const loadUrl = async () => {
     try {
@@ -136,6 +153,11 @@ export default function SensorListScreen({ navigation }) {
       setLiveData(telemetryMap);
     } catch (e) {
       console.log('Failed to fetch rooms & live telemetry in list view', e);
+      if (e.response && e.response.status === 401) {
+        await clearAuthToken();
+        navigation.replace('Login');
+        return;
+      }
       setRooms([]);
     } finally {
       setLoading(false);
@@ -227,91 +249,95 @@ export default function SensorListScreen({ navigation }) {
   return (
     <ScrollView 
       style={styles.container} 
-      contentContainerStyle={{ padding: 20 }}
+      contentContainerStyle={{ padding: 12 }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#3B82F6"]} />
       }
     >
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1, marginRight: 10 }}>
-          <Text style={styles.header}>Ground Up</Text>
-          <Text style={styles.subheader}>Cold Storage & Room Telemetry</Text>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <View style={[styles.topBadge, { backgroundColor: '#E8F0FE', borderColor: '#D2E3FC' }]}>
-            <Text style={{ color: '#1A73E8', fontSize: 11, fontWeight: 'bold' }}>
-              🕒 {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-          <TouchableOpacity style={[styles.logoutBtn, { marginTop: 0 }]} onPress={handleLogout}>
+      <View style={styles.headerContainer}>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity onPress={handleHeaderPress} activeOpacity={1}>
+            <Text style={styles.header}>Ground Up</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.headerBottomRow}>
+          <Text style={styles.subheader}>Cold Storage & Room Telemetry</Text>
+          <View style={[styles.topBadge, { backgroundColor: '#E8F0FE', borderColor: '#D2E3FC' }]}>
+            <Text style={{ color: '#1A73E8', fontSize: 10, fontWeight: 'bold' }}>
+              🕒 {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        </View>
       </View>
 
-      <View style={{ marginBottom: 16 }}>
-        <TouchableOpacity 
-          onPress={() => setShowUrlSettings(!showUrlSettings)}
-          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F0FE', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#D2E3FC' }}
-          activeOpacity={0.7}
-        >
-          <Text style={{ fontSize: 12, fontWeight: '700', color: '#1A73E8', flex: 1 }}>
-            ⚙️ Connected to: {currentUrl || 'Default'}
-          </Text>
-          <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1A73E8' }}>
-            {showUrlSettings ? 'Hide' : 'Change'}
-          </Text>
-        </TouchableOpacity>
-
-        {showUrlSettings && (
-          <View style={{ marginTop: 8, backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' }}>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#6B7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Backend Server URL
+      {showDevMode && (
+        <View style={{ marginBottom: 16 }}>
+          <TouchableOpacity 
+            onPress={() => setShowUrlSettings(!showUrlSettings)}
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F0FE', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#D2E3FC' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#1A73E8', flex: 1 }}>
+              ⚙️ Connected to: {currentUrl || 'Default'}
             </Text>
-            <TextInput
-              style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, fontSize: 14, color: '#111827', marginBottom: 12 }}
-              value={newUrlInput}
-              onChangeText={setNewUrlInput}
-              placeholder="e.g. https://gumonitoring.onrender.com"
-              placeholderTextColor="#9CA3AF"
-              autoCapitalize="none"
-              keyboardType="url"
-            />
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity 
-                onPress={async () => {
-                  if (newUrlInput.trim()) {
-                    await setApiUrl(newUrlInput.trim());
-                    setCurrentUrl(newUrlInput.trim());
+            <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1A73E8' }}>
+              {showUrlSettings ? 'Hide' : 'Change'}
+            </Text>
+          </TouchableOpacity>
+
+          {showUrlSettings && (
+            <View style={{ marginTop: 8, backgroundColor: '#FFFFFF', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: '#6B7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Backend Server URL
+              </Text>
+              <TextInput
+                style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, fontSize: 14, color: '#111827', marginBottom: 12 }}
+                value={newUrlInput}
+                onChangeText={setNewUrlInput}
+                placeholder="e.g. https://gumonitoring.onrender.com"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity 
+                  onPress={async () => {
+                    if (newUrlInput.trim()) {
+                      await setApiUrl(newUrlInput.trim());
+                      setCurrentUrl(newUrlInput.trim());
+                      setShowUrlSettings(false);
+                      setLoading(true);
+                      fetchData();
+                    }
+                  }}
+                  style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' }}>Save & Connect</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={async () => {
+                    const defaultUrl = 'https://gumonitoring.onrender.com';
+                    await setApiUrl(defaultUrl);
+                    setCurrentUrl(defaultUrl);
+                    setNewUrlInput(defaultUrl);
                     setShowUrlSettings(false);
                     setLoading(true);
                     fetchData();
-                  }
-                }}
-                style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' }}>Save & Connect</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={async () => {
-                  const defaultUrl = 'https://gumonitoring.onrender.com';
-                  await setApiUrl(defaultUrl);
-                  setCurrentUrl(defaultUrl);
-                  setNewUrlInput(defaultUrl);
-                  setShowUrlSettings(false);
-                  setLoading(true);
-                  fetchData();
-                }}
-                style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ color: '#4B5563', fontSize: 14, fontWeight: 'bold' }}>Reset</Text>
-              </TouchableOpacity>
+                  }}
+                  style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#4B5563', fontSize: 14, fontWeight: 'bold' }}>Reset</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Locations ({rooms.length})</Text>
 
@@ -344,25 +370,27 @@ export default function SensorListScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   loadingContainer: { flex: 1, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 40, marginBottom: 20 },
-  header: { fontSize: 30, fontWeight: '800', color: '#111827', marginBottom: 2 },
-  subheader: { fontSize: 14, color: '#6B7280', marginBottom: 6 },
+  headerContainer: { paddingTop: 30, marginBottom: 12 },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headerBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  header: { fontSize: 26, fontWeight: '800', color: '#111827', marginBottom: 0 },
+  subheader: { fontSize: 13, color: '#6B7280', marginBottom: 0 },
   topBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
-  logoutBtn: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  logoutText: { color: '#991B1B', fontWeight: 'bold', fontSize: 13 },
-  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#4B5563', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 },
+  logoutBtn: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  logoutText: { color: '#991B1B', fontWeight: 'bold', fontSize: 12 },
+  sectionTitle: { fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 },
 
   sensorCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16, padding: 18, marginBottom: 12,
+    borderRadius: 12, padding: 10, marginBottom: 8,
     borderWidth: 1, borderColor: '#E5E7EB',
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     shadowColor: '#000',
@@ -374,18 +402,18 @@ const styles = StyleSheet.create({
   sensorCardAlert: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
   sensorCardOffline: { borderColor: '#9CA3AF', backgroundColor: '#F3F4F6' },
 
-  sensorCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sensorIcon: { fontSize: 28 },
-  sensorName: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  sensorIdText: { fontSize: 11, color: '#2563EB', fontFamily: 'monospace', marginTop: 2 },
+  sensorCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sensorIcon: { fontSize: 22 },
+  sensorName: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  sensorIdText: { fontSize: 9, color: '#2563EB', fontFamily: 'monospace', marginTop: 1 },
 
   sensorCardRight: { alignItems: 'flex-end' },
-  sensorTemp: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
+  sensorTemp: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   sensorTempAlert: { color: '#EF4444' },
   sensorTempOffline: { color: '#6B7280' },
-  sensorHum: { fontSize: 13, color: '#6B7280', marginTop: 2 },
+  sensorHum: { fontSize: 11, color: '#6B7280', marginTop: 1 },
 
-  sensorBadge: { fontSize: 10, fontWeight: 'bold', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+  sensorBadge: { fontSize: 9, fontWeight: 'bold', marginTop: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
   badgeOk: { backgroundColor: '#D1FAE5', color: '#065F46', borderWidth: 1, borderColor: '#A7F3D0' },
   badgeAlert: { backgroundColor: '#FEE2E2', color: '#991B1B', borderWidth: 1, borderColor: '#FCA5A5' },
   badgeOffline: { backgroundColor: '#E5E7EB', color: '#4B5563', borderWidth: 1, borderColor: '#D1D5DB' },

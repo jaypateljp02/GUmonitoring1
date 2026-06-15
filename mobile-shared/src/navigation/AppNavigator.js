@@ -11,7 +11,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import TapoPlugsScreen from '../screens/TapoPlugsScreen';
 
-import { getAuthToken } from '../services/api';
+import { api, getAuthToken, clearAuthToken } from '../services/api';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -61,7 +61,22 @@ export default function AppNavigator() {
   useEffect(() => {
     (async () => {
       const token = await getAuthToken();
-      setIsLoggedIn(!!token);
+      if (token) {
+        try {
+          await api.get('/alerts');
+          setIsLoggedIn(true);
+        } catch (err) {
+          if (err.response && err.response.status === 401) {
+            console.log('Stored token is expired/invalid. Clearing session.');
+            await clearAuthToken();
+            setIsLoggedIn(false);
+          } else {
+            setIsLoggedIn(true);
+          }
+        }
+      } else {
+        setIsLoggedIn(false);
+      }
       setIsLoading(false);
     })();
   }, []);

@@ -5,7 +5,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { requestNotificationPermissions, triggerLocalNotification } from './src/services/notificationService';
-import { api } from './src/services/api';
+import { api, getAuthToken } from './src/services/api';
 
 async function requestLocationPermission() {
   if (Platform.OS === 'android') {
@@ -36,6 +36,8 @@ export default function App() {
     let notifiedAlertIds = new Set();
     const checkAlerts = async () => {
       try {
+        const token = await getAuthToken();
+        if (!token) return;
         const res = await api.get('/alerts?resolved=false');
         if (res.data && res.data.length > 0) {
           res.data.forEach(alertItem => {
