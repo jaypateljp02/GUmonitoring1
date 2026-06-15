@@ -1,46 +1,4 @@
 {
-  "expo": {
-    "name": "GUMonitoring",
-    "slug": "app",
-    "version": "1.0.0",
-    "orientation": "default",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "package": "com.groundup.monitor",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "74cd7512-2e25-443d-84eb-47c871f1a397"
-      }
-    },
-    "owner": "groundup",
-    "plugins": [
-      "expo-sharing",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow Ground Up to use your location to record exactly where jars are when taking photos."
-        }
-      ]
-    ],
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/74cd7512-2e25-443d-84eb-47c871f1a397"
-    }
-  }
+  "name": "GUMonitoring",
+  "displayName": "GUMonitoring"
 }

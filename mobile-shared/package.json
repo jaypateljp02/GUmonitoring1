@@ -9,20 +9,20 @@
     "@react-navigation/native": "^7.2.5",
     "@react-navigation/native-stack": "^7.16.0",
     "axios": "^1.17.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.85.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.75.4",
     "react-native-chart-kit": "^6.12.3",
     "react-native-fs": "^2.20.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "^4.25.2",
+    "react-native-screens": "3.34.0",
     "react-native-share": "^10.0.2",
     "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@react-native-community/cli": "^15.0.0",
-    "@react-native/metro-config": "0.85.3"
+    "@react-native/metro-config": "0.75.4"
   },
   "scripts": {
     "start": "react-native start",
