@@ -107,7 +107,9 @@ export default function DashboardScreen({ route, navigation }) {
 
   const parseDate = (timestampStr) => {
     if (!timestampStr) return null;
-    const normalized = timestampStr.replace(' ', 'T');
+    let normalized = timestampStr.replace(' ', 'T');
+    // Trim 6-digit microseconds down to 3-digit milliseconds for JS compatibility
+    normalized = normalized.replace(/\.(\d{3})\d+/, '.$1');
     const parts = normalized.split('T');
     if (parts.length === 2 && !parts[1].includes('Z') && !parts[1].match(/[+-]\d{2}:?\d{2}$/)) {
       return new Date(normalized + 'Z');
@@ -232,7 +234,7 @@ export default function DashboardScreen({ route, navigation }) {
           </View>
           <View style={[styles.topBadge, { backgroundColor: isOffline ? '#E5E7EB' : '#E8F0FE', borderColor: isOffline ? '#D1D5DB' : '#D2E3FC' }]}>
             <Text style={{ color: isOffline ? '#5E5E5E' : '#1A73E8', fontSize: 11, fontWeight: 'bold' }}>
-              🕒 {telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}
+              🕒 {telemetry ? (parseDate(telemetry.timestamp)?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '--') : '--'}
             </Text>
           </View>
         </View>
@@ -323,7 +325,7 @@ export default function DashboardScreen({ route, navigation }) {
 
         {isOffline ? (
           <Text style={[styles.warningText, styles.warningTextOffline, { marginTop: 14 }]}>
-            {`⚠️ DEVICE IS OFFLINE (No data for >2 mins)\nLast Active: ${telemetry ? new Date(telemetry.timestamp.endsWith('Z') ? telemetry.timestamp : telemetry.timestamp + 'Z').toLocaleTimeString() : 'Never'}`}
+            {`⚠️ DEVICE IS OFFLINE (No data for >2 mins)\nLast Active: ${telemetry ? (parseDate(telemetry.timestamp)?.toLocaleTimeString() || 'Never') : 'Never'}`}
           </Text>
         ) : isAlert ? (
           <Text style={[styles.warningText, { marginTop: 14 }]}>

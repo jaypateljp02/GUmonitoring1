@@ -6,6 +6,7 @@ from backend.database import Base
 
 class Room(Base):
     __tablename__ = "rooms"
+    __table_args__ = {"schema": "monitoring"}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)

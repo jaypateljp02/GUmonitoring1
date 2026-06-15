@@ -514,6 +514,29 @@
       <div class="warning-text" id="dWarn">⚠️ TEMPERATURE ALERT</div>
     </div>
 
+    <!-- Smart Plug Card -->
+    <div class="card" id="plugCard" style="margin-top: 14px; display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
+        <span style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">🔌 Smart Plug Status</span>
+        <span class="sensor-badge" id="plugTypeBadge" style="font-size: 10px; padding: 2px 8px; border-radius: 6px;">TAPO PLUG</span>
+      </div>
+      <div style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border);">
+        <div style="flex: 1; text-align: center;">
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">POWER</div>
+          <div style="color: var(--text-primary); font-size: 24px; font-weight: 900;" id="plugPower">--</div>
+        </div>
+        <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">VOLTAGE</div>
+          <div style="color: var(--text-primary); font-size: 20px; font-weight: 900;" id="plugVoltage">--</div>
+        </div>
+        <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">CURRENT</div>
+          <div style="color: var(--text-primary); font-size: 20px; font-weight: 900;" id="plugCurrent">--</div>
+        </div>
+      </div>
+      <button class="action-btn blue" id="btnPlugToggle" onclick="togglePlug()" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;">Toggle Power</button>
+    </div>
+
     <!-- Collapsible Analytics Config Panel -->
     <div class="card" style="margin-top: 14px;">
       <div class="card-header-collapsible" onclick="toggleCollapse('analyticsContent', 'analyticsArrow')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
@@ -654,7 +677,8 @@
     // Determine API endpoint: use localhost/LAN IP if on local network, else use cloud API
     const hostname = window.location.hostname;
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.');
-    const API = isLocal ? `http://${hostname}:8000` : 'https://gumonitoring.onrender.com';
+    const port = window.location.port || '8003';
+    const API = isLocal ? `http://${hostname}:${port}` : 'https://gumonitoring.onrender.com';
     let rooms = [];
     let liveData = {};
     let currentDevice = null;
@@ -672,6 +696,17 @@
     let expandedPlugAccordions = {};
     let plugSelectedDays = {};
     let plugSelectedInterval = {};
+
+    function parseDate(timestampStr) {
+      if (!timestampStr) return null;
+      let normalized = timestampStr.replace(' ', 'T');
+      // Trim 6-digit microseconds down to 3-digit milliseconds for Safari/iOS compatibility
+      normalized = normalized.replace(/\.(\d{3})\d+/, '.$1');
+      if (!normalized.endsWith('Z') && !normalized.match(/[+-]\d{2}:?\d{2}$/)) {
+        normalized += 'Z';
+      }
+      return new Date(normalized);
+    }
 
     function getPlugSelectedDays(roomId) {
       return plugSelectedDays[roomId] || '1';
@@ -910,7 +945,7 @@
           const offlinePeriods = resData.offline_periods || [];
           
           const labels = historyData.map(log => {
-            const d = new Date(log.timestamp.replace(' ', 'T') + 'Z');
+            const d = parseDate(log.timestamp);
             if (days === '1') {
               return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } else {
@@ -1662,7 +1697,7 @@
               const data = liveData[tempSensor.device_id];
               const temp = parseFloat(data.temperature);
               const battery = parseFloat(data.battery_level).toFixed(0);
-              const ts = new Date(data.timestamp.endsWith('Z') ? data.timestamp : data.timestamp + 'Z');
+              const ts = parseDate(data.timestamp);
               const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               
               if (el) el.textContent = temp.toFixed(1) + '°C';
@@ -2047,7 +2082,7 @@
           let sortedData = [...trendData].reverse();
           if (days === 'custom' && customStart && customEnd) {
             sortedData = sortedData.filter(d => {
-              const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
+              const ts = parseDate(d.timestamp);
               return ts >= customStart && ts <= customEnd;
             });
           }
@@ -2066,7 +2101,7 @@
 
             // Clean, non-crowded label format
             const labels = sortedData.map(d => {
-              const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z');
+              const ts = parseDate(d.timestamp);
               if (days === '1') {
                 return ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
               } else {
@@ -2357,7 +2392,7 @@
           document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
           
           const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
-          const ts = new Date(d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp+'Z');
+          const ts = parseDate(d.timestamp);
           
           if (topBat) {
             topBat.textContent = '🔋 ' + batPercent;

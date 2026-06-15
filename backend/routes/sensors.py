@@ -103,7 +103,7 @@ def aggregate_telemetry(db: Session, device_id: str, start_time: datetime, end_t
             AVG(temperature) as temperature,
             AVG(humidity) as humidity,
             AVG(battery_level) as battery_level
-        FROM device_telemetry
+        FROM monitoring.device_telemetry
         WHERE device_id = :device_id AND timestamp >= :start_time AND timestamp <= :end_time
         GROUP BY bucket
         ORDER BY bucket DESC
@@ -135,7 +135,7 @@ def calculate_offline_periods(db: Session, table_name: str, device_id: str, star
                 lag(timestamp) OVER (ORDER BY timestamp ASC) as start_t,
                 timestamp as end_t,
                 EXTRACT(EPOCH FROM (timestamp - lag(timestamp) OVER (ORDER BY timestamp ASC)))/60.0 as duration_minutes
-            FROM {table_name}
+            FROM monitoring.{table_name}
             WHERE device_id = :device_id AND timestamp >= :start_time
         ) as gaps
         WHERE duration_minutes > :threshold
@@ -148,7 +148,7 @@ def calculate_offline_periods(db: Session, table_name: str, device_id: str, star
         "duration_minutes": int(round(row.duration_minutes))
     } for row in offline_results]
     
-    latest_query = text(f"SELECT timestamp FROM {table_name} WHERE device_id = :device_id ORDER BY timestamp DESC LIMIT 1")
+    latest_query = text(f"SELECT timestamp FROM monitoring.{table_name} WHERE device_id = :device_id ORDER BY timestamp DESC LIMIT 1")
     latest = db.execute(latest_query, {"device_id": device_id}).first()
     if latest:
         diff_now = (datetime.utcnow() - latest[0]).total_seconds() / 60.0
@@ -190,7 +190,7 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
             AVG(current) as current,
             MAX(today_energy) as today_energy,
             MAX(month_energy) as month_energy
-        FROM plug_telemetry
+        FROM monitoring.plug_telemetry
         WHERE device_id = :device_id AND timestamp >= :start_time AND timestamp <= :end_time
         GROUP BY bucket
         ORDER BY bucket DESC

@@ -6,6 +6,7 @@ from backend.database import Base
 
 class DeviceTelemetry(Base):
     __tablename__ = "device_telemetry"
+    __table_args__ = {"schema": "monitoring"}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     device_id = Column(String(50), nullable=False, index=True)
