@@ -2401,7 +2401,7 @@
             topTime.textContent = '🕒 ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           }
 
-          const isOnline = (new Date() - ts) < 2 * 60 * 1000;
+          const isOnline = data.is_online !== false;
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
           
