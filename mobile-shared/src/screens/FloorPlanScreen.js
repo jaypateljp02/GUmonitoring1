@@ -7,7 +7,9 @@ import { useNavigation } from '@react-navigation/native';
 
 const parseDate = (timestampStr) => {
   if (!timestampStr) return null;
-  const normalized = timestampStr.replace(' ', 'T');
+  let normalized = timestampStr.replace(' ', 'T');
+  // Trim 6-digit microseconds down to 3-digit milliseconds for JS compatibility
+  normalized = normalized.replace(/\.(\d{3})\d+/, '.$1');
   const parts = normalized.split('T');
   if (parts.length === 2 && !parts[1].includes('Z') && !parts[1].match(/[+-]\d{2}:?\d{2}$/)) {
     return new Date(normalized + 'Z');

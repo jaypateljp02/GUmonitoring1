@@ -198,13 +198,13 @@ def update_apk_url_cache():
 def download_apk(background_tasks: BackgroundTasks):
     global APK_CACHE
     
-    # Try local compiled file first (recommended for core React Native local builds)
     apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
     if os.path.exists(apk_path):
         return FileResponse(
             apk_path,
             media_type="application/vnd.android.package-archive",
-            filename="GUMonitoring.apk"
+            filename="GUMonitoring.apk",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
         
     # Refresh cache in background if older than 5 minutes
