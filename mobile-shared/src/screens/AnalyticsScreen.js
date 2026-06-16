@@ -28,6 +28,10 @@ export default function AnalyticsScreen({ route }) {
   const [alertLogs, setAlertLogs] = useState([]);
   const [deviceSensors, setDeviceSensors] = useState([]);
 
+  // Collapse states for logs
+  const [isOfflineCollapsed, setIsOfflineCollapsed] = useState(true);
+  const [isAlertsCollapsed, setIsAlertsCollapsed] = useState(true);
+
   // Fetch thresholds once
   useEffect(() => {
     const fetchThresholds = async () => {
@@ -445,9 +449,22 @@ export default function AnalyticsScreen({ route }) {
         ))}
       </View>
 
+      {/* Repositioned Chart Guide Info Box */}
+      <View style={[styles.infoBox, { marginBottom: 16, marginTop: 10 }]}>
+        <Text style={styles.infoText}>
+          📊 Chart Guide:{"\n"}
+          🔴 Red line: Max Limit ({effectiveMaxThreshold}°C) (dangerous if crossed).{"\n"}
+          {tempMin !== null ? `🟢 Green line: Min Limit (${tempMin}°C) (dangerous if crossed).\n` : ''}
+          🔵 Blue line: Actual recorded temperatures.
+        </Text>
+      </View>
+
       {loading ? (
         <View style={styles.chartLoadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#3B82F6" style={{ marginBottom: 12 }} />
+          <Text style={{ color: '#4B5563', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+            ⚡ Fetching historical readings...
+          </Text>
         </View>
       ) : (
         <View>
@@ -580,61 +597,78 @@ export default function AnalyticsScreen({ route }) {
               )}
             </View>
           )}
+
+          {/* Collapsible Offline History Log */}
+          {offlinePeriods && offlinePeriods.length > 0 && (
+            <View style={styles.offlineContainer}>
+              <TouchableOpacity 
+                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                onPress={() => setIsOfflineCollapsed(!isOfflineCollapsed)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.offlineTitle, { marginBottom: 0 }]}>⚠️ Offline History Log</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#EF4444' }}>
+                  {isOfflineCollapsed ? 'Expand ▽' : 'Collapse ▲'}
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, marginBottom: isOfflineCollapsed ? 0 : 12 }}>
+                Periods where the sensor stopped sending telemetry to the gateway (offline for &gt;2 mins).
+              </Text>
+              {!isOfflineCollapsed && offlinePeriods.map((period, index) => (
+                <View key={index} style={styles.offlineRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.offlineMsg}>
+                      Offline: {period.start} to {period.end}
+                    </Text>
+                  </View>
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationText}>{period.duration_minutes} mins</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV} activeOpacity={0.8}>
+            <Text style={styles.exportButtonText}>📥 Export CSV Audit Log</Text>
+          </TouchableOpacity>
+
+          {/* Collapsible Outage & Alert History Log */}
+          <View style={styles.historyContainer}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+              onPress={() => setIsAlertsCollapsed(!isAlertsCollapsed)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.historyTitle, { marginBottom: 0 }]}>📜 Outage & Alert Logs</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#2563EB' }}>
+                {isAlertsCollapsed ? 'Expand ▽' : 'Collapse ▲'}
+              </Text>
+            </TouchableOpacity>
+            {!isAlertsCollapsed && (
+              <View style={{ marginTop: 16 }}>
+                {alertLogs.length > 0 ? (
+                  alertLogs.map(alert => (
+                    <View key={alert.id} style={[styles.alertRow, alert.resolved ? styles.alertResolved : styles.alertActive]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.alertMsg}>{alert.message}</Text>
+                        <Text style={styles.alertTime}>
+                          ⏰ {new Date(alert.created_at.endsWith('Z') ? alert.created_at : alert.created_at + 'Z').toLocaleString()}
+                        </Text>
+                      </View>
+                      <View style={[styles.statusBadge, alert.resolved ? styles.statusBadgeResolved : styles.statusBadgeActive]}>
+                        <Text style={styles.statusText}>{alert.resolved ? 'RESOLVED' : 'ACTIVE'}</Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noAlertsText}>No historical alerts or offline events found.</Text>
+                )}
+              </View>
+            )}
+          </View>
         </View>
       )}
-
-      {/* Offline History Log */}
-      {!loading && offlinePeriods && offlinePeriods.length > 0 && (
-        <View style={styles.offlineContainer}>
-          <Text style={styles.offlineTitle}>⚠️ Offline History Log</Text>
-          {offlinePeriods.map((period, index) => (
-            <View key={index} style={styles.offlineRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.offlineMsg}>
-                  Offline: {period.start} to {period.end}
-                </Text>
-              </View>
-              <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>{period.duration_minutes} mins</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
- 
-      <TouchableOpacity style={styles.exportButton} onPress={handleExportCSV} activeOpacity={0.8}>
-        <Text style={styles.exportButtonText}>📥 Export CSV Audit Log</Text>
-      </TouchableOpacity>
- 
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>
-          The red line represents the maximum acceptable temperature ({effectiveMaxThreshold}°C).
-          {tempMin !== null && ` The green line represents the minimum acceptable temperature (${tempMin}°C).`}
-          {"\n\n"}Temperatures crossing these bounds will trigger system alarms.
-        </Text>
-      </View>
-
-      {/* Outage & Alert History Log */}
-      <View style={styles.historyContainer}>
-        <Text style={styles.historyTitle}>📜 Outage & Alert Logs</Text>
-        {alertLogs.length > 0 ? (
-          alertLogs.map(alert => (
-            <View key={alert.id} style={[styles.alertRow, alert.resolved ? styles.alertResolved : styles.alertActive]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.alertMsg}>{alert.message}</Text>
-                <Text style={styles.alertTime}>
-                  ⏰ {new Date(alert.created_at.endsWith('Z') ? alert.created_at : alert.created_at + 'Z').toLocaleString()}
-                </Text>
-              </View>
-              <View style={[styles.statusBadge, alert.resolved ? styles.statusBadgeResolved : styles.statusBadgeActive]}>
-                <Text style={styles.statusText}>{alert.resolved ? 'RESOLVED' : 'ACTIVE'}</Text>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.noAlertsText}>No historical alerts or offline events found.</Text>
-        )}
-      </View>
     </ScrollView>
   );
 }

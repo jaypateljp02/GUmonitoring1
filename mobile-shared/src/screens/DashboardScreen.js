@@ -22,6 +22,7 @@ export default function DashboardScreen({ route, navigation }) {
   const [plugData, setPlugData] = useState(null);
   const [isTogglingPlug, setIsTogglingPlug] = useState(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
+  const [isConfigCollapsed, setIsConfigCollapsed] = useState(true);
 
   const fetchThresholds = async () => {
     try {
@@ -343,7 +344,7 @@ export default function DashboardScreen({ route, navigation }) {
         onPress={() => navigation.navigate('Analytics', { device })}
         activeOpacity={0.8}
       >
-        <Text style={styles.buttonText}>📊 View 7-Day Analytics</Text>
+        <Text style={styles.buttonText}>📊 View Analytics</Text>
       </TouchableOpacity>
       
       <TouchableOpacity 
@@ -356,93 +357,104 @@ export default function DashboardScreen({ route, navigation }) {
 
       {/* Spacious Threshold Config Panel */}
       <View style={styles.thresholdPanel}>
-        <Text style={styles.thresholdPanelTitle}>Threshold Configurations</Text>
-        
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Temperature Thresholds</Text>
-        <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>MIN TEMPERATURE (°C)</Text>
-            <TextInput
-              style={styles.textInput}
-              keyboardType="numeric"
-              value={minThreshold}
-              onChangeText={setMinThreshold}
-              placeholder="None"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>MAX TEMPERATURE (°C)</Text>
-            <TextInput
-              style={styles.textInput}
-              keyboardType="numeric"
-              value={maxThreshold}
-              onChangeText={setMaxThreshold}
-              placeholder="None"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-        </View>
-
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Humidity Thresholds</Text>
-        <View style={styles.thresholdRow}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>MIN HUMIDITY (%)</Text>
-            <TextInput
-              style={styles.textInput}
-              keyboardType="numeric"
-              value={minHumThreshold}
-              onChangeText={setMinHumThreshold}
-              placeholder="None"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>MAX HUMIDITY (%)</Text>
-            <TextInput
-              style={styles.textInput}
-              keyboardType="numeric"
-              value={maxHumThreshold}
-              onChangeText={setMaxHumThreshold}
-              placeholder="None"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-        </View>
-
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>Webhook Alert URLs</Text>
-        <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>ALERT WEBHOOK (ON)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={alertWebhook}
-              onChangeText={setAlertWebhook}
-              placeholder="https://..."
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>RECOVERY WEBHOOK (OFF)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={recoveryWebhook}
-              onChangeText={setRecoveryWebhook}
-              placeholder="https://..."
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-        </View>
-
-
-        
         <TouchableOpacity 
-          style={styles.saveButton} 
-          onPress={handleSaveThresholds}
-          activeOpacity={0.8}
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}
+          onPress={() => setIsConfigCollapsed(!isConfigCollapsed)}
+          activeOpacity={0.7}
         >
-          <Text style={styles.saveButtonText}>Apply Settings Updates</Text>
+          <Text style={[styles.thresholdPanelTitle, { marginBottom: 0 }]}>⚙️ Settings & Thresholds</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: '#2563EB' }}>
+            {isConfigCollapsed ? 'Expand ▽' : 'Collapse ▲'}
+          </Text>
         </TouchableOpacity>
+        
+        {!isConfigCollapsed && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Temperature Thresholds</Text>
+            <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>MIN TEMPERATURE (°C)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="numeric"
+                  value={minThreshold}
+                  onChangeText={setMinThreshold}
+                  placeholder="None"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>MAX TEMPERATURE (°C)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="numeric"
+                  value={maxThreshold}
+                  onChangeText={setMaxThreshold}
+                  placeholder="None"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Humidity Thresholds</Text>
+            <View style={styles.thresholdRow}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>MIN HUMIDITY (%)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="numeric"
+                  value={minHumThreshold}
+                  onChangeText={setMinHumThreshold}
+                  placeholder="None"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>MAX HUMIDITY (%)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="numeric"
+                  value={maxHumThreshold}
+                  onChangeText={setMaxHumThreshold}
+                  placeholder="None"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#4B5563', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 }}>Webhook Alert URLs</Text>
+            <View style={[styles.thresholdRow, { marginBottom: 16 }]}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>ALERT WEBHOOK (ON)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={alertWebhook}
+                  onChangeText={setAlertWebhook}
+                  placeholder="https://..."
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>RECOVERY WEBHOOK (OFF)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={recoveryWebhook}
+                  onChangeText={setRecoveryWebhook}
+                  placeholder="https://..."
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.saveButton} 
+              onPress={handleSaveThresholds}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.saveButtonText}>Apply Settings Updates</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
