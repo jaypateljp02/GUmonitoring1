@@ -308,7 +308,7 @@ async def ingestion_loop():
                                 new_alert = Alert(
                                     sensor_id=s.id,
                                     value=Decimal("0.0"),
-                                    message=f"{s.type.capitalize()} sensor is offline: Device {target_device} stopped sending data.",
+                                    message=f"[{s.name}] {s.type.capitalize()} sensor is offline: Device {target_device} stopped sending data.",
                                     created_at=timestamp_parsed
                                 )
                                 db.add(new_alert)
@@ -354,7 +354,7 @@ async def ingestion_loop():
                                     new_alert = Alert(
                                         sensor_id=s.id,
                                         value=val,
-                                        message=f"{s.type.capitalize()} threshold exceeded: {val} > {s.max_threshold}",
+                                        message=f"[{s.name}] {s.type.capitalize()} threshold exceeded: {val} > {s.max_threshold}",
                                         created_at=timestamp_parsed
                                     )
                                     db.add(new_alert)
@@ -366,7 +366,7 @@ async def ingestion_loop():
                                     new_alert = Alert(
                                         sensor_id=s.id,
                                         value=val,
-                                        message=f"{s.type.capitalize()} threshold dropped below minimum: {val} < {s.min_threshold}",
+                                        message=f"[{s.name}] {s.type.capitalize()} threshold dropped below minimum: {val} < {s.min_threshold}",
                                         created_at=timestamp_parsed
                                     )
                                     db.add(new_alert)

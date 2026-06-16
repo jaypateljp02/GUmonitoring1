@@ -33,16 +33,23 @@ export default function App() {
     })();
 
     // Alert polling for local notifications (runs every 15 seconds)
-    let notifiedAlertIds = new Set();
+    // Map of alertId -> lastNotifiedTime (timestamp in ms)
+    let lastNotifiedAlerts = {};
     const checkAlerts = async () => {
       try {
         const token = await getAuthToken();
         if (!token) return;
         const res = await api.get('/alerts?resolved=false');
         if (res.data && res.data.length > 0) {
+          const now = Date.now();
+          const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour reminder interval
+          
           res.data.forEach(alertItem => {
-            if (!notifiedAlertIds.has(alertItem.id)) {
-              notifiedAlertIds.add(alertItem.id);
+            const lastTime = lastNotifiedAlerts[alertItem.id];
+            
+            // Notify if it's a new alert OR if 1 hour has passed since the last notification for this alert
+            if (!lastTime || (now - lastTime >= ONE_HOUR_MS)) {
+              lastNotifiedAlerts[alertItem.id] = now;
               const isOffline = alertItem.message && alertItem.message.toLowerCase().includes('offline');
               triggerLocalNotification(
                 isOffline ? '🚨 Sensor Offline!' : '🚨 Temperature Alert!',

@@ -39,9 +39,9 @@ def submit_reading(
     # Threshold Check & Auto-Alert
     alert_msg = None
     if sensor.min_threshold is not None and req.value < sensor.min_threshold:
-        alert_msg = f"{sensor.type.capitalize()} too low: {req.value} (Min: {sensor.min_threshold})"
+        alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too low: {req.value} (Min: {sensor.min_threshold})"
     elif sensor.max_threshold is not None and req.value > sensor.max_threshold:
-        alert_msg = f"{sensor.type.capitalize()} too high: {req.value} (Max: {sensor.max_threshold})"
+        alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too high: {req.value} (Max: {sensor.max_threshold})"
 
     if alert_msg:
         # Prevent spamming alerts if one is already open for this sensor
