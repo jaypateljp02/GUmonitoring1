@@ -1,13 +1,12 @@
-import { useEffect, useRef } from 'react';
-import { Alert, Platform, StatusBar, PermissionsAndroid, AppState } from 'react-native';
+import { useEffect } from 'react';
+import { Platform, StatusBar, PermissionsAndroid } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import RNFS from 'react-native-fs';
 
-import { requestNotificationPermissions, triggerLocalNotification } from './src/services/notificationService';
-import { api, getAuthToken } from './src/services/api';
-
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import { requestNotificationPermissions } from './src/services/notificationService';
+import { getAuthToken, getApiUrl } from './src/services/api';
 
 async function requestLocationPermission() {
   if (Platform.OS === 'android') {
@@ -26,43 +25,28 @@ async function requestLocationPermission() {
   }
 }
 
-const startForegroundService = async () => {
-  if (Platform.OS === 'web') return;
-  try {
-    const channelId = await notifee.createChannel({
-      id: 'monitoring-service',
-      name: 'Monitoring Service',
-      importance: AndroidImportance.LOW,
-    });
-
-    await notifee.displayNotification({
-      id: 'monitoring-bg-notification',
-      title: 'Ground Up Monitoring',
-      body: 'Polling sensors in the background...',
-      android: {
-        channelId,
-        asForegroundService: true,
-        ongoing: true,
-        pressAction: {
-          id: 'default',
-          launchActivity: 'default',
-        },
-      },
-    });
-    console.log('Foreground service started successfully');
-  } catch (err) {
-    console.log('Failed to start foreground service:', err);
-  }
-};
-
 export default function App() {
   useEffect(() => {
-    // Request GPS and Notification permissions, then start foreground service on app launch
+    // Request GPS and Notification permissions, then sync config to native files
     (async () => {
       await requestLocationPermission();
-      const notifyGranted = await requestNotificationPermissions();
-      if (notifyGranted) {
-        await startForegroundService();
+      await requestNotificationPermissions();
+
+      try {
+        const token = await getAuthToken();
+        if (token) {
+          await RNFS.writeFile(RNFS.DocumentDirectoryPath + '/auth_token.txt', token, 'utf8');
+        } else {
+          const tokenPath = RNFS.DocumentDirectoryPath + '/auth_token.txt';
+          if (await RNFS.exists(tokenPath)) {
+            await RNFS.unlink(tokenPath);
+          }
+        }
+        
+        const url = await getApiUrl();
+        await RNFS.writeFile(RNFS.DocumentDirectoryPath + '/api_url.txt', url, 'utf8');
+      } catch (e) {
+        console.log('Error syncing config to files for native service:', e);
       }
     })();
   }, []);

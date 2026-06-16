@@ -1,5 +1,6 @@
 package com.groundup.monitor
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 
@@ -14,6 +15,14 @@ class MainActivity : ReactActivity() {
     // coloring the background, status bar, and navigation bar.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    
+    // Start native background service to poll alerts
+    val serviceIntent = Intent(this, BackgroundPollingService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent)
+    } else {
+        startService(serviceIntent)
+    }
   }
 
   /**

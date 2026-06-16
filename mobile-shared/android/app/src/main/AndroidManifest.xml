@@ -31,5 +31,9 @@
         android:foregroundServiceType="dataSync"
         android:exported="false"
         tools:replace="android:foregroundServiceType" />
+    <service
+        android:name="com.groundup.monitor.BackgroundPollingService"
+        android:foregroundServiceType="dataSync"
+        android:exported="false" />
   </application>
 </manifest>

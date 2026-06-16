@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
 
 const AUTH_KEY = '@gu_auth_token';
 const API_URL_KEY = '@gu_api_url';
@@ -19,6 +20,7 @@ export const setApiUrl = async (url) => {
   try {
     await AsyncStorage.setItem(API_URL_KEY, url);
     api.defaults.baseURL = url;
+    await RNFS.writeFile(RNFS.DocumentDirectoryPath + '/api_url.txt', url, 'utf8');
   } catch (e) {}
 };
 
@@ -40,6 +42,7 @@ api.interceptors.request.use(async (config) => {
 export const setAuthToken = async (token) => {
   try {
     await AsyncStorage.setItem(AUTH_KEY, token);
+    await RNFS.writeFile(RNFS.DocumentDirectoryPath + '/auth_token.txt', token, 'utf8');
   } catch (e) {
     console.log('Failed to save auth token:', e);
   }
@@ -56,6 +59,11 @@ export const getAuthToken = async () => {
 export const clearAuthToken = async () => {
   try {
     await AsyncStorage.removeItem(AUTH_KEY);
+    const tokenPath = RNFS.DocumentDirectoryPath + '/auth_token.txt';
+    const exists = await RNFS.exists(tokenPath);
+    if (exists) {
+      await RNFS.unlink(tokenPath);
+    }
   } catch (e) {
     console.log('Failed to clear auth token:', e);
   }
