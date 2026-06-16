@@ -168,35 +168,42 @@ export default function AnalyticsScreen({ route }) {
   const cleanedLogs = telemetryLogs
     .map(log => {
       const temp = parseFloat(log.temperature);
+      const humVal = parseFloat(log.humidity);
       return {
         ...log,
-        temperature: isNaN(temp) ? 0.0 : temp
+        temperature: isNaN(temp) ? 0.0 : temp,
+        humidity: isNaN(humVal) ? 0.0 : humVal
       };
     });
 
-  // Peak-preserving sampling logic to ensure sudden spikes/drops are never lost in aggregation
+  // Unified peak-preserving sampling logic for both temperature and humidity
   let sampledLogs = [];
   if (cleanedLogs.length <= 300) {
     sampledLogs = cleanedLogs;
   } else {
-    const step = Math.floor(cleanedLogs.length / 150); // group into 150 buckets
+    // group into 100 buckets to keep dataset size very clean
+    const step = Math.floor(cleanedLogs.length / 100); 
     for (let i = 0; i < cleanedLogs.length; i += step) {
       const chunk = cleanedLogs.slice(i, i + step);
       if (chunk.length === 0) continue;
       
-      let minLog = chunk[0];
-      let maxLog = chunk[0];
-      for (const log of chunk) {
-        if (log.temperature < minLog.temperature) minLog = log;
-        if (log.temperature > maxLog.temperature) maxLog = log;
+      let minTempIdx = 0;
+      let maxTempIdx = 0;
+      let minHumIdx = 0;
+      let maxHumIdx = 0;
+      
+      for (let j = 1; j < chunk.length; j++) {
+        if (chunk[j].temperature < chunk[minTempIdx].temperature) minTempIdx = j;
+        if (chunk[j].temperature > chunk[maxTempIdx].temperature) maxTempIdx = j;
+        if (chunk[j].humidity < chunk[minHumIdx].humidity) minHumIdx = j;
+        if (chunk[j].humidity > chunk[maxHumIdx].humidity) maxHumIdx = j;
       }
       
-      if (minLog.timestamp === maxLog.timestamp) {
-        sampledLogs.push(minLog);
-      } else {
-        const sorted = [minLog, maxLog].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        sampledLogs.push(...sorted);
-      }
+      // Get unique sorted indices to preserve chronological order
+      const uniqueIndices = Array.from(new Set([minTempIdx, maxTempIdx, minHumIdx, maxHumIdx])).sort((a, b) => a - b);
+      uniqueIndices.forEach(idx => {
+        sampledLogs.push(chunk[idx]);
+      });
     }
   }
 
@@ -288,45 +295,11 @@ export default function AnalyticsScreen({ route }) {
     legend: ["Max Temp (°C)", "Min Temp (°C)"]
   };
 
-  // --- Humidity Trend Chart Data ---
-  const cleanedHumLogs = telemetryLogs
-    .map(log => {
-      const humVal = parseFloat(log.humidity);
-      return {
-        ...log,
-        humidity: isNaN(humVal) ? 0.0 : humVal
-      };
-    });
-
-  // Peak-preserving sampling logic for humidity
-  let sampledHumLogs = [];
-  if (cleanedHumLogs.length <= 300) {
-    sampledHumLogs = cleanedHumLogs;
-  } else {
-    const step = Math.floor(cleanedHumLogs.length / 150);
-    for (let i = 0; i < cleanedHumLogs.length; i += step) {
-      const chunk = cleanedHumLogs.slice(i, i + step);
-      if (chunk.length === 0) continue;
-      let minLog = chunk[0];
-      let maxLog = chunk[0];
-      for (const log of chunk) {
-        if (log.humidity < minLog.humidity) minLog = log;
-        if (log.humidity > maxLog.humidity) maxLog = log;
-      }
-      if (minLog.timestamp === maxLog.timestamp) {
-        sampledHumLogs.push(minLog);
-      } else {
-        const sorted = [minLog, maxLog].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        sampledHumLogs.push(...sorted);
-      }
-    }
-  }
-
   const humChartData = {
     labels: labels.length > 0 ? labels : ["No Data"],
     datasets: [
       {
-        data: sampledHumLogs.length > 0 ? sampledHumLogs.map(log => log.humidity) : [0],
+        data: sampledLogs.length > 0 ? sampledLogs.map(log => log.humidity) : [0],
         color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`, // Purple
         strokeWidth: 2
       }
@@ -336,7 +309,7 @@ export default function AnalyticsScreen({ route }) {
 
   if (humMax !== null) {
     humChartData.datasets.push({
-      data: sampledHumLogs.length > 0 ? sampledHumLogs.map(() => humMax) : [humMax],
+      data: sampledLogs.length > 0 ? sampledLogs.map(() => humMax) : [humMax],
       color: (opacity = 1) => `rgba(236, 72, 153, ${opacity})`, // Pink
       strokeWidth: 1.5,
       withDots: false,
@@ -346,7 +319,7 @@ export default function AnalyticsScreen({ route }) {
 
   if (humMin !== null) {
     humChartData.datasets.push({
-      data: sampledHumLogs.length > 0 ? sampledHumLogs.map(() => humMin) : [humMin],
+      data: sampledLogs.length > 0 ? sampledLogs.map(() => humMin) : [humMin],
       color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Green
       strokeWidth: 1.5,
       withDots: false,
@@ -543,7 +516,7 @@ export default function AnalyticsScreen({ route }) {
             </View>
           ) : (
             <View>
-              {cleanedLogs.length < 2 ? (
+              {sampledLogs.length < 2 ? (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>No temperature trend data available yet.</Text>
                 </View>
@@ -568,7 +541,7 @@ export default function AnalyticsScreen({ route }) {
                 </View>
               )}
 
-              {cleanedHumLogs.length < 2 ? (
+              {sampledLogs.length < 2 ? (
                 <View style={[styles.errorContainer, { marginTop: 20 }]}>
                   <Text style={styles.errorText}>No humidity trend data available yet.</Text>
                 </View>
@@ -578,7 +551,7 @@ export default function AnalyticsScreen({ route }) {
                   <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
                     <LineChart
                       data={humChartData}
-                      width={Math.max(300, width - 40, sampledHumLogs.length * 40)}
+                      width={Math.max(300, width - 40, sampledLogs.length * 40)}
                       height={340}
                       yAxisSuffix="%"
                       yAxisInterval={1}
