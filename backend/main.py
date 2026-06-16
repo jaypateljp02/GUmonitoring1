@@ -144,6 +144,16 @@ def dashboard():
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
+@app.get("/version", tags=["Dashboard"])
+def get_version():
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    size = os.path.getsize(apk_path) if os.path.exists(apk_path) else -1
+    return {
+        "version": "apk-update-v1",
+        "apk_size_bytes": size,
+        "apk_exists": os.path.exists(apk_path)
+    }
+
 
 @app.get("/floorplan.jpg", tags=["Dashboard"])
 def get_floorplan():
