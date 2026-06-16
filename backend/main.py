@@ -200,12 +200,15 @@ def download_apk(background_tasks: BackgroundTasks):
     
     apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
     if os.path.exists(apk_path):
-        return FileResponse(
+        response = FileResponse(
             apk_path,
             media_type="application/vnd.android.package-archive",
-            filename="GUMonitoring.apk",
-            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            filename="GUMonitoring.apk"
         )
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
         
     # Refresh cache in background if older than 5 minutes
     if datetime.utcnow() - APK_CACHE["last_fetched"] > timedelta(minutes=5):
