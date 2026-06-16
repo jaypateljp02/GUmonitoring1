@@ -110,11 +110,13 @@ class EwelinkClient:
                 resp_json = response.json()
                 error_code = resp_json.get("error", 0)
                 if error_code != 0:
-                    logger.error(f"Device list API error: {error_code} - {resp_json.get('msg')}")
                     if error_code in (401, 402):
+                        logger.warning(f"eWeLink token expired or invalidated (error {error_code} - {resp_json.get('msg')}). Logging in again to refresh...")
                         self.access_token = None
                         return await self.get_all_devices()
-                    return None
+                    else:
+                        logger.error(f"Device list API error: {error_code} - {resp_json.get('msg')}")
+                        return None
 
                 thing_list = resp_json.get("data", {}).get("thingList", [])
                 return thing_list
