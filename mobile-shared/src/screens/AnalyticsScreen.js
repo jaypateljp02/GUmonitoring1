@@ -14,7 +14,7 @@ export default function AnalyticsScreen({ route }) {
   const [loading, setLoading] = useState(true);
   
   // Custom selection states
-  const [timeFrame, setTimeFrame] = useState('7D');
+  const [timeFrame, setTimeFrame] = useState('1D');
   const [intervalMinutes, setIntervalMinutes] = useState(1);
   const [monthlyData, setMonthlyData] = useState([]);
   
@@ -265,7 +265,7 @@ export default function AnalyticsScreen({ route }) {
   }
 
   const timeFrameOptions = [
-    { label: '1D', value: '1D' },
+    { label: '24h', value: '1D' },
     { label: '3D', value: '3D' },
     { label: '7D', value: '7D' },
     { label: '30D', value: '30D' },
