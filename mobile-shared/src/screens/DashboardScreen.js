@@ -9,6 +9,7 @@ export default function DashboardScreen({ route, navigation }) {
   const [telemetry, setTelemetry] = useState(null);
   const [metrics24h, setMetrics24h] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [deviceIsOnline, setDeviceIsOnline] = useState(false);
   const [minThreshold, setMinThreshold] = useState('');
   const [maxThreshold, setMaxThreshold] = useState('');
   const [minHumThreshold, setMinHumThreshold] = useState('');
@@ -66,6 +67,17 @@ export default function DashboardScreen({ route, navigation }) {
         setMetrics24h(metricsRes.data);
       }
 
+      // Fetch online status from the backend dashboard API (server-side UTC comparison)
+      try {
+        const dashRes = await api.get('/monitoring/dashboard');
+        if (dashRes.data && dashRes.data.live_devices) {
+          const myDevice = dashRes.data.live_devices.find(d => d.device_id === device.id);
+          setDeviceIsOnline(myDevice ? myDevice.is_online !== false : false);
+        }
+      } catch (e) {
+        console.log('Error fetching dashboard status:', e);
+      }
+
       // Poll smart plug state
       const plugRes = await api.get(`/sensors/device/${device.id}/plug`);
       if (plugRes.data && plugRes.data.supported) {
@@ -119,7 +131,8 @@ export default function DashboardScreen({ route, navigation }) {
   };
 
   const lastUpdate = telemetry ? parseDate(telemetry.timestamp) : null;
-  const isOnline = lastUpdate ? (new Date() - lastUpdate) < 2 * 60 * 1000 : false;
+  // Use the backend's is_online flag (server-side UTC comparison, no timezone bugs)
+  const isOnline = deviceIsOnline;
   const isOffline = telemetry && !isOnline;
 
   const tMin = minThreshold !== '' ? parseFloat(minThreshold) : null;

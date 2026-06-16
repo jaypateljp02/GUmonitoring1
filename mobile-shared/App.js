@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Alert, Platform, StatusBar, PermissionsAndroid } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Alert, Platform, StatusBar, PermissionsAndroid, AppState } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +25,8 @@ async function requestLocationPermission() {
 }
 
 export default function App() {
+  const appState = useRef(AppState.currentState);
+
   useEffect(() => {
     // Request GPS and Notification permissions on app launch
     (async () => {
@@ -94,8 +96,23 @@ export default function App() {
       }
     };
 
+    // Check alerts immediately on app start (don't wait 15 seconds)
+    checkAlerts();
     const alertPollInterval = setInterval(checkAlerts, 15000);
-    return () => clearInterval(alertPollInterval);
+
+    // Also check alerts when app comes back from background
+    const appStateSubscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('App came to foreground — checking alerts');
+        checkAlerts();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      clearInterval(alertPollInterval);
+      appStateSubscription.remove();
+    };
   }, []);
 
   return (

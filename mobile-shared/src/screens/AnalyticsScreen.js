@@ -31,6 +31,7 @@ export default function AnalyticsScreen({ route }) {
   // Collapse states for logs
   const [isOfflineCollapsed, setIsOfflineCollapsed] = useState(true);
   const [isAlertsCollapsed, setIsAlertsCollapsed] = useState(true);
+  const [deviceIsOnline, setDeviceIsOnline] = useState(false);
 
   // Fetch thresholds once
   useEffect(() => {
@@ -87,6 +88,17 @@ export default function AnalyticsScreen({ route }) {
           const telemetryData = response.data.telemetry || [];
           setTelemetryLogs(telemetryData.reverse());
           setOfflinePeriods(response.data.offline_periods || []);
+        }
+
+        // Fetch online status from backend dashboard API (server-side UTC comparison)
+        try {
+          const dashRes = await api.get('/monitoring/dashboard');
+          if (dashRes.data && dashRes.data.live_devices) {
+            const myDevice = dashRes.data.live_devices.find(d => d.device_id === SENSOR_ID);
+            setDeviceIsOnline(myDevice ? myDevice.is_online !== false : false);
+          }
+        } catch (e) {
+          console.log('Error fetching dashboard status:', e);
         }
       } catch (err) {
         console.log('Error fetching analytics', err);
@@ -364,9 +376,8 @@ export default function AnalyticsScreen({ route }) {
   };
 
   const latestTelemetry = telemetryLogs[telemetryLogs.length - 1] || null;
-  const latestTimeStr = latestTelemetry ? latestTelemetry.timestamp : null;
-  const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-  const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+  // Use the backend's is_online flag (server-side UTC comparison, no timezone bugs)
+  const isOnline = deviceIsOnline;
   const isOffline = latestTelemetry && !isOnline;
 
   return (

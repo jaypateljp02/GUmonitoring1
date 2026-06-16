@@ -27,7 +27,8 @@ function RoomCard({ room, telemetry, onPress }) {
 
   const latestTimeStr = hasTemp ? telemetry[tempSensor.id].timestamp : null;
   const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-  const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+  // Use the backend's is_online flag (server-side UTC comparison, no timezone bugs)
+  const isOnline = hasTemp ? telemetry[tempSensor.id].is_online !== false : false;
   const isOffline = hasTemp && !isOnline;
 
   // Determine alert status based on thresholds
