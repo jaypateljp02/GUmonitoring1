@@ -1,0 +1,15 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Runs every 10 minutes
+  workflow_dispatch:      # Allows manual triggering
+
+jobs:
+  ping:
+    name: Ping Render Web Service
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping HTTPS URL
+        run: |
+          curl -I -s -f https://gumonitoring.onrender.com/health || echo "Ping failed"
