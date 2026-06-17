@@ -7,6 +7,7 @@ This repository contains the monitoring system for the Ground Up Factory, struct
 ## ⚡ Developer Quick Start & Key Files
 If you are a new developer trying to understand the system, start by looking at these core files:
 
+*   **Architecture & Data Flow Guide**: [ARCHITECTURE_FLOW.md](file:///d:/Ground%20Up/ground-up-monitoring/ARCHITECTURE_FLOW.md) (Complete documentation of system design, code flow, and IoT alerts)
 *   **The Web Dashboard**: [web/index.html](file:///d:/Ground%20Up/ground-up-monitoring/web/index.html) (Pure HTML/JS dashboard using the API)
 *   **The Mobile App (APK)**: [web/app.apk](file:///d:/Ground%20Up/ground-up-monitoring/web/app.apk) (The generated Android App, placed here for direct download)
 *   **Mobile App Source Code**: [mobile-shared/App.js](file:///d:/Ground%20Up/ground-up-monitoring/mobile-shared/App.js) (The root React Native application)
