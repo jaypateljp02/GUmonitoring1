@@ -50,10 +50,11 @@ export default function LoginScreen({ navigation }) {
       navigation.replace('MainTabs');
     } catch (err) {
       console.log('Login error details:', err);
+      const currentBaseURL = api.defaults.baseURL || DEFAULT_API_URL;
       if (err.response && err.response.data && err.response.data.detail) {
-        setError(err.response.data.detail);
+        setError(`${err.response.data.detail} (${currentBaseURL})`);
       } else {
-        setError('Login failed. Please check your credentials.');
+        setError(`Login failed: ${err.message || 'Network Error'} (${currentBaseURL})`);
       }
     } finally {
       setLoading(false);

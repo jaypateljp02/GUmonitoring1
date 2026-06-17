@@ -30,6 +30,7 @@ export const api = axios.create({
 
 api.interceptors.request.use(async (config) => {
   try {
+    console.log('[API Request]', config.method ? config.method.toUpperCase() : 'GET', config.baseURL + config.url);
     const token = await getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

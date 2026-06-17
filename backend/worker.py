@@ -259,27 +259,33 @@ async def ingestion_loop():
                         is_device_reporting = False
                     elif use_live:
                         if device_data:
-                            params = device_data.get("params", {})
-                            raw_temp = params.get("temperature")
-                            raw_hum = params.get("humidity")
-                            raw_bat = params.get("battery")
+                            # Only consider reporting if the eWeLink cloud reports the device as online.
+                            # If the cloud reports the device is offline, ignore cached params.
+                            is_online_in_cloud = device_data.get("online", True)
+                            if is_online_in_cloud:
+                                params = device_data.get("params", {})
+                                raw_temp = params.get("temperature")
+                                raw_hum = params.get("humidity")
+                                raw_bat = params.get("battery")
 
-                            # Clean values
-                            if raw_temp is not None:
-                                temp_val = float(raw_temp)
-                                is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
-                                if is_int or temp_val > 100 or temp_val < -100:
-                                    temp_val = temp_val / 100.0
-                            if raw_hum is not None:
-                                hum_val = float(raw_hum)
-                                is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
-                                if is_int or hum_val > 100:
-                                    hum_val = hum_val / 100.0
-                            if raw_bat is not None:
-                                bat_val = float(raw_bat)
-                            
-                            if temp_val is not None or hum_val is not None:
-                                is_device_reporting = True
+                                # Clean values
+                                if raw_temp is not None:
+                                    temp_val = float(raw_temp)
+                                    is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
+                                    if is_int or temp_val > 100 or temp_val < -100:
+                                        temp_val = temp_val / 100.0
+                                if raw_hum is not None:
+                                    hum_val = float(raw_hum)
+                                    is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
+                                    if is_int or hum_val > 100:
+                                        hum_val = hum_val / 100.0
+                                if raw_bat is not None:
+                                    bat_val = float(raw_bat)
+                                
+                                if temp_val is not None or hum_val is not None:
+                                    is_device_reporting = True
+                            else:
+                                logger.warning(f"Device {target_device} is marked OFFLINE in eWeLink cloud.")
                     else:
                         # Fallback: Simulator mode logic
                         if mode == "ice":

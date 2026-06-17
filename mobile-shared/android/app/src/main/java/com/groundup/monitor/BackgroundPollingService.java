@@ -215,6 +215,7 @@ public class BackgroundPollingService extends Service {
                 
                 String message = alertItem.optString("message", "A sensor has crossed critical limits.");
                 boolean isOffline = message.toLowerCase().contains("offline");
+                boolean isHum = message.toLowerCase().contains("humidity");
                 
                 // Track state
                 if (!lastNotifiedAlerts.containsKey(alertId)) {
@@ -231,16 +232,29 @@ public class BackgroundPollingService extends Service {
                     int nextCount = count + 1;
                     notifyCounts.put(alertId, nextCount);
                     
-                    String title = isOffline ? "🚨 Sensor Offline!" : "🚨 Temperature Alert!";
+                    String title;
+                    if (isOffline) {
+                        title = "🚨 Sensor Offline!";
+                    } else if (isHum) {
+                        title = "🚨 Humidity Alert!";
+                    } else {
+                        title = "🚨 Temperature Alert!";
+                    }
                     String body = message;
                     
                     if (nextCount > 1) {
                         int hours = nextCount - 1;
                         String hoursStr = hours == 1 ? "1 hour" : hours + " hours";
-                        title = isOffline ? "🚨 Offline: " + hoursStr : "🚨 Alert Active: " + hoursStr;
-                        body = isOffline 
-                            ? "⚠️ Still Offline: " + message + " (Unresolved for " + hoursStr + ")"
-                            : "⚠️ Critical! Unresolved for " + hoursStr + ": " + message + ". Please check it!";
+                        if (isOffline) {
+                            title = "🚨 Offline: " + hoursStr;
+                            body = "⚠️ Still Offline: " + message + " (Unresolved for " + hoursStr + ")";
+                        } else if (isHum) {
+                            title = "🚨 Humidity Alert Active: " + hoursStr;
+                            body = "⚠️ Critical! Unresolved for " + hoursStr + ": " + message + ". Please check it!";
+                        } else {
+                            title = "🚨 Alert Active: " + hoursStr;
+                            body = "⚠️ Critical! Unresolved for " + hoursStr + ": " + message + ". Please check it!";
+                        }
                     }
                     
                     triggerAlertNotification(alertId.hashCode(), title, body);
