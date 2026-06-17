@@ -40,7 +40,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
         
         latest = db.query(DeviceTelemetry).filter(DeviceTelemetry.device_id == s.device_id).order_by(DeviceTelemetry.timestamp.desc()).first()
         if latest:
-            is_online = (datetime.utcnow() - latest.timestamp) < timedelta(minutes=15)
+            is_online = (datetime.utcnow() - latest.timestamp) < timedelta(minutes=3)
             device_data.append({
                 "sensor_id": str(s.id),
                 "device_id": s.device_id,
