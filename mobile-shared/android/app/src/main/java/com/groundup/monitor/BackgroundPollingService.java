@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
@@ -204,6 +205,7 @@ public class BackgroundPollingService extends Service {
 
     private void processActiveAlerts(JSONArray activeAlerts) {
         try {
+            loadNotificationState();
             long now = System.currentTimeMillis();
             long ONE_HOUR_MS = 60 * 60 * 1000;
             
@@ -275,6 +277,7 @@ public class BackgroundPollingService extends Service {
             // Clean up resolved alerts
             lastNotifiedAlerts.keySet().retainAll(activeIds);
             notifyCounts.keySet().retainAll(activeIds);
+            saveNotificationState();
             
         } catch (Exception e) {
             Log.e(TAG, "Error processing active alerts", e);
@@ -307,6 +310,58 @@ public class BackgroundPollingService extends Service {
         if (manager != null) {
             manager.notify(notificationId, notification);
         }
+    }
+
+    private void loadNotificationState() {
+        SharedPreferences prefs = getSharedPreferences("polling_service_state", MODE_PRIVATE);
+        lastNotifiedAlerts.clear();
+        notifyCounts.clear();
+        
+        Map<String, ?> allEntries = prefs.getAll();
+        for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith("time_")) {
+                String alertId = key.substring(5);
+                Object val = entry.getValue();
+                if (val instanceof Long) {
+                    lastNotifiedAlerts.put(alertId, (Long) val);
+                } else if (val instanceof Integer) {
+                    lastNotifiedAlerts.put(alertId, ((Integer) val).longValue());
+                } else if (val instanceof String) {
+                    try {
+                        lastNotifiedAlerts.put(alertId, Long.parseLong((String) val));
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "Error parsing time", e);
+                    }
+                }
+            } else if (key.startsWith("count_")) {
+                String alertId = key.substring(6);
+                Object val = entry.getValue();
+                if (val instanceof Integer) {
+                    notifyCounts.put(alertId, (Integer) val);
+                } else if (val instanceof String) {
+                    try {
+                        notifyCounts.put(alertId, Integer.parseInt((String) val));
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "Error parsing count", e);
+                    }
+                }
+            }
+        }
+    }
+
+    private void saveNotificationState() {
+        SharedPreferences prefs = getSharedPreferences("polling_service_state", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.clear(); // Clear old state
+        
+        for (Map.Entry<String, Long> entry : lastNotifiedAlerts.entrySet()) {
+            editor.putLong("time_" + entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, Integer> entry : notifyCounts.entrySet()) {
+            editor.putInt("count_" + entry.getKey(), entry.getValue());
+        }
+        editor.apply();
     }
 
     private String readFileContent(File file) {
