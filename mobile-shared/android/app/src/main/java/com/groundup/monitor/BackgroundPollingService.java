@@ -228,8 +228,11 @@ public class BackgroundPollingService extends Service {
                 long lastNotified = lastNotifiedAlerts.get(alertId);
                 int count = notifyCounts.get(alertId);
                 
-                // Notify if first time OR if 1 hour has passed
-                if (count == 0 || (now - lastNotified >= ONE_HOUR_MS)) {
+                long currentHour = now / (60 * 60 * 1000);
+                long lastNotifiedHour = lastNotified / (60 * 60 * 1000);
+                
+                // Notify if first time OR if we have crossed into a new clock hour
+                if (count == 0 || (currentHour > lastNotifiedHour)) {
                     lastNotifiedAlerts.put(alertId, now);
                     int nextCount = count + 1;
                     notifyCounts.put(alertId, nextCount);
