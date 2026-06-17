@@ -261,6 +261,17 @@ public class BackgroundPollingService extends Service {
                 }
             }
             
+            // Dismiss notifications for resolved alerts
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                for (String alertId : lastNotifiedAlerts.keySet()) {
+                    if (!activeIds.contains(alertId)) {
+                        manager.cancel(alertId.hashCode());
+                        Log.i(TAG, "Dismissing resolved alert notification: " + alertId);
+                    }
+                }
+            }
+            
             // Clean up resolved alerts
             lastNotifiedAlerts.keySet().retainAll(activeIds);
             notifyCounts.keySet().retainAll(activeIds);
