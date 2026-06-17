@@ -110,12 +110,11 @@ export default function FloorPlanScreen() {
             // Get live temperature for this room
             const tempSensor = room.sensors?.find(s => s.type === 'temperature');
             const data = tempSensor ? liveData[tempSensor.id] : null;
-            const temp = data ? `${parseFloat(data.temperature)}°C` : '--';
             
-            const latestTimeStr = data ? data.timestamp : null;
-            const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;
-            const isOnline = latestTime ? (new Date() - latestTime) < 2 * 60 * 1000 : false;
+            // Use the backend's is_online flag (server-side UTC comparison, no timezone bugs)
+            const isOnline = data ? data.is_online !== false : false;
             const isOffline = data && !isOnline;
+            const temp = data ? (isOffline ? '--' : `${parseFloat(data.temperature).toFixed(1)}°C`) : '--';
 
             // Check for alerts
             const isAlert = data && !isOffline && (

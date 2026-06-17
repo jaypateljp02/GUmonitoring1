@@ -1428,13 +1428,12 @@
         if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
-          tempStr = temp.toFixed(1) + '°C';
+          const isOnline = data.is_online !== false;
+          tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
           
           let isAlert = false;
           if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
           if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-          
-          const isOnline = data.is_online !== false;
           
           if (!isOnline) {
             pinClass = 'offline';
@@ -1700,19 +1699,26 @@
               const ts = parseDate(data.timestamp);
               const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               
-              if (el) el.textContent = temp.toFixed(1) + '°C';
+              const isOnline = data.is_online !== false;
+              
+              if (el) el.textContent = isOnline ? temp.toFixed(1) + '°C' : '--';
               if (meta) {
-                meta.innerHTML = `
-                  <span class="meta-item-bat" style="color: #059669;">🔋 ${battery}%</span>
-                  <span class="meta-item-time">🕒 ${timeStr}</span>
-                `;
+                if (isOnline) {
+                  meta.innerHTML = `
+                    <span class="meta-item-bat" style="color: #059669;">🔋 ${battery}%</span>
+                    <span class="meta-item-time">🕒 ${timeStr}</span>
+                  `;
+                } else {
+                  meta.innerHTML = `
+                    <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
+                    <span class="meta-item-time">🕒 --</span>
+                  `;
+                }
               }
 
               let isAlert = false;
               if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
               if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-
-              const isOnline = data.is_online !== false;
 
               if (badge && card) {
                 if (!isOnline) {
@@ -2388,20 +2394,23 @@
         if (telemetryData && telemetryData.length > 0) {
           const d = telemetryData[0];
           const temp = parseFloat(d.temperature);
-          document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
-          document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
-          
           const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
           const ts = parseDate(d.timestamp);
           
-          if (topBat) {
-            topBat.textContent = '🔋 ' + batPercent;
-          }
-          if (topTime) {
-            topTime.textContent = '🕒 ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const isOnline = data.is_online !== false;
+          
+          if (isOnline) {
+            document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
+            document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
+            if (topBat) topBat.textContent = '🔋 ' + batPercent;
+            if (topTime) topTime.textContent = '🕒 ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            document.getElementById('dTemp').textContent = '--';
+            document.getElementById('dHum').textContent = '--';
+            if (topBat) topBat.textContent = '🔋 --';
+            if (topTime) topTime.textContent = '🕒 --';
           }
 
-          const isOnline = data.is_online !== false;
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
           

@@ -272,7 +272,7 @@ export default function DashboardScreen({ route, navigation }) {
               isAlert && styles.liveBoxValueAlert,
               isOffline && styles.liveBoxValueOffline
             ]}>
-              {telemetry ? `${parseFloat(telemetry.temperature).toFixed(1)}°C` : '--'}
+              {telemetry ? (isOffline ? '--' : `${parseFloat(telemetry.temperature).toFixed(1)}°C`) : '--'}
             </Text>
           </View>
           
@@ -280,7 +280,7 @@ export default function DashboardScreen({ route, navigation }) {
           <View style={[styles.liveBox, { borderLeftWidth: 1, borderLeftColor: '#E5E7EB' }]}>
             <Text style={styles.liveBoxLabel}>💧 HUMIDITY</Text>
             <Text style={[styles.liveBoxValue, { color: '#2563EB' }, isOffline && styles.liveBoxValueOffline]}>
-              {telemetry ? `${parseFloat(telemetry.humidity).toFixed(1)}%` : '--'}
+              {telemetry ? (isOffline ? '--' : `${parseFloat(telemetry.humidity).toFixed(1)}%`) : '--'}
             </Text>
           </View>
         </View>

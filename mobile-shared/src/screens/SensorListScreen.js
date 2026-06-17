@@ -76,9 +76,9 @@ function RoomCard({ room, telemetry, onPress }) {
               isAlert && styles.sensorTempAlert,
               isOffline && styles.sensorTempOffline
             ]}>
-              {temp.toFixed(1)}°C
+              {isOffline ? '--' : `${temp.toFixed(1)}°C`}
             </Text>
-            {hum !== null && <Text style={styles.sensorHum}>{hum.toFixed(1)}% RH</Text>}
+            {hum !== null && <Text style={styles.sensorHum}>{isOffline ? '--' : `${hum.toFixed(1)}%`}</Text>}
             <Text style={[
               styles.sensorBadge, 
               isOffline ? styles.badgeOffline : (isAlert ? styles.badgeAlert : styles.badgeOk)
