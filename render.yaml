@@ -8,9 +8,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: DATABASE_URL
-        fromDatabase:
-          name: groundup-db
-          property: connectionString
+        value: "postgresql://assurement:Arnav%402541@103.35.164.95:5432/Groundupfactory?sslmode=prefer"
       - key: JWT_SECRET
         value: ground-up-dev-secret-change-in-production
       - key: JWT_ALGORITHM
@@ -23,8 +21,3 @@ services:
         value: Groundup
       - key: EWELINK_REGION
         value: as
-
-databases:
-  - name: groundup-db
-    databaseName: groundup
-    user: groundup_user
