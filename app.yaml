@@ -1,0 +1,13 @@
+service: monitoring
+runtime: python311
+entrypoint: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+
+env_variables:
+  DATABASE_URL: "postgresql://assurement:Arnav_2541@103.35.164.95:5432/Groundupfactory"
+  JWT_SECRET: "ground-up-dev-secret-change-in-production"
+  JWT_ALGORITHM: "HS256"
+  CORS_ORIGINS: "*"
+  EWELINK_EMAIL: "grounduppune89@gmail.com"
+  EWELINK_PASSWORD: "Groundup"
+  EWELINK_REGION: "as"
+  EWELINK_SENSOR_ID: "a4b002884e"

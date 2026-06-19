@@ -1191,6 +1191,93 @@
               </div>
             </div>
           `;
+        } else {
+          // Live connected state
+          const isOn = data.state === 'on';
+          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
+          telemetryHtml = `
+            <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
+              <div style="flex: 1; text-align: center;">
+                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ POWER</div>
+                <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
+              </div>
+              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ VOLTAGE</div>
+                <div id="plugVoltage-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.voltage.toFixed(1)} V</div>
+              </div>
+              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ CURRENT</div>
+                <div id="plugCurrent-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.current.toFixed(3)} A</div>
+              </div>
+            </div>
+          `;
+          billingHtml = `
+            <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
+              <div style="text-align: center; flex: 1;">
+                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Today's Use</div>
+                <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
+                <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
+              </div>
+              <div style="border-left: 1px solid #E2E8F0;"></div>
+              <div style="text-align: center; flex: 1;">
+                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
+                <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
+                <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
+              </div>
+            </div>
+          `;
+          toggleBtnHtml = `
+            <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
+              Turn ${isOn ? 'OFF' : 'ON'}
+            </button>
+          `;
+          analyticsHtml = `
+            <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
+              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${tempSensor.device_id}')">
+                📊 View Power Trend & Logs
+              </button>
+              <div id="plugAnalytics-${roomId}" style="display: ${expandedPlugAccordions[roomId] ? 'block' : 'none'}; margin-top: 12px;">
+                <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+                  <div style="flex: 1;">
+                    <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">TIME FRAME</span>
+                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${tempSensor.device_id}')">
+                      <option value="1" ${getPlugSelectedDays(roomId) === '1' ? 'selected' : ''}>1 Day</option>
+                      <option value="3" ${getPlugSelectedDays(roomId) === '3' ? 'selected' : ''}>3 Days</option>
+                      <option value="7" ${getPlugSelectedDays(roomId) === '7' ? 'selected' : ''}>7 Days</option>
+                      <option value="30" ${getPlugSelectedDays(roomId) === '30' ? 'selected' : ''}>30 Days</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1;">
+                    <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">INTERVAL</span>
+                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')">
+                      <option value="1" ${getPlugSelectedInterval(roomId) === '1' ? 'selected' : ''}>Raw (1 min)</option>
+                      <option value="15" ${getPlugSelectedInterval(roomId) === '15' ? 'selected' : ''}>15 min</option>
+                      <option value="30" ${getPlugSelectedInterval(roomId) === '30' ? 'selected' : ''}>30 min</option>
+                      <option value="60" ${getPlugSelectedInterval(roomId) === '60' ? 'selected' : ''}>1 hour</option>
+                      <option value="120" ${getPlugSelectedInterval(roomId) === '120' ? 'selected' : ''}>2 hours</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
+                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
+                </div>
+                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
+                  <canvas id="plugPowerChart-${roomId}"></canvas>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">ENERGY ACCUMULATION (KWH)</span>
+                </div>
+                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
+                  <canvas id="plugEnergyChart-${roomId}"></canvas>
+                </div>
+                <div id="plugOfflineCard-${roomId}" style="display: none; padding: 10px; background: #FFF; border: 1px solid #FCA5A5; border-radius: 12px; margin-top: 10px;">
+                  <div style="font-size: 9px; font-weight: 800; color: #EF4444; margin-bottom: 6px;">⚠️ Outage & Offline Logs</div>
+                  <div id="plugOfflineList-${roomId}" style="display: flex; flex-direction: column; gap: 4px; font-size: 10px; max-height: 80px; overflow-y: auto;"></div>
+                </div>
+              </div>
+            </div>
+          `;
         }
         
         html += `

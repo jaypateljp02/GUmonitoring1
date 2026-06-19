@@ -1,9 +1,16 @@
 """Sensor routes with auto-alert logic."""
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+import os
+
+def verify_edge_api_key(x_api_key: str = Header(...)):
+    from backend.config import EDGE_API_KEY
+    if x_api_key != EDGE_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return x_api_key
 
 from backend.database import get_db
 from backend.models.sensor import Sensor
@@ -722,4 +729,60 @@ def get_batch_context(
         hum_max=round(stats.h_max, 2) if stats.h_max is not None else None,
         telemetry_logs=aggregated_logs
     )
+
+
+@router.get("/tapo/configs", tags=["Edge"])
+def get_tapo_configs(db: Session = Depends(get_db), api_key: str = Depends(verify_edge_api_key)):
+    """Fetch all Tapo configurations for the edge script to poll."""
+    sensors = db.query(Sensor).filter(
+        Sensor.active == True,
+        Sensor.tapo_ip.isnot(None),
+        Sensor.tapo_username.isnot(None),
+        Sensor.tapo_password.isnot(None)
+    ).all()
+    
+    # Group by device_id to avoid sending duplicate IP configs
+    configs = {}
+    for s in sensors:
+        if s.device_id not in configs:
+            configs[s.device_id] = {
+                "device_id": s.device_id,
+                "tapo_ip": s.tapo_ip,
+                "tapo_username": s.tapo_username,
+                "tapo_password": s.tapo_password
+            }
+    return list(configs.values())
+
+
+from pydantic import BaseModel
+class PlugIngestRequest(BaseModel):
+    apower: float
+    voltage: float
+    current: float
+    today_energy: float
+    month_energy: float
+
+
+@router.post("/device/{device_id}/plug/ingest", tags=["Edge"])
+def ingest_plug_telemetry(
+    device_id: str,
+    req: PlugIngestRequest,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_edge_api_key)
+):
+    """Secure endpoint for the edge script to push Tapo telemetry."""
+    from backend.models.plug_telemetry import PlugTelemetry
+    
+    log = PlugTelemetry(
+        device_id=device_id,
+        apower=req.apower,
+        voltage=req.voltage,
+        current=req.current,
+        today_energy=req.today_energy,
+        month_energy=req.month_energy,
+        timestamp=datetime.utcnow()
+    )
+    db.add(log)
+    db.commit()
+    return {"message": "Tapo telemetry ingested successfully"}
 

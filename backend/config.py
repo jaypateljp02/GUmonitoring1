@@ -16,3 +16,5 @@ APP_NAME = "Ground Up Monitoring API"
 APP_VERSION = "1.0.0"
 DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+EDGE_API_KEY = os.getenv("EDGE_API_KEY", "factory-tapo-123")
+
