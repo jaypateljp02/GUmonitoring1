@@ -5,7 +5,7 @@ import RNFS from 'react-native-fs';
 const AUTH_KEY = '@gu_auth_token';
 const API_URL_KEY = '@gu_api_url';
 
-export const DEFAULT_API_URL = 'https://gumonitoring.onrender.com';
+export const DEFAULT_API_URL = 'https://monitoring-dot-groundup-499909.el.r.appspot.com';
 
 export const getApiUrl = async () => {
   try {
@@ -16,30 +16,72 @@ export const getApiUrl = async () => {
   }
 };
 
+export const getServiceUrls = (currentUrl) => {
+  let authUrl = currentUrl;
+  let productionUrl = currentUrl;
+  let tasksUrl = currentUrl;
+  let monitoringUrl = currentUrl;
+  let adminUrl = currentUrl;
+
+  if (currentUrl.includes('monitoring-dot-')) {
+    authUrl = currentUrl.replace('monitoring-dot-', '');
+    productionUrl = currentUrl.replace('monitoring-dot-', 'production-dot-');
+    tasksUrl = currentUrl.replace('monitoring-dot-', 'tasks-dot-');
+    monitoringUrl = currentUrl;
+    adminUrl = currentUrl.replace('monitoring-dot-', 'admin-dot-');
+  } else if (currentUrl.match(/:\d+/)) {
+    authUrl = currentUrl.replace(/:\d+/, ':8000');
+    productionUrl = currentUrl.replace(/:\d+/, ':8001');
+    tasksUrl = currentUrl.replace(/:\d+/, ':8002');
+    monitoringUrl = currentUrl.replace(/:\d+/, ':8003');
+    adminUrl = currentUrl.replace(/:\d+/, ':8004');
+  } else {
+    // Fallback
+    authUrl = 'https://groundup-499909.el.r.appspot.com';
+    productionUrl = 'https://production-dot-groundup-499909.el.r.appspot.com';
+    tasksUrl = 'https://tasks-dot-groundup-499909.el.r.appspot.com';
+    monitoringUrl = 'https://monitoring-dot-groundup-499909.el.r.appspot.com';
+    adminUrl = 'https://admin-dot-groundup-499909.el.r.appspot.com';
+  }
+
+  return { auth: authUrl, production: productionUrl, tasks: tasksUrl, monitoring: monitoringUrl, admin: adminUrl };
+};
+
+export const api = axios.create({ baseURL: DEFAULT_API_URL });
+export const authApi = axios.create({ baseURL: 'https://groundup-499909.el.r.appspot.com' });
+export const productionApi = axios.create({ baseURL: 'https://production-dot-groundup-499909.el.r.appspot.com' });
+export const tasksApi = axios.create({ baseURL: 'https://tasks-dot-groundup-499909.el.r.appspot.com' });
+
+const addAuthInterceptor = (instance) => {
+  instance.interceptors.request.use(async (config) => {
+    try {
+      console.log('[API Request]', config.method ? config.method.toUpperCase() : 'GET', config.baseURL + config.url);
+      const token = await getAuthToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {}
+    return config;
+  });
+};
+
+addAuthInterceptor(api);
+addAuthInterceptor(authApi);
+addAuthInterceptor(productionApi);
+addAuthInterceptor(tasksApi);
+
 export const setApiUrl = async (url) => {
   try {
     await AsyncStorage.setItem(API_URL_KEY, url);
-    api.defaults.baseURL = url;
+    const urls = getServiceUrls(url);
+    api.defaults.baseURL = urls.monitoring;
+    authApi.defaults.baseURL = urls.auth;
+    productionApi.defaults.baseURL = urls.production;
+    tasksApi.defaults.baseURL = urls.tasks;
     await RNFS.writeFile(RNFS.DocumentDirectoryPath + '/api_url.txt', url, 'utf8');
   } catch (e) {}
 };
 
-export const api = axios.create({
-  baseURL: DEFAULT_API_URL,
-});
-
-api.interceptors.request.use(async (config) => {
-  try {
-    console.log('[API Request]', config.method ? config.method.toUpperCase() : 'GET', config.baseURL + config.url);
-    const token = await getAuthToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  } catch (e) { }
-  return config;
-});
-
-// Persistent token storage using AsyncStorage
 export const setAuthToken = async (token) => {
   try {
     await AsyncStorage.setItem(AUTH_KEY, token);
@@ -70,7 +112,12 @@ export const clearAuthToken = async () => {
   }
 };
 
-// Initialize baseURL from AsyncStorage on startup
+// Initialize baseURLs from AsyncStorage on startup
 getApiUrl().then(url => {
-  api.defaults.baseURL = url;
+  const urls = getServiceUrls(url);
+  api.defaults.baseURL = urls.monitoring;
+  authApi.defaults.baseURL = urls.auth;
+  productionApi.defaults.baseURL = urls.production;
+  tasksApi.defaults.baseURL = urls.tasks;
 }).catch(() => {});
+

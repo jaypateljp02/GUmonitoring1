@@ -6,7 +6,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+from sqlalchemy.pool import NullPool
+engine = create_engine(DATABASE_URL, poolclass=NullPool)
 
 @event.listens_for(engine, "connect")
 def set_search_path(dbapi_connection, connection_record):
@@ -56,6 +57,7 @@ def ensure_db_ready():
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_username VARCHAR(100)",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_password VARCHAR(100)",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_billing_rate NUMERIC DEFAULT 10.0",
+        "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_running_threshold NUMERIC DEFAULT 80.0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)",
         "CREATE INDEX IF NOT EXISTS ix_device_telemetry_device_id ON device_telemetry (device_id)",

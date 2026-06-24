@@ -53,7 +53,8 @@
       z-index: -1;
     }
 
-    .page { padding: 16px; max-width: 480px; margin: 0 auto; }
+    .page { padding: 16px; max-width: 480px; margin: 0 auto; transition: max-width 0.3s ease; }
+    body.map-active .page, body.plugs-active .page { max-width: 1000px; }
 
     /* Header */
     .header {
@@ -331,13 +332,41 @@
     .modal-buttons button {
       flex: 1;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+    @media (max-width: 600px) {
+      .map-view {
+        aspect-ratio: 1 / 1.693 !important;
+        margin-bottom: 20px;
+      }
+      .map-image {
+        width: 169.3% !important;
+        height: 59.06% !important;
+        position: absolute;
+        left: -34.65% !important;
+        top: 20.47% !important;
+        transform: rotate(90deg);
+        transform-origin: center;
+        object-fit: fill;
+      }
+    }
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .pulse-green {
+      animation: pulse-green 2s infinite;
+    }
+    .pulse-red {
+      animation: pulse-red 2s infinite;
     }
   </style>
 </head>
-<body>
+<body class="map-active">
   <!-- LIST / MAP VIEW -->
   <div class="page list-view" id="listView">
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -348,19 +377,19 @@
 
     <!-- TABS NAVIGATION -->
     <div class="tabs">
-      <div class="tab active" id="tabList" onclick="switchTab('list')">List View</div>
-      <div class="tab" id="tabMap" onclick="switchTab('map')">Floor Plan</div>
+      <div class="tab" id="tabList" onclick="switchTab('list')">List View</div>
+      <div class="tab active" id="tabMap" onclick="switchTab('map')">Floor Plan</div>
       <div class="tab" id="tabPlugs" onclick="switchTab('plugs')">Tapo Plugs</div>
     </div>
 
     <!-- MAP VIEW CONTAINER -->
-    <div class="map-view" id="mapViewContainer">
+    <div class="map-view active" id="mapViewContainer">
       <img src="/floorplan.jpg" class="map-image" alt="Factory Floor Plan">
       <div id="mapPinsContainer"></div>
     </div>
 
     <!-- Scroll list of devices -->
-    <div id="sensorListWrapper">
+    <div id="sensorListWrapper" style="display: none;">
       <div class="section-title">All Devices</div>
       <div id="sensorList"></div>
     </div>
@@ -408,6 +437,11 @@
         <div style="margin-bottom: 16px;">
           <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Billing Rate (₹/kWh)</span>
           <input type="number" step="0.1" id="modalTapoBillingRate" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="10.0" />
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Running Threshold (Watts)</span>
+          <input type="number" step="1" id="modalTapoRunningThreshold" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="80" />
         </div>
         
         <div class="modal-buttons" style="flex-direction: column; gap: 8px;">
@@ -676,9 +710,29 @@
     Chart.register(ChartDataLabels);
     // Determine API endpoint: use localhost/LAN IP if on local network, else use cloud API
     const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.');
+    const resolvedHostname = hostname === 'localhost' ? '127.0.0.1' : hostname;
+    const isLocal = resolvedHostname === '127.0.0.1' || resolvedHostname.startsWith('192.168.') || resolvedHostname.startsWith('10.');
     const port = window.location.port || '8003';
-    const API = isLocal ? `http://${hostname}:${port}` : window.location.origin;
+    const API = isLocal ? `http://${resolvedHostname}:${port}` : window.location.origin;
+
+    function formatOfflineTime(tStr) {
+      if (!tStr || tStr === 'Present') return 'Present';
+      const isoStr = tStr.includes('T') ? tStr : tStr.replace(' ', 'T') + 'Z';
+      try {
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return tStr;
+        return d.toLocaleString('en-IN', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      } catch (err) {
+        return tStr;
+      }
+    }
+
     let rooms = [];
     let liveData = {};
     let currentDevice = null;
@@ -691,8 +745,11 @@
     let extremesChartInstance = null;
     let trendOrientation = 'horizontal';
     let extremesOrientation = 'horizontal';
-    let currentTab = 'list';
+    let currentTab = 'map';
     let tapoPlugsData = {};
+    let tapoToggling = {};
+    let detailPlugToggling = false;
+    let tapoAgentInfo = null;
     let expandedPlugAccordions = {};
     let plugSelectedDays = {};
     let plugSelectedInterval = {};
@@ -717,6 +774,7 @@
 
     function switchTab(tab) {
       currentTab = tab;
+      document.body.className = `${tab}-active`;
       const tList = document.getElementById('tabList');
       const tMap = document.getElementById('tabMap');
       const tPlugs = document.getElementById('tabPlugs');
@@ -853,23 +911,25 @@
           const pw = document.getElementById(`plugPower-${roomId}`);
           const vl = document.getElementById(`plugVoltage-${roomId}`);
           const cr = document.getElementById(`plugCurrent-${roomId}`);
-          if (pw) pw.textContent = data.apower.toFixed(1) + ' W';
-          if (vl) vl.textContent = data.voltage.toFixed(1) + ' V';
-          if (cr) cr.textContent = data.current.toFixed(3) + ' A';
+          if (pw) pw.textContent = (data.apower !== null && data.apower !== undefined) ? parseFloat(data.apower).toFixed(1) + ' W' : '--';
+          if (vl) vl.textContent = (data.voltage !== null && data.voltage !== undefined) ? parseFloat(data.voltage).toFixed(1) + ' V' : '--';
+          if (cr) cr.textContent = (data.current !== null && data.current !== undefined) ? parseFloat(data.current).toFixed(3) + ' A' : '--';
 
           const tk = document.getElementById(`plugTodayKwh-${roomId}`);
           const tb = document.getElementById(`plugTodayBill-${roomId}`);
           const mk = document.getElementById(`plugMonthKwh-${roomId}`);
           const mb = document.getElementById(`plugMonthBill-${roomId}`);
-          if (tk) tk.textContent = data.today_kwh.toFixed(3) + ' kWh';
-          if (tb) tb.textContent = '₹ ' + data.today_bill.toFixed(2);
-          if (mk) mk.textContent = data.month_kwh.toFixed(3) + ' kWh';
-          if (mb) mb.textContent = '₹ ' + data.month_bill.toFixed(2);
+          if (tk) tk.textContent = (data.today_kwh !== null && data.today_kwh !== undefined) ? parseFloat(data.today_kwh).toFixed(3) + ' kWh' : '--';
+          if (tb) tb.textContent = (data.today_bill !== null && data.today_bill !== undefined) ? '₹ ' + parseFloat(data.today_bill).toFixed(2) : '--';
+          if (mk) mk.textContent = (data.month_kwh !== null && data.month_kwh !== undefined) ? parseFloat(data.month_kwh).toFixed(3) + ' kWh' : '--';
+          if (mb) mb.textContent = (data.month_bill !== null && data.month_bill !== undefined) ? '₹ ' + parseFloat(data.month_bill).toFixed(2) : '--';
 
           // Update toggle button - disable if last_known (can't control plug from cloud)
           const toggleBtn = document.getElementById(`plugToggleBtn-${roomId}`);
           if (toggleBtn) {
-            if (data.last_known) {
+            if (tapoToggling[roomId]) {
+              // Keep showing toggling status, do not overwrite in place
+            } else if (data.last_known) {
               toggleBtn.className = 'action-btn';
               toggleBtn.textContent = '🌐 LAN Only';
               toggleBtn.setAttribute('onclick', '');
@@ -941,7 +1001,7 @@
         const res = await fetch(`${API}/sensors/device/${deviceId}/plug/history?days=${days}&interval_minutes=${interval}`);
         if (res.ok) {
           const resData = await res.json();
-          const historyData = resData.history || [];
+          const historyData = (resData.history || []).reverse();
           const offlinePeriods = resData.offline_periods || [];
           
           const labels = historyData.map(log => {
@@ -1042,7 +1102,7 @@
             offlineCard.style.display = 'block';
             offlineList.innerHTML = offlinePeriods.map(p => `
               <div style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 4px 8px; border-radius: 6px; display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span><strong>Offline:</strong> ${p.start.substring(5,16)} to ${p.end.substring(5,16)}</span>
+                <span><strong>Offline:</strong> ${formatOfflineTime(p.start)} to ${formatOfflineTime(p.end)}</span>
                 <strong style="margin-left: 8px;">${p.duration_minutes} mins</strong>
               </div>
             `).join('');
@@ -1060,6 +1120,8 @@
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
       
+      const isBillingDay = (new Date().getDate() === 30 || new Date().getDate() === 31);
+      
       // Show/hide the Add button based on whether there are unconfigured rooms
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
       const addBtn = document.getElementById('addTapoPlugBtn');
@@ -1068,6 +1130,32 @@
       }
       
       let html = '';
+      
+      // Render Edge Agent health banner
+      if (tapoAgentInfo && tapoAgentInfo.status !== 'unconfigured') {
+        const isRunning = tapoAgentInfo.status === 'running';
+        const statusText = isRunning ? '✅ Tapo Edge Forwarder: ONLINE' : '❌ Tapo Edge Forwarder: OFFLINE';
+        const statusColor = isRunning ? '#10b981' : '#ef4444';
+        const statusBg = isRunning ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+        const statusBorder = isRunning ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+        const pulseClass = isRunning ? 'pulse-green' : 'pulse-red';
+        
+        let lastSeenText = 'never';
+        if (tapoAgentInfo.last_seen) {
+          const lastSeenDate = new Date(tapoAgentInfo.last_seen);
+          lastSeenText = lastSeenDate.toLocaleDateString() + ' ' + lastSeenDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        html += `
+          <div style="background: ${statusBg}; border: 1px solid ${statusBorder}; color: ${statusColor}; padding: 10px 14px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 800;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="${pulseClass}" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
+              <span>${statusText}</span>
+            </div>
+            <span style="color: #64748B; font-size: 11px; font-weight: 600;">Last Ingest: ${lastSeenText}</span>
+          </div>
+        `;
+      }
       const configuredRooms = Object.keys(tapoPlugsData).filter(roomId => {
         const item = tapoPlugsData[roomId];
         return item && item.error !== 'Unconfigured';
@@ -1095,6 +1183,7 @@
         let toggleBtnHtml = '';
         let analyticsHtml = '';
         let badgeHtml = '';
+        let metrics24hHtml = '';
         
         if (error || (data && !data.supported) || (data && data.state === 'offline')) {
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
@@ -1131,18 +1220,93 @@
                 <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
                 <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
               </div>
+              ${isBillingDay ? `
               <div style="border-left: 1px solid #E2E8F0;"></div>
               <div style="text-align: center; flex: 1;">
                 <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
                 <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
                 <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
               </div>
+              ` : ''}
             </div>
           `;
           toggleBtnHtml = `
             <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
               🌐 LAN Only (Toggle not available from cloud)
             </button>
+          `;
+          metrics24hHtml = `
+            <div style="margin-top: 14px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Power Bounds</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="stat-box-large stat-temp-min" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #1d4ed8; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
+                  <div id="plugPowerMin-${roomId}" style="color: #1e3a8a; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-box-avg stat-temp-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
+                  <div id="plugPowerAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-temp-max" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #b91c1c; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
+                  <div id="plugPowerMax-${roomId}" style="color: #7f1d1d; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Current Bounds</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(37, 99, 235, 0.04); border: 1px solid rgba(37, 99, 235, 0.15);">
+                  <div style="color: #2563eb; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
+                  <div id="plugCurrentMin-${roomId}" style="color: #1e40af; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-box-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
+                  <div id="plugCurrentAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.15);">
+                  <div style="color: #ef4444; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
+                  <div id="plugCurrentMax-${roomId}" style="color: #991b1b; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 14px; border-top: 1px dashed var(--card-border); padding-top: 12px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📊 7-Day Baseline Comparison</div>
+              <div style="background: rgba(0, 0, 0, 0.02); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; font-size: 11px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--card-border); font-size: 8.5px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
+                      <th style="padding-bottom: 6px; font-weight: 800;">Metric</th>
+                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">Last 24h</th>
+                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">7-Day Avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Compressor State</td>
+                      <td id="plugState24h-${roomId}" colspan="2" style="padding: 6px 0; text-align: right; font-weight: 800; text-transform: uppercase; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Use Time</td>
+                      <td id="plugRuntime24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugRuntimeAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">On/Off Cycles</td>
+                      <td id="plugCycles24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugCyclesAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0 0 0; font-weight: 600; color: var(--text-primary);">Daily Energy</td>
+                      <td id="plugEnergy24h-${roomId}" style="padding: 6px 0 0 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugEnergyAvg-${roomId}" style="padding: 6px 0 0 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="plugObsBox-${roomId}" style="margin-top: 10px; display: none; padding: 10px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.4;"></div>
+            </div>
           `;
           analyticsHtml = `
             <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
@@ -1218,18 +1382,101 @@
                 <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
                 <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
               </div>
+              ${isBillingDay ? `
               <div style="border-left: 1px solid #E2E8F0;"></div>
               <div style="text-align: center; flex: 1;">
                 <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
                 <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
                 <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
               </div>
+              ` : ''}
             </div>
           `;
-          toggleBtnHtml = `
-            <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
-              Turn ${isOn ? 'OFF' : 'ON'}
-            </button>
+          if (tapoToggling[roomId]) {
+            toggleBtnHtml = `
+              <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" disabled>
+                Toggling...
+              </button>
+            `;
+          } else {
+            toggleBtnHtml = `
+              <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
+                Turn ${isOn ? 'OFF' : 'ON'}
+              </button>
+            `;
+          }
+          metrics24hHtml = `
+            <div style="margin-top: 14px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Power Bounds</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="stat-box-large stat-temp-min" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #1d4ed8; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
+                  <div id="plugPowerMin-${roomId}" style="color: #1e3a8a; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-box-avg stat-temp-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
+                  <div id="plugPowerAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-temp-max" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #b91c1c; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
+                  <div id="plugPowerMax-${roomId}" style="color: #7f1d1d; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Current Bounds</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(37, 99, 235, 0.04); border: 1px solid rgba(37, 99, 235, 0.15);">
+                  <div style="color: #2563eb; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
+                  <div id="plugCurrentMin-${roomId}" style="color: #1e40af; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large stat-box-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
+                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
+                  <div id="plugCurrentAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
+                </div>
+                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.15);">
+                  <div style="color: #ef4444; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
+                  <div id="plugCurrentMax-${roomId}" style="color: #991b1b; font-size: 18px; font-weight: 900;">--</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 14px; border-top: 1px dashed var(--card-border); padding-top: 12px;">
+              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📊 7-Day Baseline Comparison</div>
+              <div style="background: rgba(0, 0, 0, 0.02); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; font-size: 11px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--card-border); font-size: 8.5px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
+                      <th style="padding-bottom: 6px; font-weight: 800;">Metric</th>
+                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">Last 24h</th>
+                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">7-Day Avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Compressor State</td>
+                      <td id="plugState24h-${roomId}" colspan="2" style="padding: 6px 0; text-align: right; font-weight: 800; text-transform: uppercase; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Use Time</td>
+                      <td id="plugRuntime24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugRuntimeAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
+                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">On/Off Cycles</td>
+                      <td id="plugCycles24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugCyclesAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0 0 0; font-weight: 600; color: var(--text-primary);">Daily Energy</td>
+                      <td id="plugEnergy24h-${roomId}" style="padding: 6px 0 0 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
+                      <td id="plugEnergyAvg-${roomId}" style="padding: 6px 0 0 0; text-align: right; color: var(--text-secondary);">--</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="plugObsBox-${roomId}" style="margin-top: 10px; display: none; padding: 10px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.4;"></div>
+            </div>
           `;
           analyticsHtml = `
             <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
@@ -1287,13 +1534,14 @@
                 <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${room.name}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
                   IP: ${tempSensor.tapo_ip || 'None'} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
-                  <span onclick="openTapoSettingsModal('${tempSensor.device_id}', '${tempSensor.tapo_ip || ''}', '${tempSensor.tapo_username || ''}', '${tempSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0})" style="cursor: pointer; font-size: 11px;" title="Tapo Connection Settings">⚙️</span>
+                  <span onclick="openTapoSettingsModal('${tempSensor.device_id}', '${tempSensor.tapo_ip || ''}', '${tempSensor.tapo_username || ''}', '${tempSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${tempSensor.tapo_running_threshold !== null && tempSensor.tapo_running_threshold !== undefined ? tempSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Tapo Connection Settings">⚙️</span>
                 </span>
               </div>
               ${badgeHtml}
             </div>
             ${telemetryHtml}
             ${billingHtml}
+            ${metrics24hHtml}
             ${toggleBtnHtml}
             ${analyticsHtml}
           </div>
@@ -1313,15 +1561,105 @@
           }
         }
       });
+
+      // Auto-fetch 24h metrics for all configured plug rooms
+      configuredRooms.forEach(roomId => {
+        const item = tapoPlugsData[roomId];
+        if (item && item.room && !item.error) {
+          const tempSensor = item.room.sensors.find(s => s.type === 'temperature');
+          if (tempSensor) {
+            fetchPlugMetrics24h(roomId, tempSensor.device_id);
+          }
+        }
+      });
     }
 
-    function openTapoSettingsModal(deviceId, ip, username, password, rate) {
+    async function fetchPlugMetrics24h(roomId, deviceId) {
+      try {
+        const res = await fetch(`${API}/sensors/device/${deviceId}/plug/metrics/24h`);
+        if (!res.ok) return;
+        const d = await res.json();
+        const setVal = (id, val, unit) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val !== null && val !== undefined ? parseFloat(val).toFixed(unit === 'A' ? 3 : 1) + ' ' + unit : '--';
+        };
+        setVal(`plugPowerMin-${roomId}`, d.power_min, 'W');
+        setVal(`plugPowerAvg-${roomId}`, d.power_avg, 'W');
+        setVal(`plugPowerMax-${roomId}`, d.power_max, 'W');
+        setVal(`plugCurrentMin-${roomId}`, d.current_min, 'A');
+        setVal(`plugCurrentAvg-${roomId}`, d.current_avg, 'A');
+        setVal(`plugCurrentMax-${roomId}`, d.current_max, 'A');
+
+        const setValRaw = (id, text) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = text;
+        };
+
+        setValRaw(`plugState24h-${roomId}`, d.compressor_state ? d.compressor_state.toUpperCase() : '--');
+        const stateEl = document.getElementById(`plugState24h-${roomId}`);
+        if (stateEl && d.compressor_state) {
+          if (d.compressor_state === 'running') {
+            stateEl.style.color = '#10b981';
+          } else if (d.compressor_state === 'offline') {
+            stateEl.style.color = '#ef4444';
+          } else {
+            stateEl.style.color = '#6b7280';
+          }
+        }
+
+        setValRaw(`plugRuntime24h-${roomId}`, d.runtime_hours_24h !== null && d.runtime_hours_24h !== undefined ? parseFloat(d.runtime_hours_24h).toFixed(1) + ' hrs' : '--');
+        setValRaw(`plugRuntimeAvg-${roomId}`, d.runtime_hours_avg_7d !== null && d.runtime_hours_avg_7d !== undefined ? parseFloat(d.runtime_hours_avg_7d).toFixed(1) + ' hrs' : '--');
+        
+        setValRaw(`plugCycles24h-${roomId}`, d.starts_count_24h !== null && d.starts_count_24h !== undefined ? d.starts_count_24h + ' times' : '--');
+        setValRaw(`plugCyclesAvg-${roomId}`, d.starts_count_avg_7d !== null && d.starts_count_avg_7d !== undefined ? parseFloat(d.starts_count_avg_7d).toFixed(1) + ' times' : '--');
+        
+        setValRaw(`plugEnergy24h-${roomId}`, d.energy_total_kwh !== null && d.energy_total_kwh !== undefined ? parseFloat(d.energy_total_kwh).toFixed(3) + ' kWh' : '--');
+        setValRaw(`plugEnergyAvg-${roomId}`, d.energy_kwh_avg_7d !== null && d.energy_kwh_avg_7d !== undefined ? parseFloat(d.energy_kwh_avg_7d).toFixed(3) + ' kWh' : '--');
+
+        const obsBox = document.getElementById(`plugObsBox-${roomId}`);
+        if (obsBox) {
+          if (d.observation_msg) {
+            obsBox.style.display = 'block';
+            obsBox.textContent = d.observation_msg;
+            
+            if (d.diagnosis === 'healthy') {
+              obsBox.style.background = 'rgba(16, 185, 129, 0.08)';
+              obsBox.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+              obsBox.style.color = '#10b981';
+            } else if (d.diagnosis === 'inefficient') {
+              obsBox.style.background = 'rgba(245, 158, 11, 0.08)';
+              obsBox.style.border = '1px solid rgba(245, 158, 11, 0.2)';
+              obsBox.style.color = '#d97706';
+            } else if (d.diagnosis === 'cooling_fail') {
+              obsBox.style.background = 'rgba(239, 68, 68, 0.08)';
+              obsBox.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+              obsBox.style.color = '#ef4444';
+            } else if (d.diagnosis === 'power_issue') {
+              obsBox.style.background = 'rgba(107, 114, 128, 0.08)';
+              obsBox.style.border = '1px solid rgba(107, 114, 128, 0.2)';
+              obsBox.style.color = '#6b7280';
+            } else {
+              obsBox.style.background = 'rgba(226, 232, 240, 0.5)';
+              obsBox.style.border = '1px solid #cbd5e1';
+              obsBox.style.color = '#475569';
+            }
+          } else {
+            obsBox.style.display = 'none';
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load plug 24h metrics:', e);
+      }
+    }
+
+    function openTapoSettingsModal(deviceId, ip, username, password, rate, threshold) {
       document.getElementById('modalTapoDeviceId').value = deviceId;
       document.getElementById('modalTapoMode').value = 'edit';
       document.getElementById('modalTapoIp').value = ip || '';
       document.getElementById('modalTapoUsername').value = username || '';
       document.getElementById('modalTapoPassword').value = password || '';
       document.getElementById('modalTapoBillingRate').value = rate !== null && rate !== undefined ? rate : '10.0';
+      document.getElementById('modalTapoRunningThreshold').value = threshold !== null && threshold !== undefined ? threshold : '80';
       
       // Room selector: disabled, pre-selected for editing
       const roomSelect = document.getElementById('modalTapoRoomSelect');
@@ -1359,6 +1697,7 @@
       document.getElementById('modalTapoUsername').value = '';
       document.getElementById('modalTapoPassword').value = '';
       document.getElementById('modalTapoBillingRate').value = '10.0';
+      document.getElementById('modalTapoRunningThreshold').value = '80';
       
       // Populate room selector with unconfigured rooms
       const roomSelect = document.getElementById('modalTapoRoomSelect');
@@ -1413,7 +1752,8 @@
             temp_tapo_ip: null,
             temp_tapo_username: null,
             temp_tapo_password: null,
-            temp_tapo_billing_rate: 10.0
+            temp_tapo_billing_rate: 10.0,
+            temp_tapo_running_threshold: 80.0
           })
         });
         if (res.ok) {
@@ -1433,6 +1773,7 @@
       const username = document.getElementById('modalTapoUsername').value.trim();
       const password = document.getElementById('modalTapoPassword').value.trim();
       const rate = document.getElementById('modalTapoBillingRate').value.trim();
+      const threshold = document.getElementById('modalTapoRunningThreshold').value.trim();
       
       if (!deviceId) {
         alert('Please select a room first.');
@@ -1444,6 +1785,7 @@
       }
       
       const rateVal = rate !== '' ? parseFloat(rate) : 10.0;
+      const thresholdVal = threshold !== '' ? parseFloat(threshold) : 80.0;
       
       try {
         const res = await fetch(`${API}/sensors/device/${deviceId}/thresholds`, {
@@ -1453,7 +1795,8 @@
             temp_tapo_ip: ip || null,
             temp_tapo_username: username || null,
             temp_tapo_password: password || null,
-            temp_tapo_billing_rate: rateVal
+            temp_tapo_billing_rate: rateVal,
+            temp_tapo_running_threshold: thresholdVal
           })
         });
         if (res.ok) {
@@ -1473,6 +1816,8 @@
       const { room } = item;
       const tempSensor = room.sensors.find(s => s.type === 'temperature');
       
+      tapoToggling[roomId] = true;
+      
       const buttons = document.querySelectorAll(`button[onclick*="${roomId}"]`);
       buttons.forEach(btn => {
         btn.disabled = true;
@@ -1486,12 +1831,28 @@
           body: JSON.stringify({ state: nextState })
         });
         if (res.ok) {
-          await pollTapoPlugs();
+          let attempts = 0;
+          const maxAttempts = 8;
+          const pollInterval = setInterval(async () => {
+            attempts++;
+            await pollTapoPlugs();
+            const currentItem = tapoPlugsData[roomId];
+            const success = currentItem && currentItem.data && currentItem.data.state === nextState;
+            if (success || attempts >= maxAttempts) {
+              clearInterval(pollInterval);
+              tapoToggling[roomId] = false;
+              await pollTapoPlugs(true);
+            }
+          }, 1000);
         } else {
           alert('Failed to toggle Tapo plug.');
+          tapoToggling[roomId] = false;
+          await pollTapoPlugs(true);
         }
       } catch(e) {
         alert('Connection error while toggling plug.');
+        tapoToggling[roomId] = false;
+        await pollTapoPlugs(true);
       }
     }
 
@@ -1537,11 +1898,25 @@
         let x = room.map_x;
         let y = room.map_y;
         let isUnplaced = false;
+        
+        const isMobile = window.innerWidth <= 600;
+        
         if (!x || !y) {
           isUnplaced = true;
-          x = `${10 + (unplacedCount * 18)}%`;
-          y = "90%";
+          if (isMobile) {
+            x = `${10 + (unplacedCount * 18)}%`;
+            y = "94%";
+          } else {
+            x = `${10 + (unplacedCount * 18)}%`;
+            y = "90%";
+          }
           unplacedCount++;
+        } else if (isMobile) {
+          // Swap and rotate coordinates 90 degrees clockwise for mobile view
+          const xVal = parseFloat(room.map_x);
+          const yVal = parseFloat(room.map_y);
+          x = `${100 - yVal}%`;
+          y = `${xVal}%`;
         }
         
         const borderStyle = isUnplaced ? "border: 2px dashed #f59e0b;" : "";
@@ -1648,17 +2023,31 @@
       const xPercent = pin.el.style.left;
       const yPercent = pin.el.style.top;
       
+      const isMobile = window.innerWidth <= 600;
+      let mapX = xPercent;
+      let mapY = yPercent;
+      
+      if (isMobile) {
+        // Inverse transform to save in original landscape coordinate space:
+        // map_x = top
+        // map_y = 100 - left
+        const leftVal = parseFloat(xPercent);
+        const topVal = parseFloat(yPercent);
+        mapX = `${topVal.toFixed(2)}%`;
+        mapY = `${(100 - leftVal).toFixed(2)}%`;
+      }
+      
       try {
         const res = await fetch(`${API}/rooms/${pin.roomId}/coordinates`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ map_x: xPercent, map_y: yPercent })
+          body: JSON.stringify({ map_x: mapX, map_y: mapY })
         });
         if (res.ok) {
           const roomIdx = rooms.findIndex(r => r.id === pin.roomId);
           if (roomIdx !== -1) {
-            rooms[roomIdx].map_x = xPercent;
-            rooms[roomIdx].map_y = yPercent;
+            rooms[roomIdx].map_x = mapX;
+            rooms[roomIdx].map_y = mapY;
           }
         }
       } catch (err) {
@@ -1724,8 +2113,9 @@
               <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
               <span class="meta-item-time">🕒 --</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <div class="sensor-temp" id="st-${room.id}" style="font-size: 18px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px;">--</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="sensor-temp" id="st-${room.id}" style="font-size: 16px; font-weight: 800; color: var(--text-primary);">--</div>
+              <div class="sensor-power" id="sp-${room.id}" style="font-size: 13px; font-weight: 600; color: #10b981; display: none;"></div>
               <div class="sensor-badge badge-offline" id="sb-${room.id}" style="margin-top: 0; padding: 2px 6px; font-size: 9px; font-weight: 800; border-radius: 4px;">NO DATA</div>
             </div>
           </div>
@@ -1733,45 +2123,67 @@
       </div>`;
     }
 
+    function getRoomPriority(room) {
+      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+      if (!tempSensor || !tempSensor.device_id || !liveData[tempSensor.device_id]) {
+        return 3;
+      }
+      const data = liveData[tempSensor.device_id];
+      const temp = parseFloat(data.temperature);
+      const isOnline = data.is_online !== false;
+      if (!isOnline) {
+        return 2;
+      }
+      let isAlert = false;
+      if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
+      if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+      if (isAlert) {
+        return 1;
+      }
+      return 3;
+    }
+
     async function pollList() {
       const now = new Date();
       document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
       try {
-        const roomsRes = await fetch(`${API}/rooms`);
+        const [roomsRes, dashRes] = await Promise.all([
+          fetch(`${API}/rooms`),
+          fetch(`${API}/monitoring/dashboard`)
+        ]);
+
         if (roomsRes.ok) {
           const data = await roomsRes.json();
           rooms = Array.isArray(data) ? data : [];
         } else {
           rooms = [];
         }
-        
+
+        if (dashRes.ok) {
+          const dashData = await dashRes.json();
+          liveData = {};
+          if (dashData && dashData.live_devices) {
+            dashData.live_devices.forEach(d => {
+              liveData[d.device_id] = d;
+            });
+          }
+          tapoAgentInfo = dashData.tapo_agent || null;
+        }
+
         document.querySelector('.section-title').textContent = `Devices (${rooms.length})`;
-        
-        if (rooms.length === 0) {
+
+        const sortedRooms = [...rooms].sort((a, b) => {
+          return getRoomPriority(a) - getRoomPriority(b);
+        });
+
+        if (sortedRooms.length === 0) {
           document.getElementById('sensorList').innerHTML = '<div style="text-align: center; color: #6B7280; font-size: 13px; margin: 20px 0;">No active devices found. Backend is syncing...</div>';
         } else {
-          document.getElementById('sensorList').innerHTML = rooms.map(buildSensorCard).join('');
+          document.getElementById('sensorList').innerHTML = sortedRooms.map(buildSensorCard).join('');
         }
 
-        let liveDevicesCount = 0;
-        try {
-          const dashRes = await fetch(`${API}/monitoring/dashboard`);
-          if (dashRes.ok) {
-            const dashData = await dashRes.json();
-            liveData = {};
-            if (dashData && dashData.live_devices) {
-              dashData.live_devices.forEach(d => {
-                liveData[d.device_id] = d;
-              });
-              liveDevicesCount = dashData.live_devices.length;
-            }
-          }
-        } catch (telemetryErr) {
-          console.error("Error fetching live telemetry:", telemetryErr);
-        }
-
-        for (const room of rooms) {
+        for (const room of sortedRooms) {
           try {
             const tempSensor = room.sensors?.find(s => s.type === 'temperature');
             const el = document.getElementById(`st-${room.id}`);
@@ -1800,6 +2212,25 @@
                     <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
                     <span class="meta-item-time">🕒 --</span>
                   `;
+                }
+              }
+
+
+
+              // Update power
+              const powerEl = document.getElementById(`sp-${room.id}`);
+              if (powerEl) {
+                if (isOnline && data.has_plug) {
+                  const pwr = parseFloat(data.apower);
+                  powerEl.textContent = `🔌 ${pwr.toFixed(0)}W`;
+                  powerEl.style.display = 'inline-block';
+                  powerEl.style.color = '#10b981';
+                } else if (data.has_plug) {
+                  powerEl.textContent = `🔌 Offline`;
+                  powerEl.style.display = 'inline-block';
+                  powerEl.style.color = '#dc2626';
+                } else {
+                  powerEl.style.display = 'none';
                 }
               }
 
@@ -2261,7 +2692,7 @@
           offlineCard.style.display = 'block';
           offlineList.innerHTML = offlinePeriods.map(p => `
             <div style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 6px 10px; border-radius: 8px; display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span><strong>Offline:</strong> ${p.start} to ${p.end}</span>
+              <span><strong>Offline:</strong> ${formatOfflineTime(p.start)} to ${formatOfflineTime(p.end)}</span>
               <span style="font-weight: bold;">${p.duration_minutes} mins</span>
             </div>
           `).join('');
@@ -2586,9 +3017,9 @@
           const plugCard = document.getElementById('plugCard');
           if (plugData && plugData.supported) {
             plugCard.style.display = 'block';
-            document.getElementById('plugPower').textContent = plugData.apower.toFixed(1) + ' W';
-            document.getElementById('plugVoltage').textContent = plugData.voltage.toFixed(1) + ' V';
-            document.getElementById('plugCurrent').textContent = plugData.current.toFixed(3) + ' A';
+            document.getElementById('plugPower').textContent = (plugData.apower !== null && plugData.apower !== undefined) ? parseFloat(plugData.apower).toFixed(1) + ' W' : '--';
+            document.getElementById('plugVoltage').textContent = (plugData.voltage !== null && plugData.voltage !== undefined) ? parseFloat(plugData.voltage).toFixed(1) + ' V' : '--';
+            document.getElementById('plugCurrent').textContent = (plugData.current !== null && plugData.current !== undefined) ? parseFloat(plugData.current).toFixed(3) + ' A' : '--';
             
             const badge = document.getElementById('plugTypeBadge');
             badge.textContent = plugData.type.toUpperCase() + ' PLUG: ' + plugData.state.toUpperCase();
@@ -2596,16 +3027,21 @@
               badge.style.background = 'rgba(16, 185, 129, 0.08)';
               badge.style.color = '#10b981';
               badge.style.borderColor = 'rgba(16, 185, 129, 0.2)';
-              document.getElementById('btnPlugToggle').textContent = 'Turn Off';
-              document.getElementById('btnPlugToggle').className = 'action-btn red';
             } else {
               badge.style.background = 'rgba(107, 114, 128, 0.08)';
               badge.style.color = '#6b7280';
               badge.style.borderColor = 'rgba(107, 114, 128, 0.2)';
-              document.getElementById('btnPlugToggle').textContent = 'Turn On';
-              document.getElementById('btnPlugToggle').className = 'action-btn blue';
             }
-            document.getElementById('btnPlugToggle').dataset.state = plugData.state;
+            if (!detailPlugToggling) {
+              if (plugData.state === 'on') {
+                document.getElementById('btnPlugToggle').textContent = 'Turn Off';
+                document.getElementById('btnPlugToggle').className = 'action-btn red';
+              } else {
+                document.getElementById('btnPlugToggle').textContent = 'Turn On';
+                document.getElementById('btnPlugToggle').className = 'action-btn blue';
+              }
+              document.getElementById('btnPlugToggle').dataset.state = plugData.state;
+            }
           } else {
             plugCard.style.display = 'none';
           }
@@ -2625,6 +3061,8 @@
       const currentState = btn.dataset.state || 'off';
       const nextState = currentState === 'on' ? 'off' : 'on';
       
+      detailPlugToggling = true;
+      
       try {
         btn.disabled = true;
         btn.textContent = 'Toggling...';
@@ -2634,14 +3072,34 @@
           body: JSON.stringify({ state: nextState })
         });
         if (res.ok) {
-          await pollDetail();
+          let attempts = 0;
+          const maxAttempts = 8;
+          const pollInterval = setInterval(async () => {
+            attempts++;
+            await pollDetail();
+            
+            const badge = document.getElementById('plugTypeBadge');
+            const expectedText = 'PLUG: ' + nextState.toUpperCase();
+            const success = badge && badge.textContent && badge.textContent.includes(expectedText);
+            
+            if (success || attempts >= maxAttempts) {
+              clearInterval(pollInterval);
+              detailPlugToggling = false;
+              btn.disabled = false;
+              await pollDetail();
+            }
+          }, 1000);
         } else {
           alert('Failed to toggle plug state.');
+          detailPlugToggling = false;
+          btn.disabled = false;
+          await pollDetail();
         }
       } catch(e) {
         alert('Error communicating with plug API.');
-      } finally {
+        detailPlugToggling = false;
         btn.disabled = false;
+        await pollDetail();
       }
     }
 

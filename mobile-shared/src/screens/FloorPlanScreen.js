@@ -18,6 +18,14 @@ const parseDate = (timestampStr) => {
 };
 
 const { width, height } = Dimensions.get('window');
+const maxAvailableHeight = height - 180;
+let wrapperWidth = width - 32;
+let wrapperHeight = wrapperWidth * 1.693; // 574/339 aspect ratio
+
+if (wrapperHeight > maxAvailableHeight) {
+  wrapperHeight = maxAvailableHeight;
+  wrapperWidth = wrapperHeight / 1.693;
+}
 
 // Premium Floor Plan View Component
 export default function FloorPlanScreen() {
@@ -90,7 +98,6 @@ export default function FloorPlanScreen() {
         <Image 
           source={require('../../assets/floorplan.jpg')} 
           style={styles.mapImage}
-          resizeMode="contain"
         />
 
         {(() => {
@@ -99,11 +106,14 @@ export default function FloorPlanScreen() {
             const isPlaced = room.map_x && room.map_y;
             let left, top;
             if (isPlaced) {
-              left = room.map_x;
-              top = room.map_y;
+              const xVal = parseFloat(room.map_x);
+              const yVal = parseFloat(room.map_y);
+              // Rotate coordinates 90 degrees clockwise to match rotated background image
+              left = `${100 - yVal}%`;
+              top = `${xVal}%`;
             } else {
               left = `${8 + (unplacedCount * 23)}%`;
-              top = '88%';
+              top = '92%';
               unplacedCount++;
             }
             
@@ -185,10 +195,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   mapWrapper: {
-    flex: 1,
+    width: wrapperWidth,
+    height: wrapperHeight,
     position: 'relative',
-    marginHorizontal: 16,
-    marginBottom: 24,
+    alignSelf: 'center',
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#1F2937',
@@ -196,8 +206,12 @@ const styles = StyleSheet.create({
     borderColor: '#374151',
   },
   mapImage: {
-    width: '100%',
-    height: '100%',
+    width: wrapperHeight,
+    height: wrapperWidth,
+    position: 'absolute',
+    left: (wrapperWidth - wrapperHeight) / 2,
+    top: (wrapperHeight - wrapperWidth) / 2,
+    transform: [{ rotate: '90deg' }],
     opacity: 0.8,
   },
   markerContainer: {

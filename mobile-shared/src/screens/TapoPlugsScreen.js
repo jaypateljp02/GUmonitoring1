@@ -304,6 +304,8 @@ export default function TapoPlugsScreen({ navigation }) {
     propsForDots: { r: "2", strokeWidth: "1", stroke: "#3B82F6" }
   };
 
+  const isBillingDay = new Date().getDate() === 30 || new Date().getDate() === 31;
+
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
@@ -455,7 +457,7 @@ export default function TapoPlugsScreen({ navigation }) {
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
                       <Text style={styles.tapoIp}>
-                        IP: {tempSensor.tapo_ip} (Rate: ₹{(data && data.billing_rate) ? data.billing_rate.toFixed(1) : (tempSensor.tapo_billing_rate ? parseFloat(tempSensor.tapo_billing_rate).toFixed(1) : '10.0')}/kWh)
+                        IP: {tempSensor.tapo_ip} (Rate: ₹{(data && data.billing_rate) ? parseFloat(data.billing_rate).toFixed(1) : (tempSensor.tapo_billing_rate ? parseFloat(tempSensor.tapo_billing_rate).toFixed(1) : '10.0')}/kWh)
                       </Text>
                     </View>
                   </View>
@@ -493,12 +495,16 @@ export default function TapoPlugsScreen({ navigation }) {
                         <Text style={styles.billingValue}>{parseFloat(data.today_kwh).toFixed(3)} kWh</Text>
                         <Text style={styles.billingSubtext}>₹ {parseFloat(data.today_bill).toFixed(2)}</Text>
                       </View>
-                      <View style={styles.billingDivider} />
-                      <View style={styles.billingBox}>
-                        <Text style={styles.billingLabel}>MONTH'S BILL</Text>
-                        <Text style={styles.billingValue}>{parseFloat(data.month_kwh).toFixed(3)} kWh</Text>
-                        <Text style={styles.billingSubtextBlue}>₹ {parseFloat(data.month_bill).toFixed(2)}</Text>
-                      </View>
+                      {isBillingDay && (
+                        <>
+                          <View style={styles.billingDivider} />
+                          <View style={styles.billingBox}>
+                            <Text style={styles.billingLabel}>MONTH'S BILL</Text>
+                            <Text style={styles.billingValue}>{parseFloat(data.month_kwh).toFixed(3)} kWh</Text>
+                            <Text style={styles.billingSubtextBlue}>₹ {parseFloat(data.month_bill).toFixed(2)}</Text>
+                          </View>
+                        </>
+                      )}
                     </View>
                   </View>
                 ) : (

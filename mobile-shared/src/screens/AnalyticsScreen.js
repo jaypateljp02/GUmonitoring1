@@ -31,7 +31,38 @@ export default function AnalyticsScreen({ route }) {
   // Collapse states for logs
   const [isOfflineCollapsed, setIsOfflineCollapsed] = useState(true);
   const [isAlertsCollapsed, setIsAlertsCollapsed] = useState(true);
+  const [isDoorCollapsed, setIsDoorCollapsed] = useState(true);
   const [deviceIsOnline, setDeviceIsOnline] = useState(false);
+
+  const [compressorData, setCompressorData] = useState([]);
+  const [doorLogs, setDoorLogs] = useState([]);
+  const [aiSummary, setAiSummary] = useState(null);
+  const [loadingNewAnalytics, setLoadingNewAnalytics] = useState(true);
+
+  // Chart Tooltips states
+  const [selectedTempPoint, setSelectedTempPoint] = useState(null);
+  const [selectedHumPoint, setSelectedHumPoint] = useState(null);
+
+  useEffect(() => {
+    const fetchNewAnalytics = async () => {
+      try {
+        setLoadingNewAnalytics(true);
+        const [compRes, doorRes, aiRes] = await Promise.all([
+          api.get(`/sensors/device/${SENSOR_ID}/compressor-analytics`),
+          api.get(`/sensors/device/${SENSOR_ID}/door-logs`),
+          api.get(`/sensors/device/${SENSOR_ID}/ai-summary`)
+        ]);
+        setCompressorData(compRes.data || []);
+        setDoorLogs(doorRes.data || []);
+        setAiSummary(aiRes.data || null);
+      } catch (err) {
+        console.log('Error fetching new analytics fields:', err);
+      } finally {
+        setLoadingNewAnalytics(false);
+      }
+    };
+    fetchNewAnalytics();
+  }, [SENSOR_ID]);
 
   // Fetch thresholds once
   useEffect(() => {
@@ -445,6 +476,139 @@ export default function AnalyticsScreen({ route }) {
         </Text>
       </View>
 
+      {/* Gemini AI Insights Summary Card */}
+      <View style={styles.aiCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={styles.aiCardTitle}>✨ GEMINI AI INSIGHTS & ACTIONS</Text>
+          {aiSummary?.status && (
+            <View style={[
+              styles.aiStatusBadge, 
+              aiSummary.status === 'healthy' ? styles.badgeOk : (aiSummary.status === 'warning' ? styles.badgeWarning : styles.badgeAlert)
+            ]}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: aiSummary.status === 'healthy' ? '#065F46' : (aiSummary.status === 'warning' ? '#B06000' : '#991B1B') }}>
+                {aiSummary.status.toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        {loadingNewAnalytics ? (
+          <ActivityIndicator color="#3B82F6" size="small" />
+        ) : aiSummary ? (
+          <View>
+            <Text style={styles.aiAnalysisText}>{aiSummary.analysis}</Text>
+            {aiSummary.action_items && aiSummary.action_items.length > 0 && (
+              <View style={{ marginTop: 14 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Recommended Actions:</Text>
+                {aiSummary.action_items.map((item, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 4, paddingLeft: 4 }}>
+                    <Text style={{ color: '#3B82F6', fontWeight: 'bold', marginRight: 6 }}>•</Text>
+                    <Text style={{ fontSize: 13, color: '#334155', flex: 1 }}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : (
+          <Text style={{ color: '#64748B', fontSize: 13 }}>No AI recommendations generated yet.</Text>
+        )}
+      </View>
+
+      {loadingNewAnalytics ? (
+        <View style={styles.chartLoadingContainer}>
+          <ActivityIndicator size="small" color="#3B82F6" />
+          <Text style={{ color: '#64748B', marginTop: 8, fontSize: 12 }}>Calculating stats...</Text>
+        </View>
+      ) : (
+        <View>
+          {/* A. Compressor Efficiency Module */}
+          {compressorData && compressorData.length > 0 && (
+            <View style={styles.efficiencyCard}>
+              <Text style={styles.cardSectionTitle}>❄️ COMPRESSOR EFFICIENCY STATS</Text>
+              
+              <View style={styles.statsRow}>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Avg Cycles / Day</Text>
+                  <Text style={styles.statValue}>{avgCyclesPerDay}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Avg Run / Cycle</Text>
+                  <Text style={styles.statValue}>{avgRuntime}m</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Short-Cycle Risk</Text>
+                  <Text style={[styles.statValue, { color: riskColor, fontSize: 15 }]}>{riskAssessment}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.subSectionTitle}>Duration Histogram (Days Share)</Text>
+              
+              <View style={styles.histogramRow}>
+                <Text style={styles.histogramLabel}>Short (&lt;12m)</Text>
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${shortCyclesPct}%`, backgroundColor: '#EF4444' }]} />
+                </View>
+                <Text style={styles.histogramPct}>{shortCyclesPct}%</Text>
+              </View>
+
+              <View style={styles.histogramRow}>
+                <Text style={styles.histogramLabel}>Optimal (12-24m)</Text>
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${optimalCyclesPct}%`, backgroundColor: '#10B981' }]} />
+                </View>
+                <Text style={styles.histogramPct}>{optimalCyclesPct}%</Text>
+              </View>
+
+              <View style={styles.histogramRow}>
+                <Text style={styles.histogramLabel}>Continuous (&gt;24m)</Text>
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${continuousCyclesPct}%`, backgroundColor: '#F59E0B' }]} />
+                </View>
+                <Text style={styles.histogramPct}>{continuousCyclesPct}%</Text>
+              </View>
+            </View>
+          )}
+
+          {/* B. Energy Consumption & Costing */}
+          {compressorData && compressorData.length > 0 && (
+            <View style={styles.energyCard}>
+              <Text style={styles.cardSectionTitle}>⚡ ENERGY & BILLING (₹17/kWh)</Text>
+
+              <View style={styles.statsRow}>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Month-to-Date Energy</Text>
+                  <Text style={styles.statValue}>{latestMonthEnergy.toFixed(1)} kWh</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Month-to-Date Cost</Text>
+                  <Text style={[styles.statValue, { color: '#059669' }]}>₹{latestEstimatedCost.toFixed(0)}</Text>
+                </View>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statLabel}>Projected Bill</Text>
+                  <Text style={[styles.statValue, { color: '#2563EB' }]}>₹{parseFloat(projectedMonthlyCost).toFixed(0)}</Text>
+                </View>
+              </View>
+
+              {/* Energy Trend Graph */}
+              <Text style={[styles.subSectionTitle, { marginTop: 12 }]}>Daily kWh Active Curve</Text>
+              <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
+                <LineChart
+                  data={energyChartData}
+                  width={Math.max(width - 40, compressorData.length * 40)}
+                  height={180}
+                  yAxisSuffix=" kWh"
+                  chartConfig={{
+                    ...chartConfigLight,
+                    propsForDots: { r: "4", strokeWidth: "1", stroke: "#10B981" }
+                  }}
+                  bezier
+                  style={{ marginVertical: 8, borderRadius: 16 }}
+                />
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.chartLoadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" style={{ marginBottom: 12 }} />
@@ -545,12 +709,25 @@ export default function AnalyticsScreen({ route }) {
                       yAxisInterval={1}
                       chartConfig={chartConfigLight}
                       bezier
+                      onDataPointClick={(data) => {
+                        const log = sampledLogs[data.index];
+                        if (log) {
+                          const d = parseDate(log.timestamp);
+                          const dateStr = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} (${d.getMonth()+1}/${d.getDate()})`;
+                          setSelectedTempPoint({ value: data.value, time: dateStr });
+                        }
+                      }}
                       style={{
                         marginVertical: 8,
                         borderRadius: 16
                       }}
                     />
                   </ScrollView>
+                  {selectedTempPoint && (
+                    <View style={styles.tooltipBadge}>
+                      <Text style={styles.tooltipText}>📍 Selected Temp: {selectedTempPoint.value.toFixed(1)}°C at {selectedTempPoint.time}</Text>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -573,16 +750,73 @@ export default function AnalyticsScreen({ route }) {
                         propsForDots: { r: "3", strokeWidth: "1", stroke: "#8B5CF6" }
                       }}
                       bezier
+                      onDataPointClick={(data) => {
+                        const log = sampledLogs[data.index];
+                        if (log) {
+                          const d = parseDate(log.timestamp);
+                          const dateStr = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} (${d.getMonth()+1}/${d.getDate()})`;
+                          setSelectedHumPoint({ value: data.value, time: dateStr });
+                        }
+                      }}
                       style={{
                         marginVertical: 8,
                         borderRadius: 16
                       }}
                     />
                   </ScrollView>
+                  {selectedHumPoint && (
+                    <View style={styles.tooltipBadge}>
+                      <Text style={styles.tooltipText}>📍 Selected Hum: {selectedHumPoint.value.toFixed(1)}% at {selectedHumPoint.time}</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
           )}
+
+          {/* C. Smart Door-Open Log Section */}
+          <View style={styles.doorLogContainer}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+              onPress={() => setIsDoorCollapsed(!isDoorCollapsed)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.doorTitle, { marginBottom: 0 }]}>🚪 Smart Door-Open Log</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#2563EB' }}>
+                {isDoorCollapsed ? 'Expand ▽' : 'Collapse ▲'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, marginBottom: isDoorCollapsed ? 0 : 12 }}>
+              Temperature spikes (≤ 10 mins) which were suppressed from alerting and logged here.
+            </Text>
+            {!isDoorCollapsed && (
+              <View>
+                {doorLogs && doorLogs.length > 0 ? (
+                  doorLogs.map(log => {
+                    const openedTime = new Date(log.opened_at);
+                    const durMins = parseFloat((log.duration_seconds || 0) / 60.0).toFixed(1);
+                    return (
+                      <View key={log.id} style={styles.doorLogRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.doorLogMsg}>Suppressed Spike Event</Text>
+                          <Text style={styles.doorLogTime}>
+                            ⏰ {openedTime.toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.durationBadge}>
+                          <Text style={styles.durationText}>{durMins} mins</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, paddingVertical: 12, fontStyle: 'italic' }}>
+                    No door events or suppressed spikes registered.
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* Collapsible Offline History Log */}
           {offlinePeriods && offlinePeriods.length > 0 && (
@@ -690,6 +924,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    marginBottom: 16
   },
   chartTitle: { color: '#6B7280', fontSize: 12, fontWeight: '800', marginBottom: 14, alignSelf: 'flex-start', letterSpacing: 0.5 },
   errorContainer: { height: 240, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB', padding: 20 },
@@ -704,7 +939,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   infoText: {
     color: '#1E40AF',
@@ -857,10 +1092,208 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#EF4444',
     marginLeft: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   durationText: {
     fontSize: 10,
     fontWeight: '800',
     color: '#FFFFFF',
   },
+
+  // Newly Added V2 Styles
+  aiCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  aiCardTitle: {
+    color: '#1E293B',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  aiStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeOk: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+  },
+  badgeWarning: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+  },
+  badgeAlert: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+  },
+  aiAnalysisText: {
+    color: '#334155',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  efficiencyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  energyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  cardSectionTitle: {
+    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 14,
+  },
+  subSectionTitle: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statBlock: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 9,
+    color: '#64748B',
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  histogramRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  histogramLabel: {
+    flex: 1.5,
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  progressBarBg: {
+    flex: 3,
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginHorizontal: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  histogramPct: {
+    flex: 0.8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'right',
+  },
+  tooltipBadge: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  tooltipText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  doorLogContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  doorTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 16,
+  },
+  doorLogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  doorLogMsg: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  doorLogTime: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 4,
+  }
 });
+

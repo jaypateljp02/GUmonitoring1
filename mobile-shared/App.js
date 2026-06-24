@@ -25,6 +25,8 @@ async function requestLocationPermission() {
   }
 }
 
+import { announcePendingTasks } from './src/services/audioService';
+
 export default function App() {
   useEffect(() => {
     // Request GPS and Notification permissions, then sync config to native files
@@ -49,6 +51,29 @@ export default function App() {
         console.log('Error syncing config to files for native service:', e);
       }
     })();
+  }, []);
+
+  // Set up hourly task announcer
+  useEffect(() => {
+    // Perform an initial check on start after 5 seconds delay, then every hour
+    const timer = setTimeout(async () => {
+      const token = await getAuthToken();
+      if (token) {
+        announcePendingTasks();
+      }
+    }, 5000);
+
+    const interval = setInterval(async () => {
+      const token = await getAuthToken();
+      if (token) {
+        announcePendingTasks();
+      }
+    }, 60 * 60 * 1000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, []);
 
   return (

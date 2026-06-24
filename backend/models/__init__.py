@@ -7,4 +7,6 @@ from backend.models.ewelink_token import EwelinkToken
 from backend.models.plug_telemetry import PlugTelemetry
 from backend.models.plug_command import PlugCommand
 from backend.models.user import User
+from backend.models.compressor_stats import CompressorStats
+from backend.models.door_event import DoorEvent
 

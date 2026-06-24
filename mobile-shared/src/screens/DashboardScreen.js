@@ -352,6 +352,54 @@ export default function DashboardScreen({ route, navigation }) {
         ) : null}
       </Animated.View>
 
+      {/* Smart Plug Compressor Status & Control Card */}
+      {plugData && (
+        <View style={styles.plugCard}>
+          <Text style={styles.cardTitle}>🔌 SMART PLUG & COMPRESSOR</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748B', letterSpacing: 0.5 }}>COMPRESSOR STATE</Text>
+              <Text style={{ 
+                fontSize: 22, 
+                fontWeight: '900', 
+                color: metrics24h?.compressor_state === 'running' ? '#10B981' : (metrics24h?.compressor_state === 'offline' ? '#94A3B8' : '#F59E0B'),
+                marginTop: 4
+              }}>
+                {metrics24h?.compressor_state ? metrics24h.compressor_state.toUpperCase() : 'UNKNOWN'}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748B', letterSpacing: 0.5 }}>TODAY RUNTIME</Text>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: '#0F172A', marginTop: 4 }}>
+                {metrics24h?.runtime_hours_24h !== undefined ? `${metrics24h.runtime_hours_24h} hrs` : '-- hrs'}
+              </Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity 
+            style={[
+              styles.saveButton, 
+              { 
+                backgroundColor: plugData.state === 'on' ? '#EF4444' : '#10B981', 
+                marginTop: 18,
+                opacity: isTogglingPlug ? 0.6 : 1 
+              }
+            ]}
+            onPress={handleTogglePlug}
+            disabled={isTogglingPlug}
+            activeOpacity={0.8}
+          >
+            {isTogglingPlug ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>
+                {plugData.state === 'on' ? 'Power OFF Compressor' : 'Power ON Compressor'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       <TouchableOpacity 
         style={styles.actionButton} 
         onPress={() => navigation.navigate('Analytics', { device })}

@@ -10,6 +10,8 @@ import FloorPlanScreen from '../screens/FloorPlanScreen';
 import DashboardScreen from '../screens/DashboardScreen'; 
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import TapoPlugsScreen from '../screens/TapoPlugsScreen';
+import ChatScreen from '../screens/ChatScreen';
+import QualityCheckScreen from '../screens/QualityCheckScreen';
 
 import { api, getAuthToken, clearAuthToken } from '../services/api';
 
@@ -27,6 +29,14 @@ function MainTabNavigator() {
       }}
     >
       <Tab.Screen 
+        name="Map" 
+        component={FloorPlanScreen} 
+        options={{
+          tabBarLabel: 'Facility Map',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🗺️</Text>,
+        }}
+      />
+      <Tab.Screen 
         name="List" 
         component={SensorListScreen} 
         options={{
@@ -35,11 +45,19 @@ function MainTabNavigator() {
         }}
       />
       <Tab.Screen 
-        name="Map" 
-        component={FloorPlanScreen} 
+        name="Chats" 
+        component={ChatScreen} 
         options={{
-          tabBarLabel: 'Facility Map',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🗺️</Text>,
+          tabBarLabel: 'Chats',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💬</Text>,
+        }}
+      />
+      <Tab.Screen 
+        name="Quality" 
+        component={QualityCheckScreen} 
+        options={{
+          tabBarLabel: 'Quality Checks',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📦</Text>,
         }}
       />
       <Tab.Screen 

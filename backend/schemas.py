@@ -23,6 +23,10 @@ class SensorResponse(BaseModel):
     tapo_username: Optional[str] = None
     tapo_password: Optional[str] = None
     tapo_billing_rate: Optional[Decimal] = None
+    tapo_running_threshold: Optional[Decimal] = None
+    tapo_last_seen: Optional[datetime] = None
+    tapo_status: Optional[str] = None
+    tapo_error: Optional[str] = None
     active: bool
     created_at: datetime
     class Config:
@@ -111,6 +115,35 @@ class DeviceMetrics24hResponse(BaseModel):
     hum_avg: Optional[Decimal] = None
     hum_min: Optional[Decimal] = None
     hum_max: Optional[Decimal] = None
+
+class PlugMetrics24hResponse(BaseModel):
+    device_id: str
+    power_avg: Optional[Decimal] = None
+    power_min: Optional[Decimal] = None
+    power_max: Optional[Decimal] = None
+    voltage_avg: Optional[Decimal] = None
+    voltage_min: Optional[Decimal] = None
+    voltage_max: Optional[Decimal] = None
+    current_avg: Optional[Decimal] = None
+    current_min: Optional[Decimal] = None
+    current_max: Optional[Decimal] = None
+    energy_total_kwh: Optional[Decimal] = None
+    
+    # Derived stats for last 24h
+    runtime_hours_24h: float = 0.0
+    duty_cycle_pct_24h: float = 0.0
+    starts_count_24h: int = 0
+    
+    # 7-day average baseline
+    runtime_hours_avg_7d: float = 0.0
+    starts_count_avg_7d: float = 0.0
+    energy_kwh_avg_7d: float = 0.0
+    
+    # Status & Diagnosis
+    compressor_state: str = "unknown"
+    diagnosis: str = "healthy"
+    abnormal_flags: List[str] = []
+    observation_msg: str = ""
 
 class BatchContextResponse(BaseModel):
     device_id: str

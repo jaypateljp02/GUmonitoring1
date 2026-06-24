@@ -15,3 +15,4 @@ class User(Base):
     role = Column(String(50), nullable=False, default="employee")
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    receive_reports = Column(Boolean, default=True)

@@ -16,11 +16,20 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 @router.get("", response_model=List[RoomResponse])
 def list_rooms(db: Session = Depends(get_db)):
     rooms = db.query(Room).filter(Room.active == True).all()
+    
+    # Fetch ALL active sensors in one query instead of N queries per room
+    all_sensors = db.query(Sensor).filter(Sensor.active == True).all()
+    # Group by room_id
+    sensors_by_room = {}
+    for s in all_sensors:
+        if s.room_id:
+            sensors_by_room.setdefault(str(s.room_id), []).append(s)
+    
     result = []
     for r in rooms:
         resp = RoomResponse.model_validate(r)
-        sensors = db.query(Sensor).filter(Sensor.room_id == r.id, Sensor.active == True).all()
-        resp.sensors = [SensorResponse.model_validate(s) for s in sensors]
+        room_sensors = sensors_by_room.get(str(r.id), [])
+        resp.sensors = [SensorResponse.model_validate(s) for s in room_sensors]
         result.append(resp)
     return result
 

@@ -11,7 +11,7 @@ from sqlalchemy import text
 import sys
 
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
-from backend.routes import sensors, rooms, alerts, monitoring
+from backend.routes import sensors, rooms, alerts, monitoring, reports
 from backend.database import SessionLocal, ensure_db_ready, get_db
 from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry, User
 from backend.schemas import LoginRequest, LoginResponse, UserResponseModel
@@ -47,9 +47,12 @@ def startup_event():
         {"device_id": "a4b0028991", "name": "Vinegar Room - Humidity",    "type": "humidity",    "min_threshold": None, "max_threshold": None},
     ]
     try:
+        logger.info("Opening session to seed sensors...")
         db = SessionLocal()
         for d in DEVICES:
+            logger.info(f"Checking sensor device_id={d['device_id']}, type={d['type']}...")
             exists = db.query(Sensor).filter(Sensor.device_id == d["device_id"], Sensor.type == d["type"]).first()
+            logger.info(f"Sensor check result: {exists is not None}")
             if not exists:
                 s = Sensor(
                     device_id=d["device_id"],
@@ -60,6 +63,7 @@ def startup_event():
                     active=True
                 )
                 db.add(s)
+        logger.info("Committing seeded sensors...")
         db.commit()
         db.close()
         logger.info("Sensors seeded OK.")
@@ -80,6 +84,7 @@ app.include_router(sensors.router)
 app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
+app.include_router(reports.router)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
