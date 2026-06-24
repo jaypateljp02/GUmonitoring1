@@ -26,3 +26,4 @@ __pycache__/
 *.zip
 *.tar.gz
 *.log
+!web/app.apk
