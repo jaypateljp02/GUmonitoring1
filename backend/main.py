@@ -200,35 +200,7 @@ def update_apk_url_cache():
         logger.error(f"Failed to update APK cache from EAS: {e}")
 
 @app.get("/download/apk", tags=["App"])
-def download_apk(background_tasks: BackgroundTasks):
-    global APK_CACHE
-    
-    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
-    if os.path.exists(apk_path):
-        response = FileResponse(
-            apk_path,
-            media_type="application/vnd.android.package-archive",
-            filename="GUMonitoring.apk"
-        )
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        return response
-        
-    # Refresh cache in background if older than 5 minutes
-    if datetime.utcnow() - APK_CACHE["last_fetched"] > timedelta(minutes=5):
-        background_tasks.add_task(update_apk_url_cache)
-        
-    if APK_CACHE["url"]:
-        return RedirectResponse(url=APK_CACHE["url"])
-        
-    # If no cache and no local file, attempt synchronous fetch
-    update_apk_url_cache()
-    if APK_CACHE["url"]:
-        return RedirectResponse(url=APK_CACHE["url"])
-        
-    raise HTTPException(
-        status_code=404,
-        detail="APK file not found. Local build or cloud compilation may still be in progress."
-    )
+def download_apk():
+    return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/monitoring-app.apk")
+
 
