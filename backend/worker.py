@@ -367,9 +367,9 @@ async def ingestion_loop():
                             if trig_time:
                                 try:
                                     trig_ts = float(trig_time) / 1000.0
-                                    if time.time() - trig_ts > 2 * 3600:
+                                    if time.time() - trig_ts > 4 * 3600:
                                         is_online_by_trig = False
-                                        logger.warning(f"Device {target_device} trigTime is stale: {datetime.utcfromtimestamp(trig_ts)}")
+                                        logger.warning(f"Device {target_device} trigTime is stale (older than 4h): {datetime.utcfromtimestamp(trig_ts)}")
                                 except Exception as ex:
                                     logger.error(f"Error parsing trigTime for device {target_device}: {ex}")
 
