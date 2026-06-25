@@ -203,4 +203,12 @@ def update_apk_url_cache():
 def download_apk():
     return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/monitoring-app.apk")
 
+@app.get("/download/tasks-apk", tags=["App"])
+def download_tasks_apk():
+    return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/tasks-app.apk")
+
+@app.get("/download/admin-apk", tags=["App"])
+def download_admin_apk():
+    return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/admin-app.apk")
+
 
