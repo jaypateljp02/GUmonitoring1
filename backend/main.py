@@ -151,7 +151,7 @@ def dashboard():
 
 @app.get("/version", tags=["Dashboard"])
 def get_version():
-    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "app", "android", "app", "build", "outputs", "apk", "release", "app-release.apk")
     size = os.path.getsize(apk_path) if os.path.exists(apk_path) else -1
     return {
         "version": "apk-update-v1",

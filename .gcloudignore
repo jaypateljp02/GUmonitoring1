@@ -27,3 +27,13 @@ __pycache__/
 *.tar.gz
 *.log
 !web/app.apk
+/app
+/app/
+/app/**/*
+/web
+/web/
+/web/**/*
+/edge_agent
+/edge_agent/
+/edge_agent/**/*
+
