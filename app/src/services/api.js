@@ -5,7 +5,7 @@ import RNFS from 'react-native-fs';
 const AUTH_KEY = '@gu_auth_token';
 const API_URL_KEY = '@gu_api_url';
 
-export const DEFAULT_API_URL = 'https://monitoring-dot-groundup-499909.el.r.appspot.com';
+export const DEFAULT_API_URL = 'https://gu-monitoring.initiativesewafoundation.com';
 
 export const getApiUrl = async () => {
   try {
