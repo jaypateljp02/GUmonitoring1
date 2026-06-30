@@ -839,6 +839,9 @@
       <div class="tab" id="tabList" onclick="switchTab('list')">List View</div>
       <div class="tab active" id="tabMap" onclick="switchTab('map')">Floor Plan</div>
       <div class="tab" id="tabPlugs" onclick="switchTab('plugs')">Tapo Plugs</div>
+      <div class="tab" onclick="window.location.href='/app.apk'" style="color: var(--accent-blue); font-weight: bold; display: flex; align-items: center; gap: 4px;">
+        <span class="material-icons" style="font-size: 14px;">phone_android</span> App
+      </div>
     </div>
 
     <!-- MAP VIEW CONTAINER -->
@@ -934,44 +937,10 @@
             style="display: none; width: 100%; margin-bottom: 0; padding: 10px; font-size: 12px; font-weight: 800; background: rgba(239, 68, 68, 0.06); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px;"
             onclick="clearTapoConfig()">🗑️ Clear Configuration</button>
         </div>
+        <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
       </div>
     </div>
 
-    <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
-
-    <!-- Premium APK Download Cards -->
-    <div class="download-container" id="downloadCard" style="border-top: 1px dashed #E5E7EB; padding-top: 24px;">
-      <h3
-        style="font-size: 11px; font-weight: 800; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
-        Download Mobile Apps</h3>
-
-      <a href="/download/apk" class="apk-download-card monitoring" style="margin-top: 4px;">
-        <span class="apk-icon">📊</span>
-        <div class="apk-text-group">
-          <div class="apk-title">Ground Up Monitor</div>
-          <div class="apk-subtitle">Live temperature, humidity telemetry & push alerts</div>
-        </div>
-        <span class="apk-arrow">→</span>
-      </a>
-
-      <a href="/download/tasks-apk" class="apk-download-card tasks" style="margin-top: 12px;">
-        <span class="apk-icon">📋</span>
-        <div class="apk-text-group">
-          <div class="apk-title">Ground Up Tasks</div>
-          <div class="apk-subtitle">Daily checklists, voice notes & task management</div>
-        </div>
-        <span class="apk-arrow">→</span>
-      </a>
-
-      <a href="/download/admin-apk" class="apk-download-card admin" style="margin-top: 12px; margin-bottom: 28px;">
-        <span class="apk-icon">🛡️</span>
-        <div class="apk-text-group">
-          <div class="apk-title">Ground Up Admin</div>
-          <div class="apk-subtitle">User accounts, billing reports & master controls</div>
-        </div>
-        <span class="apk-arrow">→</span>
-      </a>
-    </div>
   </div>
 
   <!-- DETAIL VIEW -->
@@ -3674,11 +3643,6 @@
       }
     }
 
-    // Keep APK download card visible on all devices
-    const downloadCard = document.getElementById('downloadCard');
-    if (downloadCard) {
-      downloadCard.style.display = 'block';
-    }
   </script>
 </body>
 
