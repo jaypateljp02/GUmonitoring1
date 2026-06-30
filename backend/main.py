@@ -199,9 +199,13 @@ def update_apk_url_cache():
     except Exception as e:
         logger.error(f"Failed to update APK cache from EAS: {e}")
 
+@app.get("/app.apk", tags=["App"])
 @app.get("/download/apk", tags=["App"])
 def download_apk():
-    return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/monitoring-app.apk")
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    if os.path.exists(apk_path):
+        return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename="app.apk")
+    return {"error": "APK file not found"}
 
 @app.get("/download/tasks-apk", tags=["App"])
 def download_tasks_apk():

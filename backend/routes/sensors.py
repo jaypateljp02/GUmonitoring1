@@ -45,10 +45,12 @@ def submit_reading(
 
     # Threshold Check & Auto-Alert
     alert_msg = None
-    if sensor.min_threshold is not None and req.value < sensor.min_threshold:
-        alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too low: {req.value} (Min: {sensor.min_threshold})"
-    elif sensor.max_threshold is not None and req.value > sensor.max_threshold:
-        alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too high: {req.value} (Max: {sensor.max_threshold})"
+    is_alert_enabled = not (sensor.min_threshold == 0 and sensor.max_threshold == 0)
+    if is_alert_enabled:
+        if sensor.min_threshold is not None and req.value < sensor.min_threshold:
+            alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too low: {req.value} (Min: {sensor.min_threshold})"
+        elif sensor.max_threshold is not None and req.value > sensor.max_threshold:
+            alert_msg = f"[{sensor.name}] {sensor.type.capitalize()} too high: {req.value} (Max: {sensor.max_threshold})"
 
     if alert_msg:
         # Prevent spamming alerts if one is already open for this sensor
@@ -526,6 +528,8 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
             telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
                 sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
             ), timeout=1.5)
+            if telemetry.get("state") == "offline" or "error" in telemetry:
+                raise Exception(telemetry.get("error") or "Tapo plug is offline")
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
             

@@ -22,6 +22,11 @@ def seed():
     db.query(DeviceTelemetry).delete()
     db.query(Alert).delete()
     db.query(SensorReading).delete()
+    try:
+        from sqlalchemy import text
+        db.execute(text("DELETE FROM monitoring.door_events"))
+    except Exception as e:
+        print("Skipping door_events delete:", e)
     db.query(Sensor).delete()
     db.query(Room).delete()
     db.commit()

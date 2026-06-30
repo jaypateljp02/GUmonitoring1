@@ -449,10 +449,12 @@ async def ingestion_loop():
                             open_alert = next((a for a in sensor_alerts if not a.resolved and "offline" not in (a.message or "").lower()), None)
                             
                             is_violating = False
-                            if s.max_threshold is not None and val > s.max_threshold:
-                                is_violating = True
-                            if s.min_threshold is not None and val < s.min_threshold:
-                                is_violating = True
+                            is_alert_enabled = not (s.min_threshold == 0 and s.max_threshold == 0)
+                            if is_alert_enabled:
+                                if s.max_threshold is not None and val > s.max_threshold:
+                                    is_violating = True
+                                if s.min_threshold is not None and val < s.min_threshold:
+                                    is_violating = True
                             
                             if open_alert:
                                 if not is_violating:
