@@ -13,10 +13,7 @@ from collections import defaultdict
 def _to_kwh(val) -> float:
     if val is None:
         return 0.0
-    f_val = float(val)
-    if f_val > 100.0:
-        return f_val / 1000.0
-    return f_val
+    return float(val) / 1000.0
 
 from backend.models.room import Room
 from backend.models.sensor import Sensor

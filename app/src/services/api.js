@@ -23,7 +23,13 @@ export const getServiceUrls = (currentUrl) => {
   let monitoringUrl = currentUrl;
   let adminUrl = currentUrl;
 
-  if (currentUrl.includes('monitoring-dot-')) {
+  if (currentUrl.includes('initiativesewafoundation.com')) {
+    authUrl = 'https://gu-auth.initiativesewafoundation.com';
+    productionUrl = 'https://gu-production.initiativesewafoundation.com';
+    tasksUrl = 'https://gu-task.initiativesewafoundation.com';
+    monitoringUrl = 'https://gu-monitoring.initiativesewafoundation.com';
+    adminUrl = 'https://gu-admin.initiativesewafoundation.com';
+  } else if (currentUrl.includes('monitoring-dot-')) {
     authUrl = currentUrl.replace('monitoring-dot-', '');
     productionUrl = currentUrl.replace('monitoring-dot-', 'production-dot-');
     tasksUrl = currentUrl.replace('monitoring-dot-', 'tasks-dot-');
@@ -37,20 +43,20 @@ export const getServiceUrls = (currentUrl) => {
     adminUrl = currentUrl.replace(/:\d+/, ':8004');
   } else {
     // Fallback
-    authUrl = 'https://groundup-499909.el.r.appspot.com';
-    productionUrl = 'https://production-dot-groundup-499909.el.r.appspot.com';
-    tasksUrl = 'https://tasks-dot-groundup-499909.el.r.appspot.com';
-    monitoringUrl = 'https://monitoring-dot-groundup-499909.el.r.appspot.com';
-    adminUrl = 'https://admin-dot-groundup-499909.el.r.appspot.com';
+    authUrl = 'https://gu-auth.initiativesewafoundation.com';
+    productionUrl = 'https://gu-production.initiativesewafoundation.com';
+    tasksUrl = 'https://gu-task.initiativesewafoundation.com';
+    monitoringUrl = 'https://gu-monitoring.initiativesewafoundation.com';
+    adminUrl = 'https://gu-admin.initiativesewafoundation.com';
   }
 
   return { auth: authUrl, production: productionUrl, tasks: tasksUrl, monitoring: monitoringUrl, admin: adminUrl };
 };
 
 export const api = axios.create({ baseURL: DEFAULT_API_URL });
-export const authApi = axios.create({ baseURL: 'https://groundup-499909.el.r.appspot.com' });
-export const productionApi = axios.create({ baseURL: 'https://production-dot-groundup-499909.el.r.appspot.com' });
-export const tasksApi = axios.create({ baseURL: 'https://tasks-dot-groundup-499909.el.r.appspot.com' });
+export const authApi = axios.create({ baseURL: 'https://gu-auth.initiativesewafoundation.com' });
+export const productionApi = axios.create({ baseURL: 'https://gu-production.initiativesewafoundation.com' });
+export const tasksApi = axios.create({ baseURL: 'https://gu-task.initiativesewafoundation.com' });
 
 const addAuthInterceptor = (instance) => {
   instance.interceptors.request.use(async (config) => {

@@ -1554,7 +1554,7 @@
             }
           });
           const valuesPower = historyData.map(log => log.apower);
-          const valuesEnergy = historyData.map(log => log.today_energy > 100.0 ? log.today_energy / 1000.0 : log.today_energy);
+          const valuesEnergy = historyData.map(log => log.today_energy / 1000.0); // Wh to kWh
 
           // Render Power Chart
           const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
