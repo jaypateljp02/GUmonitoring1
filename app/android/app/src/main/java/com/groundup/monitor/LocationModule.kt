@@ -8,7 +8,7 @@ import android.os.Bundle
 import com.facebook.react.bridge.*
 
 class LocationModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
-    private val locationManager = reactContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    private val locationManager = reactContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
     override fun getName(): String {
         return "LocationModule"
@@ -16,9 +16,14 @@ class LocationModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
 
     @ReactMethod
     fun getCurrentPosition(promise: Promise) {
+        val manager = locationManager
+        if (manager == null) {
+            promise.reject("LOCATION_UNAVAILABLE", "Location services are not available on this device.")
+            return
+        }
         try {
-            val hasGps = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-            val hasNetwork = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            val hasGps = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            val hasNetwork = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
 
             if (!hasGps && !hasNetwork) {
                 promise.reject("LOCATION_DISABLED", "Location services are disabled on this device.")
@@ -28,7 +33,7 @@ class LocationModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             val provider = if (hasGps) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
             
             // Check permissions dynamically (handled by Android security context)
-            val location = locationManager.getLastKnownLocation(provider)
+            val location = manager.getLastKnownLocation(provider)
             if (location != null) {
                 val map = Arguments.createMap()
                 map.putDouble("latitude", location.latitude)
@@ -38,7 +43,7 @@ class LocationModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             }
 
             // Fallback: request a single update
-            locationManager.requestSingleUpdate(provider, object : LocationListener {
+            manager.requestSingleUpdate(provider, object : LocationListener {
                 override fun onLocationChanged(loc: Location) {
                     val map = Arguments.createMap()
                     map.putDouble("latitude", loc.latitude)
