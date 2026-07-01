@@ -1313,7 +1313,7 @@
       return plugSelectedInterval[roomId] || '1';
     }
 
-    function switchTab(tab) {
+    function switchTab(tab, pushState = true) {
       currentTab = tab;
       document.body.className = `${tab}-active`;
       const tList = document.getElementById('tabList');
@@ -1343,6 +1343,19 @@
         tPlugs.classList.add('active');
         wPlugs.style.display = 'block';
         pollTapoPlugs(true);
+      }
+
+      // Hide detail view when switching tabs
+      const detailView = document.getElementById('detailView');
+      const listView = document.getElementById('listView');
+      if (detailView && listView) {
+        listView.classList.remove('hidden');
+        detailView.classList.remove('active');
+      }
+      if (detailInterval) clearInterval(detailInterval);
+
+      if (pushState) {
+        history.pushState({ tab }, '', `#${tab}`);
       }
     }
 
@@ -3369,7 +3382,7 @@
     }
 
     // Show detail screen
-    async function showDetail(roomId) {
+    async function showDetail(roomId, pushState = true) {
       const room = rooms.find(r => r.id === roomId);
       if (!room) return;
       const tempSensor = room.sensors?.find(s => s.type === 'temperature');
@@ -3423,9 +3436,13 @@
 
       pollDetail();
       detailInterval = setInterval(pollDetail, 30000);
+
+      if (pushState) {
+        history.pushState({ tab: currentTab, roomId }, '', `#detail/${roomId}`);
+      }
     }
 
-    function showList() {
+    function showList(pushState = true) {
       document.getElementById('listView').classList.remove('hidden');
       document.getElementById('detailView').classList.remove('active');
       if (detailInterval) clearInterval(detailInterval);
@@ -3438,7 +3455,48 @@
         extremesChartInstance = null;
       }
       pollList();
+
+      if (pushState) {
+        history.pushState({ tab: currentTab }, '', `#${currentTab}`);
+      }
     }
+
+    // SPA back navigation popstate support
+    window.addEventListener('popstate', (event) => {
+      if (event.state) {
+        if (event.state.roomId) {
+          showDetail(event.state.roomId, false);
+        } else if (event.state.tab) {
+          switchTab(event.state.tab, false);
+        } else {
+          switchTab('map', false);
+        }
+      } else {
+        const hash = window.location.hash.replace('#', '');
+        if (hash.startsWith('detail/')) {
+          const roomId = hash.replace('detail/', '');
+          showDetail(roomId, false);
+        } else if (hash) {
+          switchTab(hash, false);
+        } else {
+          switchTab('map', false);
+        }
+      }
+    });
+
+    // Check hash on initial load
+    setTimeout(() => {
+      const initialHash = window.location.hash.replace('#', '');
+      if (initialHash.startsWith('detail/')) {
+        const roomId = initialHash.replace('detail/', '');
+        switchTab('list', false);
+        showDetail(roomId, false);
+      } else if (initialHash) {
+        switchTab(initialHash, false);
+      } else {
+        switchTab('map', false);
+      }
+    }, 500);
 
     async function pollDetail() {
       if (!currentDevice) return;
