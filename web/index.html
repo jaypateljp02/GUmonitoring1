@@ -69,6 +69,19 @@
       transition: max-width 0.3s ease;
     }
 
+    /* Responsive page widths for larger tablet and desktop screens */
+    @media (min-width: 768px) {
+      .page {
+        max-width: 800px !important;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .page {
+        max-width: 1100px !important;
+      }
+    }
+
     body.map-active .page,
     body.plugs-active .page {
       max-width: 1000px;
