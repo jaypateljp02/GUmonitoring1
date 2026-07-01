@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ground Up Monitor</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
@@ -173,8 +174,8 @@
       background: rgba(10, 15, 30, 0.85);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 6px 10px;
-      border-radius: 10px;
+      padding: 3px 6px;
+      border-radius: 6px;
       color: #FFFFFF;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     }
@@ -1553,7 +1554,7 @@
             }
           });
           const valuesPower = historyData.map(log => log.apower);
-          const valuesEnergy = historyData.map(log => log.today_energy / 1000.0); // Wh to kWh
+          const valuesEnergy = historyData.map(log => log.today_energy > 100.0 ? log.today_energy / 1000.0 : log.today_energy);
 
           // Render Power Chart
           const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
@@ -2465,8 +2466,7 @@
         pinsHtml += `
           <div class="map-pin" id="pin-${room.id}" data-room-id="${room.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${room.name}">
             ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
-            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 6px 10px; display: flex; align-items: center; gap: 6px; border-radius: 10px;">
-              <div class="pin-dot ${dotClass}"></div>
+            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 3px 6px; display: flex; align-items: center; gap: 6px; border-radius: 6px;">
               <div style="display: flex; flex-direction: column;">
                 ${badgeLabel}
                 <span class="pin-name" style="font-size: 8px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>

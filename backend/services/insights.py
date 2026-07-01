@@ -7,8 +7,16 @@ import json
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, Date
 from collections import defaultdict
+
+def _to_kwh(val) -> float:
+    if val is None:
+        return 0.0
+    f_val = float(val)
+    if f_val > 100.0:
+        return f_val / 1000.0
+    return f_val
 
 from backend.models.room import Room
 from backend.models.sensor import Sensor
@@ -115,7 +123,8 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
                 p_max = round(max(power_vals), 1)
                 
             if energy_vals:
-                energy_kwh = round(max(energy_vals) / 1000.0, 3)
+                max_energy = max(energy_vals)
+                energy_kwh = round(max_energy / 1000.0 if max_energy > 100.0 else max_energy, 3)
                 
             was_running = False
             for i, log in enumerate(p_logs):
@@ -230,7 +239,7 @@ def fetch_7d_baselines(db: Session, room: Room, sensors: list):
         daily_starts.append(day_starts_count)
         
         max_energy = max(float(x.today_energy) for x in day_logs) if day_logs else 0.0
-        daily_energies.append(max_energy / 1000.0)
+        daily_energies.append(max_energy / 1000.0 if max_energy > 100.0 else max_energy)
 
     num_days = len(daily_logs) if daily_logs else 1
     
@@ -242,6 +251,54 @@ def fetch_7d_baselines(db: Session, room: Room, sensors: list):
         "energy_kwh": round(sum(daily_energies) / num_days, 3)
     }
 
+def fetch_7d_daily_history(db: Session, room: Room, sensors: list) -> list:
+    """Fetch daily averages/metrics for the last 7 days to provide trend analysis."""
+    temp_sensor = next((s for s in sensors if s.type == "temperature" and s.active), None)
+    device_id = temp_sensor.device_id if temp_sensor else None
+    if not device_id:
+        return []
+        
+    cutoff_7d = datetime.utcnow() - timedelta(days=7)
+    
+    # Query daily temperatures grouped by Date
+    temp_query = db.query(
+        cast(DeviceTelemetry.timestamp, Date).label("date"),
+        func.avg(DeviceTelemetry.temperature).label("t_avg")
+    ).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= cutoff_7d
+    ).group_by(cast(DeviceTelemetry.timestamp, Date)).order_by("date").all()
+    
+    # Query daily plug telemetries
+    has_plug = temp_sensor is not None and temp_sensor.tapo_ip is not None and len(str(temp_sensor.tapo_ip).strip()) > 0
+    plug_data = {}
+    if has_plug:
+        plug_query = db.query(
+            cast(PlugTelemetry.timestamp, Date).label("date"),
+            func.max(PlugTelemetry.today_energy).label("energy_wh"),
+            func.avg(PlugTelemetry.apower).label("p_avg")
+        ).filter(
+            PlugTelemetry.device_id == device_id,
+            PlugTelemetry.timestamp >= cutoff_7d
+        ).group_by(cast(PlugTelemetry.timestamp, Date)).all()
+        for row in plug_query:
+            plug_data[row.date] = {
+                "energy_kwh": _to_kwh(row.energy_wh),
+                "p_avg": round(float(row.p_avg), 1) if row.p_avg is not None else 0.0
+            }
+            
+    history = []
+    for row in temp_query:
+        d = row.date
+        p_metrics = plug_data.get(d, {"energy_kwh": None, "p_avg": None})
+        history.append({
+            "date": d.isoformat() if hasattr(d, 'isoformat') else str(d),
+            "t_avg": round(float(row.t_avg), 1) if row.t_avg is not None else None,
+            "energy_kwh": p_metrics["energy_kwh"],
+            "p_avg": p_metrics["p_avg"]
+        })
+    return history
+
 async def call_gemini_diagnose(telemetry_data: list) -> dict:
     """Send structured telemetry data to the Gemini API to get diagnostic insights."""
     api_key = os.getenv("GEMINI_API_KEY")
@@ -252,39 +309,33 @@ async def call_gemini_diagnose(telemetry_data: list) -> dict:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     
     prompt = f"""
-    You are an expert thermal dynamics and refrigeration maintenance engineer for a food/fermentation factory (Ground Up, Pune, India). Analyze the 24h operational telemetry below, comparing against 7-day baselines.
-    
-    CRITICAL CONTEXT:
-    - Each entry has a "room_type" field: "fridge", "freezer", or "room".
-    - Fridges and freezers run compressors near-continuously (20-24 hours/day is NORMAL). Do NOT flag high absolute runtime as a problem. Only flag significant CHANGES vs the 7-day baseline.
-    - "room" type entries have AC units. ACs can also run long hours during hot days. Again, focus on CHANGE vs baseline, not absolute runtime.
-    - The smart plug is always powered ON. The "apower" (watts) field shows compressor state: high power = compressor running, low power = compressor standby. The plug itself never turns off.
-    - Standby power varies by device type: fridges draw ~100-130W even in standby (fans/electronics), AC units draw ~30W in standby.
-    - The "tapo_running_threshold" determines the boundary between standby and running. This is calibrated per device.
-    - For devices WITHOUT a plug (has_plug = false), diagnose on temperature only.
-    
-    DIAGNOSTIC APPROACH - Combine temperature + power signals:
-    - Temp rising above max + low runtime = Equipment not cooling (power issue, turned off)
-    - Temp rising above max + high runtime = Compressor running but failing (gas leak, dirty coils, door open)
-    - Temp normal + runtime significantly above baseline = Early inefficiency (system overworking)
-    - Temp normal + starts significantly above baseline = Short-cycling
-    - Temp falling below min = Over-cooling / thermostat issue
-    - Temp normal + runtime normal = Healthy
-    
-    Telemetry Data:
+    You are an expert thermal dynamics, HVAC, and refrigeration maintenance engineer for the Ground Up food/fermentation factory in Pune, India. 
+    Analyze the 24h operational telemetry below, comparing it carefully against the 7-day baselines to identify short-term anomalies and multi-day degrading trends.
+
+    CRITICAL CONTEXT & PATTERN RECOGNITION:
+    - Each entry has a "room_type" ("fridge", "freezer", "room") and specific room names (e.g. "Miso Room", "Vinegar Room", "Device 1").
+    - Fridges and freezers run compressors near-continuously (20-24 hours/day is NORMAL). Do NOT flag high absolute runtime as a problem. Instead, analyze changes against the 7-day baseline.
+    - "room" type entries (like the Miso Room or Vinegar Room) use AC units or heaters. Focus on relative changes in runtimes and cycles compared to their respective 7-day averages.
+    - Smart plugs are always powered ON physically. The active power ("apower" in watts) drops during standby/idle cycles.
+    - If you see a multi-day trend where runtime increases (e.g. 15-30% above the 7-day average) while the target temperature is either stable or gradually creeping up, diagnose this as a potential slow refrigerant gas leak, dust-clogged condenser coils, or deteriorating door gaskets.
+    - If you detect frequent cycles (short-cycling) exceeding baseline cycles by 1.5x, recommend calibrating thermostat differentials and inspecting filters.
+    - For Vinegar Room: Note that its smart plug must remain constantly powered ON. Analyze its telemetry for any over-cooling or under-cooling anomalies.
+    - Tailor all action items specifically to the room category and equipment type (e.g., vinegar/miso room vs. storage fridge).
+
+    Telemetry Data (last 24 hours vs 7-day baseline):
     {json.dumps(telemetry_data, indent=2)}
 
     Format your output strictly as a JSON object matching this schema:
     {{
       "overall_status": "healthy" | "warning" | "critical",
-      "whatsapp_message": "A short, friendly 2-3 sentence overview for the factory manager.",
+      "whatsapp_message": "A dynamic, insightful 2-3 sentence overview highlighting the most important equipment trends, warnings, or anomalies from the day.",
       "diagnoses": [
         {{
           "room_name": "Name of the room",
           "status": "healthy" | "warning" | "critical",
-          "analysis": "A detailed engineering observation correlating temperature behavior with compressor runtime, cycle count, and energy draw. Reference both temperature and power data together.",
+          "analysis": "A detailed, dynamic engineering observation correlating temperature behavior with compressor runtime, cycle count, and energy draw. Discuss multi-day baseline variations and identify potential root causes (e.g. gas leak, gasket failure, short-cycling) if anomalies are present.",
           "action_items": [
-            "Specific recommendations (e.g. check gaskets, clean condenser coils, inspect thermostat settings, check power connection)"
+            "Highly specific, actionable recommendation tailored to this specific equipment (e.g. check Vinegar Room thermostat calibration, clean condenser coils, verify door gasket seal, inspect refrigeration gas pressure)"
           ]
         }}
       ]
@@ -662,12 +713,14 @@ async def generate_report_html(db: Session) -> tuple[str, str]:
     for room, room_sensors in monitored_rooms:
         last_24h = query_24h_room_metrics(db, room, cutoff_24h, room_sensors)
         baselines = fetch_7d_baselines(db, room, room_sensors)
+        history = fetch_7d_daily_history(db, room, room_sensors)
         
         telemetry_data.append({
             "room_name": room.name,
             "room_type": room.type,
             "last_24h": last_24h,
-            "baseline_7d": baselines
+            "baseline_7d": baselines,
+            "daily_history_7d": history
         })
 
     # 3. Call Gemini to get diagnostic insights
