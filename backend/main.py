@@ -208,7 +208,11 @@ def download_apk():
     return {"error": "APK file not found"}
 
 @app.get("/download/tasks-apk", tags=["App"])
+@app.get("/tasks.apk", tags=["App"])
 def download_tasks_apk():
+    local_path = os.path.join(os.path.dirname(__file__), "..", "..", "ground-up-tasks", "app", "android", "app", "build", "outputs", "apk", "release", "app-release.apk")
+    if os.path.exists(local_path):
+        return FileResponse(local_path, media_type="application/vnd.android.package-archive", filename="tasks-app.apk")
     return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/tasks-app.apk")
 
 @app.get("/download/admin-apk", tags=["App"])
