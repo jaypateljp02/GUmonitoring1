@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger("tapo-edge-agent")
 
 # Load environment configuration
-load_dotenv(override=True)
+load_dotenv()
 
 CLOUD_API_URL = os.getenv("CLOUD_API_URL", "https://monitoring-dot-groundup-499909.el.r.appspot.com")
 EDGE_API_KEY = os.getenv("EDGE_API_KEY", "factory-tapo-123")
@@ -39,73 +39,72 @@ async def get_tapo_telemetry_async(ip: str, username: str, password: str) -> dic
         credentials = AuthCredential(username, password)
         config = DeviceConnectConfiguration(host=ip, credentials=credentials)
         
-        import aiohttp
-        connector = aiohttp.TCPConnector(ssl=False)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            device = await connect(config, session=session)
-            await device.update()
-            device_on = device.is_on
-            state = "on" if device_on else "off"
+        # Connect to device (using cache if already connected)
+        if ip in device_clients:
+            device = device_clients[ip]
+        else:
+            device = await connect(config)
+            device_clients[ip] = device
             
-            power_w = 0.0
-            today_energy = 0.0
-            month_energy = 0.0
-            voltage = 230.0
+        await device.update()
+        device_on = device.is_on
+        state = "on" if device_on else "off"
+        
+        power_w = 0.0
+        today_energy = 0.0
+        month_energy = 0.0
+        voltage = 230.0
+        current = 0.0
+        
+        energy_comp = device.get_component(EnergyComponent)
+        if energy_comp:
+            energy_info = energy_comp.energy_info
+            power_info = energy_comp.power_info
+            
+            if energy_info:
+                if energy_info.today_energy is not None:
+                    today_energy = float(energy_info.today_energy)
+                if energy_info.month_energy is not None:
+                    month_energy = float(energy_info.month_energy)
+                if energy_info.current_power is not None:
+                    power_w = float(energy_info.current_power) / 1000.0  # mW to W
+                    
+            if power_info and power_info.current_power is not None:
+                if power_w == 0.0:
+                    power_w = float(power_info.current_power)
+                    
+            unmapped = energy_info.get_unmapped_state() if energy_info else {}
+            voltage_mv = unmapped.get("voltage") or unmapped.get("voltage_mv") or unmapped.get("voltage_v")
+            current_ma = unmapped.get("current") or unmapped.get("current_ma") or unmapped.get("current_a")
+            
+            if voltage_mv is not None:
+                voltage = float(voltage_mv) / 1000.0 if float(voltage_mv) > 1000 else float(voltage_mv)
+            if current_ma is not None:
+                current = float(current_ma) / 1000.0 if float(current_ma) > 10 else float(current_ma)
+                
+        # Clean up and estimate logic if device is off or unmapped values are zero
+        if state == "off":
+            apower = 0.0
             current = 0.0
-            
-            energy_comp = device.get_component(EnergyComponent)
-            if energy_comp:
-                try:
-                    energy_info = energy_comp.energy_info
-                    power_info = energy_comp.power_info
-                    
-                    if energy_info and getattr(energy_info, 'info', None) is not None:
-                        if energy_info.today_energy is not None:
-                            today_energy = float(energy_info.today_energy)
-                        if energy_info.month_energy is not None:
-                            month_energy = float(energy_info.month_energy)
-                        if energy_info.current_power is not None:
-                            power_w = float(energy_info.current_power) / 1000.0  # mW to W
-                            
-                    if power_info and getattr(power_info, 'info', None) is not None and power_info.current_power is not None:
-                        if power_w == 0.0:
-                            power_w = float(power_info.current_power)
-                            
-                    unmapped = {}
-                    if energy_info and getattr(energy_info, 'info', None) is not None:
-                        unmapped = energy_info.get_unmapped_state() or {}
-                    voltage_mv = unmapped.get("voltage") or unmapped.get("voltage_mv") or unmapped.get("voltage_v")
-                    current_ma = unmapped.get("current") or unmapped.get("current_ma") or unmapped.get("current_a")
-                    
-                    if voltage_mv is not None:
-                        voltage = float(voltage_mv) / 1000.0 if float(voltage_mv) > 1000 else float(voltage_mv)
-                    if current_ma is not None:
-                        current = float(current_ma) / 1000.0 if float(current_ma) > 10 else float(current_ma)
-                except (AttributeError, TypeError) as energy_err:
-                    logger.warning(f"Could not read energy data from plug at {ip}: {energy_err}")
-                    
-            # Clean up and estimate logic if device is off or unmapped values are zero
-            if state == "off":
-                apower = 0.0
-                current = 0.0
-            else:
-                apower = power_w
-                if not voltage or voltage == 0.0:
-                    voltage = 230.0
-                if (not current or current == 0.0) and apower > 0.0:
-                    current = apower / voltage
-                    
-            return {
-                "state": state,
-                "voltage": round(voltage, 1),
-                "current": round(current, 3),
-                "apower": round(apower, 1),
-                "today_energy": today_energy,  # in Wh
-                "month_energy": month_energy   # in Wh
-            }
+        else:
+            apower = power_w
+            if not voltage or voltage == 0.0:
+                voltage = 230.0
+            if (not current or current == 0.0) and apower > 0.0:
+                current = apower / voltage
+                
+        return {
+            "state": state,
+            "voltage": round(voltage, 1),
+            "current": round(current, 3),
+            "apower": round(apower, 1),
+            "today_energy": today_energy,  # in Wh
+            "month_energy": month_energy   # in Wh
+        }
     except Exception as e:
-        import traceback
-        logger.error(f"Full traceback for {ip}: {traceback.format_exc()}")
+        # If connection fails, remove from cache to force fresh connect next time
+        if ip in device_clients:
+            device_clients.pop(ip)
         raise e
 
 def call_api_sync(method: str, url: str, **kwargs) -> requests.Response:

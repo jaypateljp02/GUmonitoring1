@@ -78,7 +78,7 @@ def startup_event():
     else:
         print("Worker thread disabled via DISABLE_WORKER=true")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(sensors.router)
 app.include_router(rooms.router)
@@ -199,20 +199,12 @@ def update_apk_url_cache():
     except Exception as e:
         logger.error(f"Failed to update APK cache from EAS: {e}")
 
-@app.get("/app.apk", tags=["App"])
 @app.get("/download/apk", tags=["App"])
 def download_apk():
-    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
-    if os.path.exists(apk_path):
-        return FileResponse(apk_path, media_type="application/vnd.android.package-archive", filename="app.apk")
-    return {"error": "APK file not found"}
+    return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/monitoring-app.apk")
 
 @app.get("/download/tasks-apk", tags=["App"])
-@app.get("/tasks.apk", tags=["App"])
 def download_tasks_apk():
-    local_path = os.path.join(os.path.dirname(__file__), "..", "..", "ground-up-tasks", "app", "android", "app", "build", "outputs", "apk", "release", "app-release.apk")
-    if os.path.exists(local_path):
-        return FileResponse(local_path, media_type="application/vnd.android.package-archive", filename="tasks-app.apk")
     return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/tasks-app.apk")
 
 @app.get("/download/admin-apk", tags=["App"])

@@ -230,7 +230,6 @@ async def ingestion_loop():
     client = None
     use_live = False
     has_credentials = bool(email and password)
-    last_report_date = None
 
     if has_credentials:
         logger.info(f"Initializing official eWeLink client for {email}...")
@@ -450,12 +449,10 @@ async def ingestion_loop():
                             open_alert = next((a for a in sensor_alerts if not a.resolved and "offline" not in (a.message or "").lower()), None)
                             
                             is_violating = False
-                            is_alert_enabled = not (s.min_threshold == 0 and s.max_threshold == 0)
-                            if is_alert_enabled:
-                                if s.max_threshold is not None and val > s.max_threshold:
-                                    is_violating = True
-                                if s.min_threshold is not None and val < s.min_threshold:
-                                    is_violating = True
+                            if s.max_threshold is not None and val > s.max_threshold:
+                                is_violating = True
+                            if s.min_threshold is not None and val < s.min_threshold:
+                                is_violating = True
                             
                             if open_alert:
                                 if not is_violating:
@@ -558,21 +555,6 @@ async def ingestion_loop():
             try:
                 db.commit()
                 logger.info("Successfully committed ingestion cycle telemetry and alerts in a single transaction.")
-                
-                # Trigger Scheduled Daily Email Report at 08:00 AM local time
-                now_local = datetime.now()
-                if now_local.hour >= 8 and last_report_date != now_local.date():
-                    logger.info(f"Triggering scheduled daily report at {now_local.strftime('%Y-%m-%d %H:%M:%S')}...")
-                    try:
-                        from backend.services.insights import generate_daily_report
-                        success = await generate_daily_report(db)
-                        if success:
-                            last_report_date = now_local.date()
-                            logger.info("Scheduled daily report sent successfully.")
-                        else:
-                            logger.warning("Scheduled daily report completed, but not sent.")
-                    except Exception as rep_err:
-                        logger.error(f"Error triggering scheduled daily report: {rep_err}", exc_info=True)
             except Exception as e:
                 logger.error(f"Error committing batch telemetry ingestion: {e}")
                 db.rollback()

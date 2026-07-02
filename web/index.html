@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ground Up Monitor</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
@@ -32,12 +30,8 @@
       --accent-pink-bg: #fdf2f8;
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
       font-family: 'Inter', -apple-system, sans-serif;
       background: #f3f4f6;
@@ -48,214 +42,88 @@
       position: relative;
       overflow-x: hidden;
     }
-
     body::before {
       content: "";
       position: fixed;
-      top: -10%;
-      left: -10%;
-      width: 120%;
-      height: 120%;
+      top: -10%; left: -10%;
+      width: 120%; height: 120%;
       background: radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.03) 0%, transparent 45%),
-        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.03) 0%, transparent 45%);
+                  radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.03) 0%, transparent 45%);
       pointer-events: none;
       z-index: -1;
     }
 
-    .page {
-      padding: 16px;
-      max-width: 480px;
-      margin: 0 auto;
-      transition: max-width 0.3s ease;
-    }
-
-    /* Responsive page widths for larger tablet and desktop screens */
-    @media (min-width: 768px) {
-      .page {
-        max-width: 800px !important;
-      }
-    }
-
-    @media (min-width: 1200px) {
-      .page {
-        max-width: 1100px !important;
-      }
-    }
-
-    body.map-active .page,
-    body.plugs-active .page {
-      max-width: 1000px;
-    }
+    .page { padding: 16px; max-width: 480px; margin: 0 auto; transition: max-width 0.3s ease; }
+    body.map-active .page, body.plugs-active .page { max-width: 1000px; }
 
     /* Header */
     .header {
-      font-size: 28px;
-      font-weight: 800;
+      font-size: 28px; font-weight: 800;
       background: linear-gradient(135deg, #111827 0%, #2563eb 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 2px;
-      letter-spacing: -0.5px;
+      margin-bottom: 2px; letter-spacing: -0.5px;
     }
-
-    .subheader {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-bottom: 16px;
-      font-weight: 500;
-    }
-
-    .section-title {
-      font-size: 11px;
-      font-weight: 800;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-    }
+    .subheader { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; font-weight: 500; }
+    .section-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
 
     /* Tabs Navigation */
     .tabs {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 16px;
-      background: rgba(0, 0, 0, 0.03);
-      padding: 4px;
-      border-radius: 12px;
-      border: 1px solid rgba(0, 0, 0, 0.04);
+      display: flex; gap: 6px; margin-bottom: 16px;
+      background: rgba(0,0,0,0.03); padding: 4px; border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.04);
     }
-
     .tab {
-      flex: 1;
-      padding: 8px;
-      text-align: center;
-      font-weight: 700;
-      font-size: 13px;
-      cursor: pointer;
-      border-radius: 8px;
-      color: var(--text-secondary);
-      transition: all 0.2s ease-in-out;
+      flex: 1; padding: 8px; text-align: center; font-weight: 700;
+      font-size: 13px; cursor: pointer; border-radius: 8px;
+      color: var(--text-secondary); transition: all 0.2s ease-in-out;
     }
-
     .tab.active {
-      background: #ffffff;
-      color: var(--text-primary);
+      background: #ffffff; color: var(--text-primary);
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-      border: 1px solid rgba(0, 0, 0, 0.02);
+      border: 1px solid rgba(0,0,0,0.02);
     }
 
     /* Map View Container */
     .map-view {
-      display: none;
-      position: relative;
-      background: #e5e7eb;
-      border-radius: 16px;
-      border: 1px solid var(--card-border);
-      overflow: hidden;
-      aspect-ratio: 16/9;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      display: none; position: relative; background: #e5e7eb;
+      border-radius: 16px; border: 1px solid var(--card-border); overflow: hidden;
+      aspect-ratio: 16/9; margin-bottom: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
-
-    .map-view.active {
-      display: block;
-    }
-
-    .map-image {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0.85;
-    }
-
+    .map-view.active { display: block; }
+    .map-image { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
+    
     .map-pin {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-      cursor: pointer;
-      transition: transform 0.2s;
+      position: absolute; transform: translate(-50%, -50%);
+      z-index: 10; cursor: pointer; transition: transform 0.2s;
     }
-
-    .map-pin:hover {
-      transform: translate(-50%, -50%) scale(1.08);
-    }
-
+    .map-pin:hover { transform: translate(-50%, -50%) scale(1.08); }
     .pin-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(10, 15, 30, 0.85);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 3px 6px;
-      border-radius: 6px;
-      color: #FFFFFF;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(10, 15, 30, 0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1); padding: 6px 10px;
+      border-radius: 10px; color: #FFFFFF; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-
-    .pin-badge.alert {
-      background: rgba(220, 38, 38, 0.85);
-      border-color: #ef4444;
-    }
-
-    .pin-badge.offline {
-      background: rgba(55, 65, 81, 0.85);
-      border-color: #6b7280;
-    }
-
-    .pin-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #38bdf8;
-    }
-
-    .pin-dot.alert {
-      background: #ef4444;
-    }
-
-    .pin-dot.offline {
-      background: #6b7280;
-    }
-
+    .pin-badge.alert { background: rgba(220, 38, 38, 0.85); border-color: #ef4444; }
+    .pin-badge.offline { background: rgba(55, 65, 81, 0.85); border-color: #6b7280; }
+    .pin-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; }
+    .pin-dot.alert { background: #ef4444; }
+    .pin-dot.offline { background: #6b7280; }
     .pin-name {
-      font-size: 8px;
-      color: var(--text-secondary);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      max-width: 60px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 8px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+      max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-
-    .pin-temp {
-      font-size: 11px;
-      font-weight: bold;
-    }
+    .pin-temp { font-size: 11px; font-weight: bold; }
 
     .pulse-ring-web {
-      position: absolute;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: rgba(239, 68, 68, 0.35);
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      animation: pin-pulse 1.6s infinite;
+      position: absolute; width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(239, 68, 68, 0.35); transform: translate(-50%, -50%);
+      pointer-events: none; animation: pin-pulse 1.6s infinite;
     }
-
     @keyframes pin-pulse {
-      0% {
-        transform: translate(-50%, -50%) scale(0.5);
-        opacity: 1;
-      }
-
-      100% {
-        transform: translate(-50%, -50%) scale(1.6);
-        opacity: 0;
-      }
+      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
     }
 
     /* Sensor List Card */
@@ -272,473 +140,179 @@
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
-
     .sensor-card:hover {
       background: var(--card-hover-bg);
       transform: translateY(-1px);
       border-color: rgba(0, 0, 0, 0.12);
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     }
-
-    .sensor-card:active {
-      transform: scale(0.98);
-    }
-
-    .sensor-card.alert-border {
-      border-color: var(--accent-red);
-      background: var(--accent-red-bg);
-    }
-
-    .sensor-card.offline-border {
-      border-color: #cbd5e1;
-      background: #f1f5f9;
-    }
-
-    .sensor-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .sensor-icon {
-      font-size: 24px;
-    }
-
-    .sensor-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .sensor-id-text {
-      font-size: 11px;
-      color: var(--accent-blue);
-      font-family: monospace;
-      margin-top: 1px;
-    }
-
-    .sensor-right {
-      text-align: right;
-    }
-
-    .sensor-temp {
-      font-size: 24px;
-      font-weight: 900;
-      color: var(--text-primary);
-      letter-spacing: -0.5px;
-    }
-
-    .sensor-temp.alert {
-      color: var(--accent-red);
-    }
-
-    .sensor-temp.offline {
-      color: #6b7280;
-    }
-
+    .sensor-card:active { transform: scale(0.98); }
+    .sensor-card.alert-border { border-color: var(--accent-red); background: var(--accent-red-bg); }
+    .sensor-card.offline-border { border-color: #cbd5e1; background: #f1f5f9; }
+    
+    .sensor-left { display: flex; align-items: center; gap: 10px; }
+    .sensor-icon { font-size: 24px; }
+    .sensor-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .sensor-id-text { font-size: 11px; color: var(--accent-blue); font-family: monospace; margin-top: 1px; }
+    
+    .sensor-right { text-align: right; }
+    .sensor-temp { font-size: 24px; font-weight: 900; color: var(--text-primary); letter-spacing: -0.5px; }
+    .sensor-temp.alert { color: var(--accent-red); }
+    .sensor-temp.offline { color: #6b7280; }
+    
     /* Battery/Time info on right side */
     .sensor-card-meta {
-      display: flex;
-      gap: 8px;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--text-secondary);
-      margin-bottom: 2px;
-      justify-content: flex-end;
+      display: flex; gap: 8px; font-size: 10px; font-weight: 700;
+      color: var(--text-secondary); margin-bottom: 2px; justify-content: flex-end;
     }
-
-    .meta-item-bat {
-      color: #059669;
-    }
-
-    .meta-item-time {
-      color: var(--text-secondary);
-    }
+    .meta-item-bat { color: #059669; }
+    .meta-item-time { color: var(--text-secondary); }
 
     .sensor-badge {
-      font-size: 10px;
-      font-weight: 800;
-      margin-top: 4px;
-      padding: 2.5px 8px;
-      border-radius: 6px;
-      display: inline-block;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
+      font-size: 10px; font-weight: 800; margin-top: 4px;
+      padding: 2.5px 8px; border-radius: 6px; display: inline-block;
+      letter-spacing: 0.5px; text-transform: uppercase;
     }
-
-    .badge-ok {
-      background: rgba(16, 185, 129, 0.08);
-      color: #059669;
-      border: 1px solid rgba(16, 185, 129, 0.15);
-    }
-
-    .badge-alert {
-      background: rgba(239, 68, 68, 0.08);
-      color: var(--accent-red);
-      border: 1px solid rgba(239, 68, 68, 0.15);
-    }
-
-    .badge-offline {
-      background: rgba(107, 114, 128, 0.08);
-      color: #4b5563;
-      border: 1px solid rgba(107, 114, 128, 0.15);
-    }
-
-    .footer-text {
-      text-align: center;
-      color: var(--text-secondary);
-      font-size: 11px;
-      margin-top: 16px;
-    }
+    .badge-ok { background: rgba(16, 185, 129, 0.08); color: #059669; border: 1px solid rgba(16, 185, 129, 0.15); }
+    .badge-alert { background: rgba(239, 68, 68, 0.08); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.15); }
+    .badge-offline { background: rgba(107, 114, 128, 0.08); color: #4b5563; border: 1px solid rgba(107, 114, 128, 0.15); }
+    .footer-text { text-align: center; color: var(--text-secondary); font-size: 11px; margin-top: 16px; }
 
     /* ─── Detail View ─── */
-    .detail-view {
-      display: none;
-    }
-
-    .detail-view.active {
-      display: block;
-    }
-
-    .list-view.hidden {
-      display: none;
-    }
+    .detail-view { display: none; }
+    .detail-view.active { display: block; }
+    .list-view.hidden { display: none; }
 
     .back-btn {
-      background: none;
-      border: none;
-      color: #2563eb;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-bottom: 14px;
-      font-family: 'Inter', sans-serif;
-      padding: 0;
+      background: none; border: none; color: #2563eb; font-size: 13px;
+      font-weight: 700; cursor: pointer; margin-bottom: 14px;
+      font-family: 'Inter', sans-serif; padding: 0;
       transition: color 0.15s;
     }
-
-    .back-btn:hover {
-      color: #1d4ed8;
-    }
-
-    .detail-header {
-      font-size: 24px;
-      font-weight: 800;
-      color: var(--text-primary);
-      margin-bottom: 16px;
-      letter-spacing: -0.5px;
-    }
+    .back-btn:hover { color: #1d4ed8; }
+    .detail-header { font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 16px; letter-spacing: -0.5px; }
 
     /* Clean light Card layout */
     .card {
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 10px;
+      border-radius: 12px; padding: 12px; margin-bottom: 10px;
       border: 1px solid var(--card-border);
       background: var(--card-bg);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
-
-    .card.offline-card {
-      border-color: #cbd5e1;
-      background: #f1f5f9;
-    }
-
-    .card.alarm {
-      animation: neon-alarm-flash 1.2s infinite ease-in-out;
-    }
-
+    .card.offline-card { border-color: #cbd5e1; background: #f1f5f9; }
+    .card.alarm { animation: neon-alarm-flash 1.2s infinite ease-in-out; }
     @keyframes neon-alarm-flash {
-
-      0%,
-      100% {
-        border-color: var(--card-border);
-        background: var(--card-bg);
-      }
-
-      50% {
-        border-color: rgba(239, 68, 68, 0.3);
-        background: rgba(239, 68, 68, 0.04);
-      }
+      0%, 100% { border-color: var(--card-border); background: var(--card-bg); }
+      50% { border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.04); }
     }
 
-    .card-title {
-      color: var(--text-secondary);
-      font-size: 10px;
-      margin-bottom: 8px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
-    .row {
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .row+.row {
-      margin-top: 8px;
-    }
-
-    .metric-box {
-      flex: 1;
-    }
-
-    .metric-label {
-      color: var(--text-secondary);
-      font-size: 10px;
-      margin-bottom: 3px;
-      font-weight: 600;
-    }
-
-    .metric-value {
-      color: var(--text-primary);
-      font-size: 18px;
-      font-weight: 800;
-    }
+    .card-title { color: var(--text-secondary); font-size: 10px; margin-bottom: 8px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .row { display: flex; justify-content: space-between; }
+    .row + .row { margin-top: 8px; }
+    .metric-box { flex: 1; }
+    .metric-label { color: var(--text-secondary); font-size: 10px; margin-bottom: 3px; font-weight: 600; }
+    .metric-value { color: var(--text-primary); font-size: 18px; font-weight: 800; }
 
     /* Expanded Grid Items */
     .stat-box-large {
-      flex: 1.25;
-      padding: 8px 4px;
-      border-radius: 10px;
-      text-align: center;
-      transition: all 0.2s ease-in-out;
-      border: 1px solid transparent;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+      flex: 1.25; padding: 8px 4px; border-radius: 10px; text-align: center;
+      transition: all 0.2s ease-in-out; border: 1px solid transparent;
+      display: flex; flex-direction: column; justify-content: center;
     }
-
-    .stat-box-large:hover {
-      transform: translateY(-2px);
-    }
-
+    .stat-box-large:hover { transform: translateY(-2px); }
     .stat-box-avg {
-      flex: 0.85;
-      padding: 6px 4px;
-      border-radius: 8px;
+      flex: 0.85; padding: 6px 4px; border-radius: 8px;
     }
-
+    
     /* Temp stat cards */
-    .stat-temp-min {
-      background-color: var(--accent-blue-bg);
-      border-color: var(--accent-blue-border);
-    }
-
-    .stat-temp-avg {
-      background-color: #f3f4f6;
-      border-color: #e5e7eb;
-    }
-
-    .stat-temp-max {
-      background-color: var(--accent-red-bg);
-      border-color: var(--accent-red-border);
-    }
-
+    .stat-temp-min { background-color: var(--accent-blue-bg); border-color: var(--accent-blue-border); }
+    .stat-temp-avg { background-color: #f3f4f6; border-color: #e5e7eb; }
+    .stat-temp-max { background-color: var(--accent-red-bg); border-color: var(--accent-red-border); }
+    
     /* Hum stat cards */
-    .stat-hum-min {
-      background-color: var(--accent-purple-bg);
-      border-color: var(--accent-purple-border);
-    }
+    .stat-hum-min { background-color: var(--accent-purple-bg); border-color: var(--accent-purple-border); }
+    .stat-hum-avg { background-color: #f3f4f6; border-color: #e5e7eb; }
+    .stat-hum-max { background-color: var(--accent-pink-bg); border-color: var(--accent-pink-border); }
 
-    .stat-hum-avg {
-      background-color: #f3f4f6;
-      border-color: #e5e7eb;
-    }
-
-    .stat-hum-max {
-      background-color: var(--accent-pink-bg);
-      border-color: var(--accent-pink-border);
-    }
-
-    .stat-label-large {
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
-
-    .stat-label-avg {
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      margin-bottom: 2px;
-      text-transform: uppercase;
-    }
-
-    .stat-val-large {
-      font-size: 20px;
-      font-weight: 900;
-      line-height: 1.1;
-    }
-
-    .stat-val-avg {
-      font-size: 16px;
-      font-weight: 800;
-      line-height: 1.1;
-    }
+    .stat-label-large { font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px; text-transform: uppercase; }
+    .stat-label-avg { font-size: 8px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px; text-transform: uppercase; }
+    .stat-val-large { font-size: 20px; font-weight: 900; line-height: 1.1; }
+    .stat-val-avg { font-size: 16px; font-weight: 800; line-height: 1.1; }
 
     .warning-text {
-      color: #dc2626;
-      font-weight: 800;
-      margin-top: 14px;
-      text-align: center;
-      background: #fef2f2;
+      color: #dc2626; font-weight: 800; margin-top: 14px;
+      text-align: center; background: #fef2f2;
       border: 1px solid #fecaca;
-      padding: 10px;
-      border-radius: 10px;
-      font-size: 13px;
+      padding: 10px; border-radius: 10px; font-size: 13px;
       display: none;
     }
-
-    .warning-text.show {
-      display: block;
-    }
-
-    .warning-text.offline-warn {
-      background: #f3f4f6;
-      border-color: #e5e7eb;
-      color: #4b5563;
-    }
-
+    .warning-text.show { display: block; }
+    .warning-text.offline-warn { background: #f3f4f6; border-color: #e5e7eb; color: #4b5563; }
+ 
     .action-btn {
-      display: block;
-      border-radius: 10px;
-      padding: 10px;
-      text-align: center;
-      margin-bottom: 8px;
-      cursor: pointer;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 700;
-      text-decoration: none;
-      transition: all 0.2s ease-in-out;
+      display: block; border-radius: 10px; padding: 10px;
+      text-align: center; margin-bottom: 8px; cursor: pointer;
+      color: #fff; font-size: 14px; font-weight: 700;
+      text-decoration: none; transition: all 0.2s ease-in-out;
       border: none;
     }
-
-    .action-btn:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-
-    .action-btn:active {
-      transform: translateY(0);
-    }
-
-    .action-btn.blue {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
-    }
-
-    .action-btn.green {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
-    }
-
+    .action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .action-btn:active { transform: translateY(0); }
+    .action-btn.blue { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2); }
+    .action-btn.green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2); }
+ 
     .input-field {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      color: #111827;
-      background: #ffffff;
-      outline: none;
-      margin-top: 4px;
-      transition: border-color 0.15s;
+      width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+      border-radius: 8px; font-family: 'Inter', sans-serif;
+      font-size: 14px; color: #111827; background: #ffffff;
+      outline: none; margin-top: 4px; transition: border-color 0.15s;
     }
-
-    .input-field:focus {
-      border-color: var(--accent-blue);
-    }
+    .input-field:focus { border-color: var(--accent-blue); }
 
     /* APK Download Card styling */
     .apk-download-card {
-      display: flex;
-      align-items: center;
-      color: #FFFFFF;
-      text-decoration: none;
-      border-radius: 20px;
-      padding: 18px 24px;
-      margin: 12px 0;
-      transition: all 0.2s ease-in-out;
-      text-align: left;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex; align-items: center;
+      color: #FFFFFF; text-decoration: none; border-radius: 20px;
+      padding: 18px 24px; margin: 12px 0;
+      transition: all 0.2s ease-in-out; text-align: left;
+      border: 1px solid rgba(255,255,255,0.1);
     }
-
     .apk-download-card:hover {
       transform: translateY(-2px);
     }
-
     .apk-download-card.monitoring {
       background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
       box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
     }
-
     .apk-download-card.monitoring:hover {
       box-shadow: 0 12px 28px rgba(37, 99, 235, 0.4);
     }
-
     .apk-download-card.tasks {
       background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
       box-shadow: 0 8px 20px rgba(234, 88, 12, 0.25);
     }
-
     .apk-download-card.tasks:hover {
       box-shadow: 0 12px 28px rgba(234, 88, 12, 0.4);
     }
-
     .apk-download-card.admin {
       background: linear-gradient(135deg, #34d399 0%, #059669 100%);
       box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
     }
-
     .apk-download-card.admin:hover {
       box-shadow: 0 12px 28px rgba(5, 150, 105, 0.4);
     }
-
-    .apk-icon {
-      font-size: 30px;
-      margin-right: 18px;
-    }
-
-    .apk-text-group {
-      flex-grow: 1;
-    }
-
-    .apk-title {
-      font-size: 15px;
-      font-weight: 800;
-      margin-bottom: 2px;
-    }
-
-    .apk-subtitle {
-      font-size: 11px;
-      opacity: 0.85;
-      font-weight: 500;
-    }
-
-    .apk-arrow {
-      font-size: 18px;
-      font-weight: bold;
-      transition: transform 0.2s;
-    }
-
-    .apk-download-card:hover .apk-arrow {
-      transform: translateX(4px);
-    }
+    .apk-icon { font-size: 30px; margin-right: 18px; }
+    .apk-text-group { flex-grow: 1; }
+    .apk-title { font-size: 15px; font-weight: 800; margin-bottom: 2px; }
+    .apk-subtitle { font-size: 11px; opacity: 0.85; font-weight: 500; }
+    .apk-arrow { font-size: 18px; font-weight: bold; transition: transform 0.2s; }
+    .apk-download-card:hover .apk-arrow { transform: translateX(4px); }
 
     /* Tapo Settings Modal */
     .modal-overlay {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(4px);
       z-index: 1000;
@@ -747,7 +321,6 @@
       padding: 16px;
       animation: fadeIn 0.2s ease-in-out;
     }
-
     .modal-content {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -758,36 +331,30 @@
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
       position: relative;
     }
-
     .modal-header {
       font-size: 18px;
       font-weight: 800;
       color: var(--text-primary);
       margin-bottom: 8px;
     }
-
     .modal-subheader {
       font-size: 12px;
       color: var(--text-secondary);
       margin-bottom: 16px;
     }
-
     .modal-buttons {
       display: flex;
       gap: 10px;
       margin-top: 20px;
     }
-
     .modal-buttons button {
       flex: 1;
     }
-
     @media (max-width: 600px) {
       .map-view {
         aspect-ratio: 1 / 1.693 !important;
         margin-bottom: 20px;
       }
-
       .map-image {
         width: 169.3% !important;
         height: 59.06% !important;
@@ -799,45 +366,24 @@
         object-fit: fill;
       }
     }
-
     @keyframes pulse-green {
-      0% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-      }
-
-      70% {
-        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
-      }
-
-      100% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-      }
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
-
     @keyframes pulse-red {
-      0% {
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-      }
-
-      70% {
-        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
-      }
-
-      100% {
-        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-      }
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
     }
-
     .pulse-green {
       animation: pulse-green 2s infinite;
     }
-
     .pulse-red {
       animation: pulse-red 2s infinite;
     }
   </style>
 </head>
-
 <body class="map-active">
   <!-- LIST / MAP VIEW -->
   <div class="page list-view" id="listView">
@@ -845,14 +391,7 @@
       <div class="header" style="margin-bottom: 0;">🏭 Ground Up</div>
       <div id="liveClock" style="font-size: 11px; font-weight: 700; color: var(--accent-blue); white-space: nowrap;"></div>
     </div>
-    <div class="subheader" style="margin-bottom: 8px;">Cold Room Monitoring</div>
-
-    <!-- Download Mobile App Row -->
-    <div style="margin-bottom: 14px;">
-      <a href="/app.apk" style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.15); padding: 7px 12px; border-radius: 10px; text-decoration: none; font-family: 'Inter', sans-serif;" download>
-        <span class="material-icons" style="font-size: 15px;">phone_android</span> Download Mobile App
-      </a>
-    </div>
+    <div class="subheader">Cold Room Monitoring</div>
 
     <!-- TABS NAVIGATION -->
     <div class="tabs">
@@ -877,9 +416,7 @@
     <div id="tapoPlugsWrapper" style="display: none; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <div class="section-title" style="margin-bottom: 0;">Tapo Plugs Dashboard</div>
-        <button id="addTapoPlugBtn" class="action-btn blue"
-          style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;"
-          onclick="openAddTapoModal()">+ Add Tapo Plug</button>
+        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Tapo Plug</button>
       </div>
       <div id="tapoPlugsList"></div>
     </div>
@@ -889,75 +426,85 @@
       <div class="modal-content">
         <div class="modal-header">Tapo Plug Settings</div>
         <div class="modal-subheader">Configure connection details for this room's smart plug:</div>
-
+        
         <input type="hidden" id="modalTapoDeviceId" />
         <input type="hidden" id="modalTapoMode" value="edit" />
-
+        
         <div id="modalTapoRoomSelectWrapper" style="margin-bottom: 12px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Select
-            Room</span>
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Select Room</span>
           <select id="modalTapoRoomSelect" class="input-field" style="margin-top: 0; padding: 10px; cursor: pointer;">
             <option value="" disabled selected>Choose a room...</option>
           </select>
         </div>
-
+        
         <div style="margin-bottom: 12px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo
-            IP Address</span>
-          <input type="text" id="modalTapoIp" class="input-field" style="margin-top: 0; padding: 10px;"
-            placeholder="e.g. 192.168.1.100" />
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo IP Address</span>
+          <input type="text" id="modalTapoIp" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="e.g. 192.168.1.100" />
         </div>
-
+        
         <div style="margin-bottom: 12px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo
-            Username (Email)</span>
-          <input type="text" id="modalTapoUsername" class="input-field" style="margin-top: 0; padding: 10px;"
-            placeholder="Tapo account email" />
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo Username (Email)</span>
+          <input type="text" id="modalTapoUsername" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="Tapo account email" />
         </div>
-
+        
         <div style="margin-bottom: 12px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo
-            Password</span>
-          <input type="password" id="modalTapoPassword" class="input-field" style="margin-top: 0; padding: 10px;"
-            placeholder="Tapo account password" />
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo Password</span>
+          <input type="password" id="modalTapoPassword" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="Tapo account password" />
         </div>
-
+        
         <div style="margin-bottom: 16px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Billing
-            Rate (₹/kWh)</span>
-          <input type="number" step="0.1" id="modalTapoBillingRate" class="input-field"
-            style="margin-top: 0; padding: 10px;" placeholder="10.0" />
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Billing Rate (₹/kWh)</span>
+          <input type="number" step="0.1" id="modalTapoBillingRate" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="10.0" />
         </div>
-
+        
         <div style="margin-bottom: 16px;">
-          <span
-            style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Running
-            Threshold (Watts)</span>
-          <input type="number" step="1" id="modalTapoRunningThreshold" class="input-field"
-            style="margin-top: 0; padding: 10px;" placeholder="80" />
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Running Threshold (Watts)</span>
+          <input type="number" step="1" id="modalTapoRunningThreshold" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="80" />
         </div>
-
+        
         <div class="modal-buttons" style="flex-direction: column; gap: 8px;">
           <div style="display: flex; gap: 8px;">
-            <button class="action-btn"
-              style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; margin-bottom: 0; flex: 1;"
-              onclick="closeTapoSettingsModal()">Cancel</button>
-            <button class="action-btn blue" style="margin-bottom: 0; flex: 1;" onclick="saveTapoSettings()">Save
-              Connection</button>
+            <button class="action-btn" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; margin-bottom: 0; flex: 1;" onclick="closeTapoSettingsModal()">Cancel</button>
+            <button class="action-btn blue" style="margin-bottom: 0; flex: 1;" onclick="saveTapoSettings()">Save Connection</button>
           </div>
-          <button id="clearTapoConfigBtn" class="action-btn"
-            style="display: none; width: 100%; margin-bottom: 0; padding: 10px; font-size: 12px; font-weight: 800; background: rgba(239, 68, 68, 0.06); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px;"
-            onclick="clearTapoConfig()">🗑️ Clear Configuration</button>
+          <button id="clearTapoConfigBtn" class="action-btn" style="display: none; width: 100%; margin-bottom: 0; padding: 10px; font-size: 12px; font-weight: 800; background: rgba(239, 68, 68, 0.06); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px;" onclick="clearTapoConfig()">🗑️ Clear Configuration</button>
         </div>
-        <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
       </div>
     </div>
+    
+    <div class="footer-text" style="margin-bottom: 30px;">Tap a sensor to view details & logs</div>
 
+    <!-- Premium APK Download Cards -->
+    <div class="download-container" id="downloadCard" style="border-top: 1px dashed #E5E7EB; padding-top: 24px;">
+      <h3 style="font-size: 11px; font-weight: 800; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Download Mobile Apps</h3>
+      
+      <a href="/download/apk" class="apk-download-card monitoring" style="margin-top: 4px;">
+        <span class="apk-icon">📊</span>
+        <div class="apk-text-group">
+          <div class="apk-title">Ground Up Monitor</div>
+          <div class="apk-subtitle">Live temperature, humidity telemetry & push alerts</div>
+        </div>
+        <span class="apk-arrow">→</span>
+      </a>
+
+      <a href="/download/tasks-apk" class="apk-download-card tasks" style="margin-top: 12px;">
+        <span class="apk-icon">📋</span>
+        <div class="apk-text-group">
+          <div class="apk-title">Ground Up Tasks</div>
+          <div class="apk-subtitle">Daily checklists, voice notes & task management</div>
+        </div>
+        <span class="apk-arrow">→</span>
+      </a>
+
+      <a href="/download/admin-apk" class="apk-download-card admin" style="margin-top: 12px; margin-bottom: 28px;">
+        <span class="apk-icon">🛡️</span>
+        <div class="apk-text-group">
+          <div class="apk-title">Ground Up Admin</div>
+          <div class="apk-subtitle">User accounts, billing reports & master controls</div>
+        </div>
+        <span class="apk-arrow">→</span>
+      </a>
+    </div>
   </div>
 
   <!-- DETAIL VIEW -->
@@ -965,50 +512,36 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <button class="back-btn" onclick="showList()" style="margin-bottom: 0;">← Back to Overview</button>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <span class="sensor-badge badge-ok"
-          style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px;" id="dTopBat">🔋 --</span>
-        <span class="sensor-badge badge-ok"
-          style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px; background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.2);"
-          id="dTopTime">🕒 --</span>
+        <span class="sensor-badge badge-ok" style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px;" id="dTopBat">🔋 --</span>
+        <span class="sensor-badge badge-ok" style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px; background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.2);" id="dTopTime">🕒 --</span>
       </div>
     </div>
-    <div class="detail-header" id="detailHeader"
-      style="margin-top: 10px; display: flex; align-items: center; gap: 10px;"></div>
-
+    <div class="detail-header" id="detailHeader" style="margin-top: 10px; display: flex; align-items: center; gap: 10px;"></div>
+    
     <!-- Metrics Card -->
     <div class="card" id="detailCard">
       <!-- Top status bar with LIVE telemetry -->
-      <div
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
-        <span
-          style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">LIVE
-          telemetry</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
+        <span style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">LIVE telemetry</span>
       </div>
 
       <!-- Live Grid (Temp & Humidity side-by-side) -->
-      <div
-        style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border);">
+      <div style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border);">
         <!-- Temp Box -->
         <div style="flex: 1; text-align: center;">
-          <div
-            style="color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
-            🌡️ TEMPERATURE</div>
+          <div style="color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">🌡️ TEMPERATURE</div>
           <div style="color: var(--text-primary); font-size: 32px; font-weight: 900;" id="dTemp">--</div>
         </div>
         <!-- Hum Box -->
         <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-          <div
-            style="color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
-            💧 HUMIDITY</div>
+          <div style="color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">💧 HUMIDITY</div>
           <div style="color: var(--accent-blue); font-size: 32px; font-weight: 900;" id="dHum">--</div>
         </div>
       </div>
 
       <!-- 24h Statistics Grid (Big boxes for Min/Avg/Max) -->
       <div style="margin-top: 14px;">
-        <div
-          style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">
-          📈 24-Hour Temperature Bounds</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Temperature Bounds</div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <!-- Min -->
           <div class="stat-box-large stat-temp-min" style="padding: 8px 4px; border-radius: 10px;">
@@ -1030,9 +563,7 @@
 
       <!-- 24h Humidity Statistics (Big boxes) -->
       <div style="margin-top: 14px;">
-        <div
-          style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">
-          📈 24-Hour Humidity Bounds</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Humidity Bounds</div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <!-- Min -->
           <div class="stat-box-large stat-hum-min" style="padding: 8px 4px; border-radius: 10px;">
@@ -1057,43 +588,30 @@
 
     <!-- Smart Plug Card -->
     <div class="card" id="plugCard" style="margin-top: 14px; display: none;">
-      <div
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
-        <span
-          style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">🔌
-          Smart Plug Status</span>
-        <span class="sensor-badge" id="plugTypeBadge"
-          style="font-size: 10px; padding: 2px 8px; border-radius: 6px;">TAPO PLUG</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
+        <span style="font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">🔌 Smart Plug Status</span>
+        <span class="sensor-badge" id="plugTypeBadge" style="font-size: 10px; padding: 2px 8px; border-radius: 6px;">TAPO PLUG</span>
       </div>
-      <div
-        style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border);">
+      <div style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border);">
         <div style="flex: 1; text-align: center;">
-          <div
-            style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
-            POWER</div>
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">POWER</div>
           <div style="color: var(--text-primary); font-size: 24px; font-weight: 900;" id="plugPower">--</div>
         </div>
         <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-          <div
-            style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
-            VOLTAGE</div>
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">VOLTAGE</div>
           <div style="color: var(--text-primary); font-size: 20px; font-weight: 900;" id="plugVoltage">--</div>
         </div>
         <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-          <div
-            style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">
-            CURRENT</div>
+          <div style="color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">CURRENT</div>
           <div style="color: var(--text-primary); font-size: 20px; font-weight: 900;" id="plugCurrent">--</div>
         </div>
       </div>
-      <button class="action-btn blue" id="btnPlugToggle" onclick="togglePlug()"
-        style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;">Toggle Power</button>
+      <button class="action-btn blue" id="btnPlugToggle" onclick="togglePlug()" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;">Toggle Power</button>
     </div>
 
     <!-- Collapsible Analytics Config Panel -->
     <div class="card" style="margin-top: 14px;">
-      <div class="card-header-collapsible" onclick="toggleCollapse('analyticsContent', 'analyticsArrow')"
-        style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+      <div class="card-header-collapsible" onclick="toggleCollapse('analyticsContent', 'analyticsArrow')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
         <div class="card-title" style="margin-bottom: 0;">Analytics & Export Options</div>
         <span id="analyticsArrow" style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">▼</span>
       </div>
@@ -1101,8 +619,7 @@
         <div class="row">
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Time Frame</div>
-            <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;"
-              onchange="handleTimeframeChange()">
+            <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="handleTimeframeChange()">
               <option value="1">1 Day</option>
               <option value="3">3 Days</option>
               <option value="7" selected>7 Days</option>
@@ -1113,8 +630,7 @@
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Data Interval</div>
-            <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;"
-              onchange="updateAnalyticsOptions()">
+            <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()">
               <option value="1" selected>Raw (1 min)</option>
               <option value="15">15 Minutes</option>
               <option value="30">30 Minutes</option>
@@ -1125,44 +641,32 @@
             </select>
           </div>
         </div>
-
+        
         <!-- Custom Date Range inputs -->
         <div id="customDateRangeRow" style="display: none; margin-top: 10px;" class="row">
           <div class="metric-box" style="margin-right: 8px;">
-            <div class="metric-label"
-              style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date
-            </div>
-            <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;"
-              onchange="updateAnalyticsOptions()" />
+            <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date</div>
+            <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
           </div>
           <div class="metric-box">
-            <div class="metric-label"
-              style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date
-            </div>
-            <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;"
-              onchange="updateAnalyticsOptions()" />
+            <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date</div>
+            <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
           </div>
         </div>
 
         <div style="margin-top: 10px;">
-          <a class="action-btn green" id="dCsvLink" target="_blank"
-            style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export
-            CSV Log</a>
+          <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export CSV Log</a>
         </div>
       </div>
     </div>
 
     <!-- Chart Card -->
     <div class="card" id="chartCard" style="margin-top: 14px; display: none;">
-      <div class="chart-header"
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
         <div class="card-title" id="chartCardTitle" style="margin-bottom: 0;">7-Day Temperature Trend</div>
-        <div class="chart-orientation-toggle"
-          style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
-          <button class="toggle-btn active" id="btn-horiz-trend" onclick="setChartOrientation('trend', 'horizontal')"
-            style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
-          <button class="toggle-btn" id="btn-vert-trend" onclick="setChartOrientation('trend', 'vertical')"
-            style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
+        <div class="chart-orientation-toggle" style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+          <button class="toggle-btn active" id="btn-horiz-trend" onclick="setChartOrientation('trend', 'horizontal')" style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
+          <button class="toggle-btn" id="btn-vert-trend" onclick="setChartOrientation('trend', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
         </div>
       </div>
       <div id="trendChartWrapper" style="position: relative; height: 150px; width: 100%;">
@@ -1172,15 +676,11 @@
 
     <!-- Extremes Chart Card -->
     <div class="card" id="extremesChartCard" style="margin-top: 14px; display: none;">
-      <div class="chart-header"
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
         <div class="card-title" id="extremesChartCardTitle" style="margin-bottom: 0;">Daily Min/Max Extremes</div>
-        <div class="chart-orientation-toggle"
-          style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
-          <button class="toggle-btn active" id="btn-horiz-ext" onclick="setChartOrientation('extremes', 'horizontal')"
-            style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
-          <button class="toggle-btn" id="btn-vert-ext" onclick="setChartOrientation('extremes', 'vertical')"
-            style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
+        <div class="chart-orientation-toggle" style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+          <button class="toggle-btn active" id="btn-horiz-ext" onclick="setChartOrientation('extremes', 'horizontal')" style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
+          <button class="toggle-btn" id="btn-vert-ext" onclick="setChartOrientation('extremes', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
         </div>
       </div>
       <div id="extremesChartWrapper" style="position: relative; height: 150px; width: 100%;">
@@ -1191,71 +691,55 @@
     <!-- Offline Logs Card -->
     <div class="card" id="sensorOfflineCard" style="margin-top: 14px; display: none; padding: 14px;">
       <div class="card-title" style="color: #EF4444; margin-bottom: 8px;">⚠️ Outage & Offline Logs</div>
-      <div id="sensorOfflineList"
-        style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; max-height: 120px; overflow-y: auto;">
-      </div>
+      <div id="sensorOfflineList" style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; max-height: 120px; overflow-y: auto;"></div>
     </div>
 
     <!-- Collapsible Thresholds Configuration Panel -->
     <div class="card" style="margin-top: 14px;">
-      <div class="card-header-collapsible" onclick="toggleCollapse('thresholdsContent', 'thresholdsArrow')"
-        style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+      <div class="card-header-collapsible" onclick="toggleCollapse('thresholdsContent', 'thresholdsArrow')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
         <div class="card-title" style="margin-bottom: 0;">Thresholds Configuration</div>
         <span id="thresholdsArrow" style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">▼</span>
       </div>
       <div id="thresholdsContent" style="display: none; margin-top: 10px;">
-        <div
-          style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-          Temperature Thresholds</div>
+        <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Temperature Thresholds</div>
         <div class="row" style="margin-bottom: 10px;">
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Temp (°C)</div>
-            <input type="number" step="0.5" id="minInput" class="input-field"
-              style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+            <input type="number" step="0.5" id="minInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Temp (°C)</div>
-            <input type="number" step="0.5" id="maxInput" class="input-field"
-              style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+            <input type="number" step="0.5" id="maxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
           </div>
         </div>
-        <div
-          style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-          Humidity Thresholds</div>
+        <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Humidity Thresholds</div>
         <div class="row">
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Min Humidity (%)</div>
-            <input type="number" step="1" id="humMinInput" class="input-field"
-              style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+            <input type="number" step="1" id="humMinInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Max Humidity (%)</div>
-            <input type="number" step="1" id="humMaxInput" class="input-field"
-              style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
+            <input type="number" step="1" id="humMaxInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="None" />
           </div>
         </div>
 
         <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 16px 0;" />
-        <div
-          style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-          Webhook URLs</div>
+        <div style="font-size: 10px; font-weight: 800; color: #4B5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Webhook URLs</div>
         <div class="row" style="margin-bottom: 10px;">
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Alert Webhook URL (ON)</div>
-            <input type="url" id="tempAlertWebhookInput" class="input-field" style="padding: 6px 10px; font-size: 13px;"
-              placeholder="e.g. https://httpbin.org/post" />
+            <input type="url" id="tempAlertWebhookInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="e.g. https://httpbin.org/post" />
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Recovery Webhook URL (OFF)</div>
-            <input type="url" id="tempRecoveryWebhookInput" class="input-field"
-              style="padding: 6px 10px; font-size: 13px;" placeholder="e.g. https://httpbin.org/post" />
+            <input type="url" id="tempRecoveryWebhookInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" placeholder="e.g. https://httpbin.org/post" />
           </div>
         </div>
 
 
 
-        <button class="action-btn blue" style="margin-top: 10px; padding: 10px; font-size: 13px; margin-bottom: 0;"
-          onclick="saveThresholds()">Save Settings</button>
+        <button class="action-btn blue" style="margin-top: 10px; padding: 10px; font-size: 13px; margin-bottom: 0;" onclick="saveThresholds()">Save Settings</button>
       </div>
     </div>
   </div>
@@ -1326,25 +810,25 @@
       return plugSelectedInterval[roomId] || '1';
     }
 
-    function switchTab(tab, pushState = true) {
+    function switchTab(tab) {
       currentTab = tab;
       document.body.className = `${tab}-active`;
       const tList = document.getElementById('tabList');
       const tMap = document.getElementById('tabMap');
       const tPlugs = document.getElementById('tabPlugs');
-
+      
       const wList = document.getElementById('sensorListWrapper');
       const wMap = document.getElementById('mapViewContainer');
       const wPlugs = document.getElementById('tapoPlugsWrapper');
-
+      
       tList.classList.remove('active');
       tMap.classList.remove('active');
       tPlugs.classList.remove('active');
-
+      
       wList.style.display = 'none';
       wMap.classList.remove('active');
       wPlugs.style.display = 'none';
-
+      
       if (tab === 'list') {
         tList.classList.add('active');
         wList.style.display = 'block';
@@ -1356,19 +840,6 @@
         tPlugs.classList.add('active');
         wPlugs.style.display = 'block';
         pollTapoPlugs(true);
-      }
-
-      // Hide detail view when switching tabs
-      const detailView = document.getElementById('detailView');
-      const listView = document.getElementById('listView');
-      if (detailView && listView) {
-        listView.classList.remove('hidden');
-        detailView.classList.remove('active');
-      }
-      if (detailInterval) clearInterval(detailInterval);
-
-      if (pushState) {
-        history.pushState({ tab }, '', `#${tab}`);
       }
     }
 
@@ -1384,7 +855,7 @@
           const data = await roomsRes.json();
           rooms = Array.isArray(data) ? data : [];
         }
-      } catch (e) { /* use existing rooms data */ }
+      } catch(e) { /* use existing rooms data */ }
 
       const tapoRooms = rooms.filter(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
@@ -1416,13 +887,13 @@
           } else {
             tapoPlugsData[room.id] = { room, data: null, error: 'Failed to fetch status' };
           }
-        } catch (err) {
+        } catch(err) {
           tapoPlugsData[room.id] = { room, data: null, error: 'Connection Offline' };
         }
       });
-
+      
       await Promise.all(fetchPromises);
-
+      
       // Compute fingerprint: which rooms are configured and their error/status states
       const fingerprint = Object.keys(tapoPlugsData).sort().map(roomId => {
         const item = tapoPlugsData[roomId];
@@ -1430,7 +901,7 @@
         const hasError = item && (item.error || (item.data && item.data.error) || (item.data && !item.data.supported));
         return `${roomId}:${isUnconfigured}:${!!hasError}`;
       }).join('|');
-
+      
       if (forceFullRender || fingerprint !== previousConfiguredRoomsKey) {
         // Room set or status changed — full re-render needed
         previousConfiguredRoomsKey = fingerprint;
@@ -1446,7 +917,7 @@
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
       const addBtn = document.getElementById('addTapoPlugBtn');
       if (addBtn) {
-
+        
       }
 
       Object.keys(tapoPlugsData).forEach(roomId => {
@@ -1520,7 +991,7 @@
     async function togglePlugCharts(roomId, deviceId) {
       const el = document.getElementById(`plugAnalytics-${roomId}`);
       if (!el) return;
-
+      
       if (el.style.display === 'none') {
         el.style.display = 'block';
         expandedPlugAccordions[roomId] = true;
@@ -1563,14 +1034,14 @@
       if (csvLink) {
         csvLink.href = `${API}/sensors/device/${deviceId}/plug/export?days=${days}&interval_minutes=${interval}`;
       }
-
+      
       try {
         const res = await fetch(`${API}/sensors/device/${deviceId}/plug/history?days=${days}&interval_minutes=${interval}`);
         if (res.ok) {
           const resData = await res.json();
           const historyData = (resData.history || []).reverse();
           const offlinePeriods = resData.offline_periods || [];
-
+          
           const labels = historyData.map(log => {
             const d = parseDate(log.timestamp);
             if (days === '1') {
@@ -1581,7 +1052,7 @@
           });
           const valuesPower = historyData.map(log => log.apower);
           const valuesEnergy = historyData.map(log => log.today_energy / 1000.0); // Wh to kWh
-
+          
           // Render Power Chart
           const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
           if (plugChartInstances[`power-${roomId}`]) {
@@ -1686,18 +1157,18 @@
     function renderTapoPlugs() {
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
-
+      
       const isBillingDay = (new Date().getDate() === 30 || new Date().getDate() === 31);
-
+      
       // Show/hide the Add button based on whether there are unconfigured rooms
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
       const addBtn = document.getElementById('addTapoPlugBtn');
       if (addBtn) {
-
+        
       }
-
+      
       let html = '';
-
+      
       // Render Edge Agent health banner
       if (tapoAgentInfo && tapoAgentInfo.status !== 'unconfigured') {
         const isRunning = tapoAgentInfo.status === 'running';
@@ -1706,13 +1177,13 @@
         const statusBg = isRunning ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)';
         const statusBorder = isRunning ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
         const pulseClass = isRunning ? 'pulse-green' : 'pulse-red';
-
+        
         let lastSeenText = 'never';
         if (tapoAgentInfo.last_seen) {
           const lastSeenDate = new Date(tapoAgentInfo.last_seen);
-          lastSeenText = lastSeenDate.toLocaleDateString() + ' ' + lastSeenDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          lastSeenText = lastSeenDate.toLocaleDateString() + ' ' + lastSeenDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
-
+        
         html += `
           <div style="background: ${statusBg}; border: 1px solid ${statusBorder}; color: ${statusColor}; padding: 10px 14px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 800;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1727,7 +1198,7 @@
         const item = tapoPlugsData[roomId];
         return item && item.error !== 'Unconfigured';
       });
-
+      
       if (configuredRooms.length === 0 && unconfiguredRooms.length > 0) {
         html = `
           <div style="text-align: center; color: #6B7280; font-size: 13px; margin: 30px 0; padding: 30px; border: 1px dashed #E5E7EB; border-radius: 16px; background: #FFFFFF;">
@@ -1738,20 +1209,20 @@
         container.innerHTML = html;
         return;
       }
-
+      
       configuredRooms.forEach(roomId => {
         const item = tapoPlugsData[roomId];
         if (!item) return;
         const { room, data, error } = item;
         const tempSensor = room.sensors.find(s => s.type === 'temperature');
-
+        
         let telemetryHtml = '';
         let billingHtml = '';
         let toggleBtnHtml = '';
         let analyticsHtml = '';
         let badgeHtml = '';
         let metrics24hHtml = '';
-
+        
         if (error || (data && !data.supported) || (data && data.state === 'offline')) {
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
           const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
@@ -2093,7 +1564,7 @@
             </div>
           `;
         }
-
+        
         html += `
           <div class="card" style="margin-bottom: 14px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
@@ -2114,7 +1585,7 @@
           </div>
         `;
       });
-
+      
       container.innerHTML = html;
 
       Object.keys(tapoPlugsData).forEach(roomId => {
@@ -2176,10 +1647,10 @@
 
         setValRaw(`plugRuntime24h-${roomId}`, d.runtime_hours_24h !== null && d.runtime_hours_24h !== undefined ? parseFloat(d.runtime_hours_24h).toFixed(1) + ' hrs' : '--');
         setValRaw(`plugRuntimeAvg-${roomId}`, d.runtime_hours_avg_7d !== null && d.runtime_hours_avg_7d !== undefined ? parseFloat(d.runtime_hours_avg_7d).toFixed(1) + ' hrs' : '--');
-
+        
         setValRaw(`plugCycles24h-${roomId}`, d.starts_count_24h !== null && d.starts_count_24h !== undefined ? d.starts_count_24h + ' times' : '--');
         setValRaw(`plugCyclesAvg-${roomId}`, d.starts_count_avg_7d !== null && d.starts_count_avg_7d !== undefined ? parseFloat(d.starts_count_avg_7d).toFixed(1) + ' times' : '--');
-
+        
         setValRaw(`plugEnergy24h-${roomId}`, d.energy_total_kwh !== null && d.energy_total_kwh !== undefined ? parseFloat(d.energy_total_kwh).toFixed(3) + ' kWh' : '--');
         setValRaw(`plugEnergyAvg-${roomId}`, d.energy_kwh_avg_7d !== null && d.energy_kwh_avg_7d !== undefined ? parseFloat(d.energy_kwh_avg_7d).toFixed(3) + ' kWh' : '--');
 
@@ -2188,7 +1659,7 @@
           if (d.observation_msg) {
             obsBox.style.display = 'block';
             obsBox.textContent = d.observation_msg;
-
+            
             if (d.diagnosis === 'healthy') {
               obsBox.style.background = 'rgba(16, 185, 129, 0.08)';
               obsBox.style.border = '1px solid rgba(16, 185, 129, 0.2)';
@@ -2227,7 +1698,7 @@
       document.getElementById('modalTapoPassword').value = password || '';
       document.getElementById('modalTapoBillingRate').value = rate !== null && rate !== undefined ? rate : '10.0';
       document.getElementById('modalTapoRunningThreshold').value = threshold !== null && threshold !== undefined ? threshold : '80';
-
+      
       // Room selector: disabled, pre-selected for editing
       const roomSelect = document.getElementById('modalTapoRoomSelect');
       const roomWrapper = document.getElementById('modalTapoRoomSelectWrapper');
@@ -2250,14 +1721,14 @@
       roomSelect.disabled = true;
       roomSelect.style.opacity = '0.6';
       roomWrapper.style.display = 'block';
-
+      
       // Show clear config button for configured plugs
       const clearBtn = document.getElementById('clearTapoConfigBtn');
       if (clearBtn) clearBtn.style.display = 'block';
-
+      
       document.getElementById('tapoSettingsModal').style.display = 'flex';
     }
-
+    
     function openAddTapoModal() {
       document.getElementById('modalTapoMode').value = 'add';
       document.getElementById('modalTapoIp').value = '';
@@ -2265,12 +1736,12 @@
       document.getElementById('modalTapoPassword').value = '';
       document.getElementById('modalTapoBillingRate').value = '10.0';
       document.getElementById('modalTapoRunningThreshold').value = '80';
-
+      
       // Populate room selector with unconfigured rooms
       const roomSelect = document.getElementById('modalTapoRoomSelect');
       const roomWrapper = document.getElementById('modalTapoRoomSelectWrapper');
       roomSelect.innerHTML = '<option value="" disabled selected>Choose a room...</option>';
-
+      
       Object.values(tapoPlugsData).forEach(item => {
         if (item && item.error === 'Unconfigured' && item.room) {
           const ts = item.room.sensors.find(s => s.type === 'temperature');
@@ -2282,21 +1753,21 @@
           }
         }
       });
-
+      
       roomSelect.disabled = false;
       roomSelect.style.opacity = '1';
       roomWrapper.style.display = 'block';
       document.getElementById('modalTapoDeviceId').value = '';
-
+      
       // Update device ID when room selection changes
-      roomSelect.onchange = function () {
+      roomSelect.onchange = function() {
         document.getElementById('modalTapoDeviceId').value = this.value;
       };
-
+      
       // Hide clear config button for new plugs
       const clearBtn = document.getElementById('clearTapoConfigBtn');
       if (clearBtn) clearBtn.style.display = 'none';
-
+      
       document.getElementById('tapoSettingsModal').style.display = 'flex';
     }
 
@@ -2305,12 +1776,12 @@
       const roomSelect = document.getElementById('modalTapoRoomSelect');
       if (roomSelect) roomSelect.onchange = null;
     }
-
+    
     async function clearTapoConfig() {
       const deviceId = document.getElementById('modalTapoDeviceId').value;
       if (!deviceId) return;
       if (!confirm('Are you sure you want to clear this Tapo plug configuration? The plug will be removed from the dashboard.')) return;
-
+      
       try {
         const res = await fetch(`${API}/sensors/device/${deviceId}/thresholds`, {
           method: 'PUT',
@@ -2341,7 +1812,7 @@
       const password = document.getElementById('modalTapoPassword').value.trim();
       const rate = document.getElementById('modalTapoBillingRate').value.trim();
       const threshold = document.getElementById('modalTapoRunningThreshold').value.trim();
-
+      
       if (!deviceId) {
         alert('Please select a room first.');
         return;
@@ -2350,10 +1821,10 @@
         alert('Please enter the Tapo IP address.');
         return;
       }
-
+      
       const rateVal = rate !== '' ? parseFloat(rate) : 10.0;
       const thresholdVal = threshold !== '' ? parseFloat(threshold) : 80.0;
-
+      
       try {
         const res = await fetch(`${API}/sensors/device/${deviceId}/thresholds`, {
           method: 'PUT',
@@ -2382,15 +1853,15 @@
       if (!item) return;
       const { room } = item;
       const tempSensor = room.sensors.find(s => s.type === 'temperature');
-
+      
       tapoToggling[roomId] = true;
-
+      
       const buttons = document.querySelectorAll(`button[onclick*="${roomId}"]`);
       buttons.forEach(btn => {
         btn.disabled = true;
         btn.textContent = 'Toggling...';
       });
-
+      
       try {
         const res = await fetch(`${API}/sensors/device/${tempSensor.device_id}/plug/toggle`, {
           method: 'POST',
@@ -2416,7 +1887,7 @@
           tapoToggling[roomId] = false;
           await pollTapoPlugs(true);
         }
-      } catch (e) {
+      } catch(e) {
         alert('Connection error while toggling plug.');
         tapoToggling[roomId] = false;
         await pollTapoPlugs(true);
@@ -2430,26 +1901,26 @@
     function renderMapPins() {
       const container = document.getElementById('mapPinsContainer');
       if (!container) return;
-
+      
       let pinsHtml = '';
       let unplacedCount = 0;
-
+      
       rooms.forEach(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
         let tempStr = '--';
         let pinClass = 'offline';
         let dotClass = 'offline';
-
+        
         if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
           const isOnline = data.is_online !== false;
           tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
-
+          
           let isAlert = false;
           if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
           if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-
+          
           if (!isOnline) {
             pinClass = 'offline';
             dotClass = 'offline';
@@ -2461,13 +1932,13 @@
             dotClass = '';
           }
         }
-
+        
         let x = room.map_x;
         let y = room.map_y;
         let isUnplaced = false;
-
+        
         const isMobile = window.innerWidth <= 600;
-
+        
         if (!x || !y) {
           isUnplaced = true;
           if (isMobile) {
@@ -2485,14 +1956,15 @@
           x = `${100 - yVal}%`;
           y = `${xVal}%`;
         }
-
+        
         const borderStyle = isUnplaced ? "border: 2px dashed #f59e0b;" : "";
         const badgeLabel = isUnplaced ? `<span style="font-size: 7px; color: #f59e0b; font-weight: 800; margin-bottom: 2px;">[NEW]</span>` : "";
-
+        
         pinsHtml += `
           <div class="map-pin" id="pin-${room.id}" data-room-id="${room.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${room.name}">
             ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
-            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 3px 6px; display: flex; align-items: center; gap: 6px; border-radius: 6px;">
+            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 6px 10px; display: flex; align-items: center; gap: 6px; border-radius: 10px;">
+              <div class="pin-dot ${dotClass}"></div>
               <div style="display: flex; flex-direction: column;">
                 ${badgeLabel}
                 <span class="pin-name" style="font-size: 8px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
@@ -2503,7 +1975,7 @@
         `;
       });
       container.innerHTML = pinsHtml;
-
+      
       rooms.forEach(room => {
         const pinEl = document.getElementById(`pin-${room.id}`);
         if (pinEl) {
@@ -2517,11 +1989,11 @@
         if (e.button !== 0) return;
         startDrag(e, pinEl, roomId);
       });
-
+      
       pinEl.addEventListener('touchstart', (e) => {
         startDrag(e.touches[0], pinEl, roomId);
       }, { passive: true });
-
+      
       pinEl.addEventListener('click', (e) => {
         if (activeDragPin) return;
         if (hasDragged) {
@@ -2557,13 +2029,13 @@
     function dragMove(e) {
       const mapContainer = document.getElementById('mapViewContainer');
       const rect = mapContainerRect || mapContainer.getBoundingClientRect();
-
+      
       let x = ((e.clientX - rect.left) / rect.width) * 100;
       let y = ((e.clientY - rect.top) / rect.height) * 100;
-
+      
       x = Math.max(0, Math.min(100, x));
       y = Math.max(0, Math.min(100, y));
-
+      
       activeDragPin.el.style.left = `${x.toFixed(2)}%`;
       activeDragPin.el.style.top = `${y.toFixed(2)}%`;
     }
@@ -2583,16 +2055,16 @@
       activeDragPin = null;
       document.body.style.userSelect = '';
       pin.el.style.cursor = 'grab';
-
+      
       if (!hasDragged) return;
-
+      
       const xPercent = pin.el.style.left;
       const yPercent = pin.el.style.top;
-
+      
       const isMobile = window.innerWidth <= 600;
       let mapX = xPercent;
       let mapY = yPercent;
-
+      
       if (isMobile) {
         // Inverse transform to save in original landscape coordinate space:
         // map_x = top
@@ -2602,7 +2074,7 @@
         mapX = `${topVal.toFixed(2)}%`;
         mapY = `${(100 - leftVal).toFixed(2)}%`;
       }
-
+      
       try {
         const res = await fetch(`${API}/rooms/${pin.roomId}/coordinates`, {
           method: 'PUT',
@@ -2711,7 +2183,7 @@
 
     async function pollList() {
       const now = new Date();
-      document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('liveClock').textContent = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
       try {
         const [roomsRes, dashRes] = await Promise.all([
@@ -2763,9 +2235,9 @@
               const battery = parseFloat(data.battery_level).toFixed(0);
               const ts = parseDate(data.timestamp);
               const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+              
               const isOnline = data.is_online !== false;
-
+              
               if (el) el.textContent = isOnline ? temp.toFixed(1) + '°C' : '--';
               if (meta) {
                 if (isOnline) {
@@ -2854,7 +2326,7 @@
           pollTapoPlugs();
         }
         renderMapPins();
-      } catch (e) {
+      } catch(e) {
         console.error("Error polling list:", e);
         document.getElementById('sensorList').innerHTML = `
           <div style="text-align: center; color: #ef4444; font-size: 13px; margin: 20px 0; padding: 12px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px;">
@@ -2878,7 +2350,7 @@
           tempMax = tempSensor.max_threshold;
           document.getElementById('minInput').value = tempMin !== null ? tempMin : '';
           document.getElementById('maxInput').value = tempMax !== null ? tempMax : '';
-
+          
           document.getElementById('tempAlertWebhookInput').value = tempSensor.alert_webhook_url || '';
           document.getElementById('tempRecoveryWebhookInput').value = tempSensor.recovery_webhook_url || '';
         } else {
@@ -2886,7 +2358,7 @@
           tempMax = null;
           document.getElementById('minInput').value = '';
           document.getElementById('maxInput').value = '';
-
+          
           document.getElementById('tempAlertWebhookInput').value = '';
           document.getElementById('tempRecoveryWebhookInput').value = '';
         }
@@ -2914,7 +2386,7 @@
       const maxVal = document.getElementById('maxInput').value;
       const humMinVal = document.getElementById('humMinInput').value;
       const humMaxVal = document.getElementById('humMaxInput').value;
-
+      
       const tempMinVal = minVal !== '' ? parseFloat(minVal) : null;
       const tempMaxVal = maxVal !== '' ? parseFloat(maxVal) : null;
       const hMinVal = humMinVal !== '' ? parseFloat(humMinVal) : null;
@@ -2923,11 +2395,11 @@
       const tempAlertWebhook = document.getElementById('tempAlertWebhookInput').value.trim();
       const tempRecoveryWebhook = document.getElementById('tempRecoveryWebhookInput').value.trim();
 
-      if (tempMinVal !== null && tempMaxVal !== null && tempMinVal >= tempMaxVal && !(tempMinVal === 0 && tempMaxVal === 0)) {
+      if (tempMinVal !== null && tempMaxVal !== null && tempMinVal >= tempMaxVal) {
         alert('Invalid Thresholds: Min temperature must be strictly less than Max temperature.');
         return;
       }
-      if (hMinVal !== null && hMaxVal !== null && hMinVal >= hMaxVal && !(hMinVal === 0 && hMaxVal === 0)) {
+      if (hMinVal !== null && hMaxVal !== null && hMinVal >= hMaxVal) {
         alert('Invalid Thresholds: Min humidity must be strictly less than Max humidity.');
         return;
       }
@@ -3042,7 +2514,7 @@
           customStart = new Date(startVal);
           customEnd = new Date(endVal);
           customEnd.setHours(23, 59, 59, 999);
-
+          
           const today = new Date();
           const diffTime = Math.abs(today - customStart);
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -3157,7 +2629,7 @@
       // 1. Update Telemetry Trend Chart
       document.getElementById('dCsvLink').href = `${API}/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
       if (days === 'custom' && customStart && customEnd) {
-        document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${customEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`;
+        document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
       } else {
         document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
       }
@@ -3167,7 +2639,7 @@
         const dataObj = await resTrend.json();
         const trendData = dataObj.telemetry || [];
         const offlinePeriods = dataObj.offline_periods || [];
-
+        
         if (trendData && trendData.length >= 2) {
           let sortedData = [...trendData].reverse();
           if (days === 'custom' && customStart && customEnd) {
@@ -3193,9 +2665,9 @@
             const labels = sortedData.map(d => {
               const ts = parseDate(d.timestamp);
               if (days === '1') {
-                return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                return ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
               } else {
-                return (ts.getMonth() + 1) + '/' + ts.getDate() + ' ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                return (ts.getMonth() + 1) + '/' + ts.getDate() + ' ' + ts.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
               }
             });
             const temps = sortedData.map(d => parseFloat(d.temperature));
@@ -3275,17 +2747,17 @@
       const isExtremesSupported = days === '7' || days === '30' || days === 'Monthly' || (days === 'custom' && customStart && customEnd);
       if (isExtremesSupported) {
         if (days === 'custom' && customStart && customEnd) {
-          document.getElementById('extremesChartCardTitle').textContent = `Min/Max Temperature Extremes (${customStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${customEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`;
+          document.getElementById('extremesChartCardTitle').textContent = `Min/Max Temperature Extremes (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
         } else {
           document.getElementById('extremesChartCardTitle').textContent = days === 'Monthly' ? `Monthly Min/Max Temperature Extremes` : `${days}-Day Min/Max Temperature Extremes`;
         }
-
+        
         try {
           const isMonthly = days === 'Monthly';
           const endpoint = isMonthly ? `/sensors/device/${currentDevice.id}/metrics/monthly` : `/sensors/device/${currentDevice.id}/metrics/rolling?days=${exportDays}`;
           const resExt = await fetch(`${API}${endpoint}`);
           const extData = await resExt.json();
-
+          
           if (extData && extData.daily_metrics && extData.daily_metrics.length > 0) {
             let metrics = extData.daily_metrics;
             if (days === 'custom' && customStart && customEnd) {
@@ -3300,7 +2772,7 @@
 
             if (metrics.length >= 2) {
               document.getElementById('extremesChartCard').style.display = 'block';
-
+              
               const wrapper = document.getElementById('extremesChartWrapper');
               if (extremesOrientation === 'vertical') {
                 const calcHeight = Math.min(1200, Math.max(300, metrics.length * 25));
@@ -3311,11 +2783,11 @@
 
               const labels = metrics.map(d => {
                 const dt = new Date(d.date);
-                return `${dt.getMonth() + 1}/${dt.getDate()}`;
+                return `${dt.getMonth()+1}/${dt.getDate()}`;
               });
               const tempMaxes = metrics.map(d => d.temp_max !== null ? d.temp_max : 0);
               const tempMins = metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
-
+              
               if (extremesChartInstance) extremesChartInstance.destroy();
               const ctxExt = document.getElementById('extremesChart').getContext('2d');
               extremesChartInstance = new Chart(ctxExt, {
@@ -3323,19 +2795,19 @@
                 data: {
                   labels: labels,
                   datasets: [
-                    {
-                      label: 'Max Temp (°C)',
-                      data: tempMaxes,
-                      borderColor: '#EF4444',
-                      backgroundColor: 'rgba(239, 68, 68, 0.25)',
+                    { 
+                      label: 'Max Temp (°C)', 
+                      data: tempMaxes, 
+                      borderColor: '#EF4444', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.25)', 
                       borderWidth: 1.5,
                       borderRadius: 4
                     },
-                    {
-                      label: 'Min Temp (°C)',
-                      data: tempMins,
-                      borderColor: '#2563eb',
-                      backgroundColor: 'rgba(37, 99, 235, 0.25)',
+                    { 
+                      label: 'Min Temp (°C)', 
+                      data: tempMins, 
+                      borderColor: '#2563eb', 
+                      backgroundColor: 'rgba(37, 99, 235, 0.25)', 
                       borderWidth: 1.5,
                       borderRadius: 4
                     }
@@ -3395,7 +2867,7 @@
     }
 
     // Show detail screen
-    async function showDetail(roomId, pushState = true) {
+    async function showDetail(roomId) {
       const room = rooms.find(r => r.id === roomId);
       if (!room) return;
       const tempSensor = room.sensors?.find(s => s.type === 'temperature');
@@ -3412,15 +2884,15 @@
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
       document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + ' Monitor</span>';
-
+      
       document.getElementById('daysSelect').value = '7';
       document.getElementById('intervalSelect').value = '60'; // 1-hour intervals for 7-day default (avoids too-many-points bug)
       document.getElementById('customDateRangeRow').style.display = 'none';
-
+      
       // Default to horizontal on open
       trendOrientation = 'horizontal';
       extremesOrientation = 'horizontal';
-
+      
       // Reset button highlights
       document.getElementById('btn-horiz-trend').style.background = '#fff';
       document.getElementById('btn-horiz-trend').style.color = 'var(--text-primary)';
@@ -3446,16 +2918,12 @@
 
       await fetchActiveThresholds(currentDevice.id);
       await updateAnalyticsOptions();
-
+      
       pollDetail();
       detailInterval = setInterval(pollDetail, 30000);
-
-      if (pushState) {
-        history.pushState({ tab: currentTab, roomId }, '', `#detail/${roomId}`);
-      }
     }
 
-    function showList(pushState = true) {
+    function showList() {
       document.getElementById('listView').classList.remove('hidden');
       document.getElementById('detailView').classList.remove('active');
       if (detailInterval) clearInterval(detailInterval);
@@ -3468,48 +2936,7 @@
         extremesChartInstance = null;
       }
       pollList();
-
-      if (pushState) {
-        history.pushState({ tab: currentTab }, '', `#${currentTab}`);
-      }
     }
-
-    // SPA back navigation popstate support
-    window.addEventListener('popstate', (event) => {
-      if (event.state) {
-        if (event.state.roomId) {
-          showDetail(event.state.roomId, false);
-        } else if (event.state.tab) {
-          switchTab(event.state.tab, false);
-        } else {
-          switchTab('map', false);
-        }
-      } else {
-        const hash = window.location.hash.replace('#', '');
-        if (hash.startsWith('detail/')) {
-          const roomId = hash.replace('detail/', '');
-          showDetail(roomId, false);
-        } else if (hash) {
-          switchTab(hash, false);
-        } else {
-          switchTab('map', false);
-        }
-      }
-    });
-
-    // Check hash on initial load
-    setTimeout(() => {
-      const initialHash = window.location.hash.replace('#', '');
-      if (initialHash.startsWith('detail/')) {
-        const roomId = initialHash.replace('detail/', '');
-        switchTab('list', false);
-        showDetail(roomId, false);
-      } else if (initialHash) {
-        switchTab(initialHash, false);
-      } else {
-        switchTab('map', false);
-      }
-    }, 500);
 
     async function pollDetail() {
       if (!currentDevice) return;
@@ -3518,16 +2945,16 @@
         const data = await res.json();
         const topBat = document.getElementById('dTopBat');
         const topTime = document.getElementById('dTopTime');
-
+        
         const telemetryData = (data && data.telemetry) ? data.telemetry : (Array.isArray(data) ? data : null);
         if (telemetryData && telemetryData.length > 0) {
           const d = telemetryData[0];
           const temp = parseFloat(d.temperature);
           const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
           const ts = parseDate(d.timestamp);
-
+          
           const isOnline = data.is_online !== false;
-
+          
           if (isOnline) {
             document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
             document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
@@ -3542,23 +2969,20 @@
 
           const card = document.getElementById('detailCard');
           const warn = document.getElementById('dWarn');
-
+          
           const humVal = parseFloat(d.humidity);
           let isAlert = false;
           let alertMsg = "";
-          const isTempAlertEnabled = !(tempMin === 0 && tempMax === 0);
-          const isHumAlertEnabled = !(humMin === 0 && humMax === 0);
-
-          if (isTempAlertEnabled && tempMin !== null && temp < tempMin) {
+          if (tempMin !== null && temp < tempMin) {
             isAlert = true;
             alertMsg = `⚠️ TEMPERATURE ALERT: BELOW ${tempMin}°C`;
-          } else if (isTempAlertEnabled && tempMax !== null && temp > tempMax) {
+          } else if (tempMax !== null && temp > tempMax) {
             isAlert = true;
             alertMsg = `⚠️ TEMPERATURE ALERT: EXCEEDS ${tempMax}°C`;
-          } else if (isHumAlertEnabled && humMin !== null && humVal < humMin) {
+          } else if (humMin !== null && humVal < humMin) {
             isAlert = true;
             alertMsg = `⚠️ HUMIDITY ALERT: BELOW ${humMin}%`;
-          } else if (isHumAlertEnabled && humMax !== null && humVal > humMax) {
+          } else if (humMax !== null && humVal > humMax) {
             isAlert = true;
             alertMsg = `⚠️ HUMIDITY ALERT: EXCEEDS ${humMax}%`;
           }
@@ -3598,7 +3022,7 @@
               document.getElementById('dHumAvg').textContent = data24h.hum_avg !== null ? parseFloat(data24h.hum_avg).toFixed(1) + '%' : '--';
               document.getElementById('dHumMax').textContent = data24h.hum_max !== null ? parseFloat(data24h.hum_max).toFixed(1) + '%' : '--';
             }
-          } catch (e) { }
+          } catch(e) {}
 
 
         } else {
@@ -3621,8 +3045,8 @@
           document.getElementById('detailCard').classList.remove('alarm');
           document.getElementById('dWarn').classList.remove('show');
         }
-      } catch (e) { }
-
+      } catch(e) {}
+      
       // Poll Smart Plug status regardless of temp/hum telemetry
       try {
         const plugRes = await fetch(`${API}/sensors/device/${currentDevice.id}/plug`);
@@ -3634,7 +3058,7 @@
             document.getElementById('plugPower').textContent = (plugData.apower !== null && plugData.apower !== undefined) ? parseFloat(plugData.apower).toFixed(1) + ' W' : '--';
             document.getElementById('plugVoltage').textContent = (plugData.voltage !== null && plugData.voltage !== undefined) ? parseFloat(plugData.voltage).toFixed(1) + ' V' : '--';
             document.getElementById('plugCurrent').textContent = (plugData.current !== null && plugData.current !== undefined) ? parseFloat(plugData.current).toFixed(3) + ' A' : '--';
-
+            
             const badge = document.getElementById('plugTypeBadge');
             badge.textContent = plugData.type.toUpperCase() + ' PLUG: ' + plugData.state.toUpperCase();
             if (plugData.state === 'on') {
@@ -3662,7 +3086,7 @@
         } else {
           document.getElementById('plugCard').style.display = 'none';
         }
-      } catch (plugErr) {
+      } catch(plugErr) {
         console.error("Error polling plug status:", plugErr);
         document.getElementById('plugCard').style.display = 'none';
       }
@@ -3674,9 +3098,9 @@
       const btn = document.getElementById('btnPlugToggle');
       const currentState = btn.dataset.state || 'off';
       const nextState = currentState === 'on' ? 'off' : 'on';
-
+      
       detailPlugToggling = true;
-
+      
       try {
         btn.disabled = true;
         btn.textContent = 'Toggling...';
@@ -3691,11 +3115,11 @@
           const pollInterval = setInterval(async () => {
             attempts++;
             await pollDetail();
-
+            
             const badge = document.getElementById('plugTypeBadge');
             const expectedText = 'PLUG: ' + nextState.toUpperCase();
             const success = badge && badge.textContent && badge.textContent.includes(expectedText);
-
+            
             if (success || attempts >= maxAttempts) {
               clearInterval(pollInterval);
               detailPlugToggling = false;
@@ -3709,7 +3133,7 @@
           btn.disabled = false;
           await pollDetail();
         }
-      } catch (e) {
+      } catch(e) {
         alert('Error communicating with plug API.');
         detailPlugToggling = false;
         btn.disabled = false;
@@ -3717,7 +3141,11 @@
       }
     }
 
+    // Keep APK download card visible on all devices
+    const downloadCard = document.getElementById('downloadCard');
+    if (downloadCard) {
+      downloadCard.style.display = 'block';
+    }
   </script>
 </body>
-
 </html>
