@@ -78,7 +78,7 @@ def startup_event():
     else:
         print("Worker thread disabled via DISABLE_WORKER=true")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(sensors.router)
 app.include_router(rooms.router)
