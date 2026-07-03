@@ -31,4 +31,4 @@ edge_agent/python_installer.exe
 old_worker.py
 # web/app.apk
 check_*.py
-sync_telemetry.py
+sync_telemetry.pyedge_agent/.venv/
