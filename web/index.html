@@ -2003,7 +2003,7 @@
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
           const isOnline = data.is_online !== false;
-          tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
+          tempStr = isOnline ? temp.toFixed(0) + '°C' : '--';
           
           let isAlert = false;
           if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
