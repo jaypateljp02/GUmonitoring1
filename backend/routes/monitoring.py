@@ -76,30 +76,45 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
             continue
         
         latest = telemetry_map.get(s.device_id)
-        if latest:
-            is_online = (now - latest["timestamp"]) < timedelta(minutes=3)
-            
-            has_plug = False
-            apower = None
-            if s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0:
-                has_plug = True
-                plug_data = plug_map.get(s.device_id)
-                if plug_data:
-                    is_stale = (now - plug_data["timestamp"]).total_seconds() > 180.0
-                    apower = plug_data["apower"] if not is_stale else 0.0
-                else:
-                    apower = 0.0
-            
+        plug_data = plug_map.get(s.device_id)
+        
+        has_plug = False
+        apower = None
+        if s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0:
+            has_plug = True
+            if plug_data:
+                is_stale = (now - plug_data["timestamp"]).total_seconds() > 180.0
+                apower = plug_data["apower"] if not is_stale else 0.0
+            else:
+                apower = 0.0
+                
+        if s.device_id == "cold_room_1_plug":
+            print(f"COLD_ROOM_DEBUG: latest={latest}, plug_data={plug_data}, has_plug={has_plug}, tapo_ip={s.tapo_ip}, type={s.type}")
+        if latest or has_plug:
+            is_online = False
+            if latest:
+                is_online = (now - latest["timestamp"]) < timedelta(minutes=3)
+            elif plug_data:
+                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=3)
+                
+            timestamp_val = None
+            if latest:
+                timestamp_val = latest["timestamp"]
+            elif plug_data:
+                timestamp_val = plug_data["timestamp"]
+            else:
+                timestamp_val = now
+                
             device_data.append({
                 "sensor_id": str(s.id),
                 "device_id": s.device_id,
                 "room_id": str(s.room_id) if s.room_id else None,
                 "type": s.type,
                 "name": s.name,
-                "temperature": latest["temperature"],
-                "humidity": latest["humidity"],
-                "battery_level": latest["battery_level"],
-                "timestamp": latest["timestamp"].isoformat(),
+                "temperature": latest["temperature"] if latest else 0.0,
+                "humidity": latest["humidity"] if latest else 0.0,
+                "battery_level": latest["battery_level"] if latest else 100.0,
+                "timestamp": timestamp_val.isoformat(),
                 "is_online": is_online,
                 "has_plug": has_plug,
                 "apower": apower
@@ -141,3 +156,5 @@ def seed_monitoring_data():
     """Temporary endpoint to seed the database with the blueprint layout."""
     seed()
     return {"message": "Database seeded successfully with blueprint layout."}
+
+
