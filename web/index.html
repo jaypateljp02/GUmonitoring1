@@ -2003,7 +2003,7 @@
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
           const isOnline = data.is_online !== false;
-          tempStr = isOnline ? temp.toFixed(0) + '°C' : '--';
+          tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
           
           let isAlert = false;
           if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
@@ -2051,12 +2051,11 @@
         pinsHtml += `
           <div class="map-pin" id="pin-${room.id}" data-room-id="${room.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${room.name}">
             ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
-            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 6px 10px; display: flex; align-items: center; gap: 6px; border-radius: 10px;">
-              <div class="pin-dot ${dotClass}"></div>
-              <div style="display: flex; flex-direction: column;">
+            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 4px 6px; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+              <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                 ${badgeLabel}
-                <span class="pin-name" style="font-size: 8px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
-                <span class="pin-temp" style="font-size: 11px; font-weight: bold;">${tempStr}</span>
+                <span class="pin-name" style="font-size: 7.5px; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
+                <span class="pin-temp" style="font-size: 10px; font-weight: 800;">${tempStr}</span>
               </div>
             </div>
           </div>
