@@ -27,6 +27,8 @@ import calendar
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
+_DISCOVERED_TAPO_PLUGS = {}  # In-memory cache: IP -> {"ip": "192.168.0.x", "model": "P110", "timestamp": datetime}
+
 
 @router.post("/{sensor_id}/reading", response_model=ReadingResponse, status_code=201)
 def submit_reading(
@@ -997,6 +999,62 @@ def get_batch_context(
         telemetry_logs=aggregated_logs
     )
 
+
+from pydantic import BaseModel
+class DiscoveredPlugsRequest(BaseModel):
+    devices: list
+
+@router.post("/tapo/discovered", tags=["Edge"])
+def tapo_discovered(
+    req: DiscoveredPlugsRequest,
+    api_key: str = Depends(verify_edge_api_key)
+):
+    """Receive discovered Tapo plugs from Edge Agent."""
+    now = datetime.utcnow()
+    for d in req.devices:
+        ip = d.get("ip")
+        if ip:
+            _DISCOVERED_TAPO_PLUGS[ip] = {
+                "ip": ip,
+                "model": d.get("model", "Unknown"),
+                "mac": d.get("mac", "Unknown"),
+                "timestamp": now
+            }
+    return {"status": "ok"}
+
+@router.get("/tapo/discovered", tags=["Monitoring"])
+def get_tapo_discovered(db: Session = Depends(get_db)):
+    """Fetch discovered plugs that are not already assigned to active sensors."""
+    # Find all Tapo IPs already actively used in DB
+    configured_ips = {
+        s.tapo_ip for s in db.query(Sensor).filter(
+            Sensor.active == True,
+            Sensor.tapo_ip.isnot(None)
+        ).all()
+    }
+    
+    # Prune stale discoveries (older than 15 minutes) and exclude configured IPs
+    now = datetime.utcnow()
+    results = []
+    keys_to_delete = []
+    
+    for ip, data in _DISCOVERED_TAPO_PLUGS.items():
+        if (now - data["timestamp"]).total_seconds() > 900:  # 15 mins
+            keys_to_delete.append(ip)
+        else:
+            is_configured = ip in configured_ips
+            results.append({
+                "ip": data["ip"],
+                "model": data["model"],
+                "mac": data["mac"],
+                "configured": is_configured,
+                "last_seen": data["timestamp"].isoformat()
+            })
+            
+    for k in keys_to_delete:
+        del _DISCOVERED_TAPO_PLUGS[k]
+        
+    return results
 
 @router.get("/tapo/configs", tags=["Edge"])
 def get_tapo_configs(db: Session = Depends(get_db), api_key: str = Depends(verify_edge_api_key)):

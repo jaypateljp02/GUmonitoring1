@@ -54,6 +54,20 @@
     }
 
     .page { padding: 16px; max-width: 480px; margin: 0 auto; transition: max-width 0.3s ease; }
+    
+    /* Responsive page widths for larger tablet and desktop screens */
+    @media (min-width: 768px) {
+      .page {
+        max-width: 800px !important;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .page {
+        max-width: 1100px !important;
+      }
+    }
+
     body.map-active .page, body.plugs-active .page { max-width: 1000px; }
 
     /* Header */
@@ -438,7 +452,13 @@
         </div>
         
         <div style="margin-bottom: 12px;">
-          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo IP Address</span>
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase; display: flex; justify-content: space-between;">
+            <span>Tapo IP Address</span>
+            <span id="discoveryStatus" style="color: #10b981; font-size: 9px; cursor: pointer;" onclick="fetchDiscoveredPlugs()">🔄 Scan Network</span>
+          </span>
+          <select id="modalTapoIpSelect" class="input-field" style="margin-top: 0; padding: 10px; cursor: pointer; margin-bottom: 6px;" onchange="handleTapoIpSelection()">
+            <option value="manual">Enter IP manually...</option>
+          </select>
           <input type="text" id="modalTapoIp" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="e.g. 192.168.1.100" />
         </div>
         
@@ -810,7 +830,7 @@
       return plugSelectedInterval[roomId] || '1';
     }
 
-    function switchTab(tab) {
+    function switchTab(tab, pushState = true) {
       currentTab = tab;
       document.body.className = `${tab}-active`;
       const tList = document.getElementById('tabList');
@@ -840,6 +860,19 @@
         tPlugs.classList.add('active');
         wPlugs.style.display = 'block';
         pollTapoPlugs(true);
+      }
+
+      // Hide detail view when switching tabs
+      const detailView = document.getElementById('detailView');
+      const listView = document.getElementById('listView');
+      if (detailView && listView) {
+        listView.classList.remove('hidden');
+        detailView.classList.remove('active');
+      }
+      if (detailInterval) clearInterval(detailInterval);
+
+      if (pushState) {
+        history.pushState({ tab }, '', `#${tab}`);
       }
     }
 
@@ -1571,7 +1604,7 @@
               <div style="display: flex; flex-direction: column;">
                 <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${room.name}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
-                  IP: ${tempSensor.tapo_ip || 'None'} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
+                  ID: ${tempSensor.device_id || 'N/A'} | IP: ${tempSensor.tapo_ip || 'None'} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
                   <span onclick="openTapoSettingsModal('${tempSensor.device_id}', '${tempSensor.tapo_ip || ''}', '${tempSensor.tapo_username || ''}', '${tempSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${tempSensor.tapo_running_threshold !== null && tempSensor.tapo_running_threshold !== undefined ? tempSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Tapo Connection Settings">⚙️</span>
                 </span>
               </div>
@@ -1690,7 +1723,50 @@
       }
     }
 
+    async function fetchDiscoveredPlugs() {
+      const statusEl = document.getElementById('discoveryStatus');
+      const selectEl = document.getElementById('modalTapoIpSelect');
+      statusEl.textContent = '🔄 Scanning...';
+      try {
+        const res = await fetch(`${API}/sensors/tapo/discovered`);
+        if (res.ok) {
+          const plugs = await res.json();
+          selectEl.innerHTML = '<option value="manual">Enter IP manually...</option>';
+          let foundNew = false;
+          plugs.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.ip;
+            const statusTxt = p.configured ? '(Already in use)' : '(New!)';
+            opt.textContent = `${p.model} - ${p.ip} ${statusTxt}`;
+            selectEl.appendChild(opt);
+            if (!p.configured) foundNew = true;
+          });
+          statusEl.textContent = foundNew ? '✨ New devices found!' : '🔄 Scan Complete';
+          setTimeout(() => statusEl.textContent = '🔄 Scan Network', 3000);
+        }
+      } catch (e) {
+        statusEl.textContent = '⚠️ Scan failed';
+        setTimeout(() => statusEl.textContent = '🔄 Scan Network', 3000);
+      }
+    }
+
+    function handleTapoIpSelection() {
+      const selectEl = document.getElementById('modalTapoIpSelect');
+      const inputEl = document.getElementById('modalTapoIp');
+      if (selectEl.value === 'manual') {
+        inputEl.style.display = 'block';
+        inputEl.value = '';
+      } else {
+        inputEl.style.display = 'none';
+        inputEl.value = selectEl.value;
+      }
+    }
+
     function openTapoSettingsModal(deviceId, ip, username, password, rate, threshold) {
+      fetchDiscoveredPlugs();
+      document.getElementById('modalTapoIpSelect').value = 'manual';
+      handleTapoIpSelection();
+      
       document.getElementById('modalTapoDeviceId').value = deviceId;
       document.getElementById('modalTapoMode').value = 'edit';
       document.getElementById('modalTapoIp').value = ip || '';
@@ -1730,6 +1806,10 @@
     }
     
     function openAddTapoModal() {
+      fetchDiscoveredPlugs();
+      document.getElementById('modalTapoIpSelect').value = 'manual';
+      handleTapoIpSelection();
+
       document.getElementById('modalTapoMode').value = 'add';
       document.getElementById('modalTapoIp').value = '';
       document.getElementById('modalTapoUsername').value = '';
@@ -2142,7 +2222,7 @@
           <span class="sensor-icon" style="display: inline-flex; align-items: center; justify-content: center;">${getRoomIcon(room.type)}</span>
           <div style="display: flex; flex-direction: column;">
             <span class="sensor-name" style="font-size: 13px; font-weight: 700; color: var(--text-primary);">${room.name}</span>
-            <span class="sensor-id-text" style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace;">ID: ${tempSensor?.device_id ? tempSensor.device_id.substring(0, 6) : 'N/A'}</span>
+            <span class="sensor-id-text" style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace;">ID: ${tempSensor?.device_id ? tempSensor.device_id : 'N/A'}</span>
           </div>
         </div>
         <div class="sensor-right" style="display: flex; align-items: center; gap: 10px; text-align: right;">
@@ -2867,7 +2947,7 @@
     }
 
     // Show detail screen
-    async function showDetail(roomId) {
+    async function showDetail(roomId, pushState = true) {
       const room = rooms.find(r => r.id === roomId);
       if (!room) return;
       const tempSensor = room.sensors?.find(s => s.type === 'temperature');
@@ -2883,7 +2963,7 @@
 
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
-      document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + ' Monitor</span>';
+      document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + '</span> <span style="font-size: 11px; font-weight: 500; font-family: monospace; color: var(--text-secondary); margin-left: 8px;">ID: ' + currentDevice.id + '</span>';
       
       document.getElementById('daysSelect').value = '7';
       document.getElementById('intervalSelect').value = '60'; // 1-hour intervals for 7-day default (avoids too-many-points bug)
@@ -2921,9 +3001,13 @@
       
       pollDetail();
       detailInterval = setInterval(pollDetail, 30000);
+
+      if (pushState) {
+        history.pushState({ tab: currentTab, roomId }, '', `#detail/${roomId}`);
+      }
     }
 
-    function showList() {
+    function showList(pushState = true) {
       document.getElementById('listView').classList.remove('hidden');
       document.getElementById('detailView').classList.remove('active');
       if (detailInterval) clearInterval(detailInterval);
@@ -2936,7 +3020,48 @@
         extremesChartInstance = null;
       }
       pollList();
+
+      if (pushState) {
+        history.pushState({ tab: currentTab }, '', `#${currentTab}`);
+      }
     }
+
+    // SPA back navigation popstate support
+    window.addEventListener('popstate', (event) => {
+      if (event.state) {
+        if (event.state.roomId) {
+          showDetail(event.state.roomId, false);
+        } else if (event.state.tab) {
+          switchTab(event.state.tab, false);
+        } else {
+          switchTab('map', false);
+        }
+      } else {
+        const hash = window.location.hash.replace('#', '');
+        if (hash.startsWith('detail/')) {
+          const roomId = hash.replace('detail/', '');
+          showDetail(roomId, false);
+        } else if (hash) {
+          switchTab(hash, false);
+        } else {
+          switchTab('map', false);
+        }
+      }
+    });
+
+    // Check hash on initial load
+    setTimeout(() => {
+      const initialHash = window.location.hash.replace('#', '');
+      if (initialHash.startsWith('detail/')) {
+        const roomId = initialHash.replace('detail/', '');
+        switchTab('list', false);
+        showDetail(roomId, false);
+      } else if (initialHash) {
+        switchTab(initialHash, false);
+      } else {
+        switchTab('map', false);
+      }
+    }, 500);
 
     async function pollDetail() {
       if (!currentDevice) return;

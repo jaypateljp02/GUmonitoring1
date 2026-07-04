@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from plugp100.common.credentials import AuthCredential
 from plugp100.new.device_factory import connect, DeviceConnectConfiguration
 from plugp100.new.components.energy_component import EnergyComponent
+from plugp100.discovery.tapo_discovery import TapoDiscovery
 
 logging.basicConfig(
     level=logging.INFO,
@@ -439,10 +440,47 @@ async def run_forwarder():
         logger.info(f"Cycle completed in {elapsed:.2f}s. Sleeping for {sleep_time:.2f}s...")
         await asyncio.sleep(sleep_time)
 
+async def report_discovered_plugs(plugs: list):
+    url = f"{CLOUD_API_URL}/sensors/tapo/discovered"
+    headers = {
+        "X-API-Key": EDGE_API_KEY,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "devices": [
+            {"ip": p.ip, "mac": p.mac, "model": p.device_model}
+            for p in plugs
+        ]
+    }
+    try:
+        response = await asyncio.to_thread(
+            call_api_sync, "POST", url, json=payload, headers=headers, timeout=5.0
+        )
+        if response.status_code == 200:
+            logger.info(f"Reported {len(plugs)} discovered plugs to cloud.")
+        else:
+            logger.error(f"Failed to report discovered plugs: HTTP {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error reporting discovered plugs: {e}")
+
+async def discovery_loop():
+    logger.info("Starting background Tapo UDP Discovery loop...")
+    while True:
+        try:
+            logger.info("Scanning local network for Tapo plugs...")
+            plugs = await TapoDiscovery.scan(timeout=5)
+            if plugs:
+                await report_discovered_plugs(plugs)
+        except Exception as e:
+            logger.error(f"Error in discovery loop: {e}")
+        # Run discovery scan every 2 minutes
+        await asyncio.sleep(120)
+
 async def main():
     await asyncio.gather(
         run_forwarder(),
-        command_loop()
+        command_loop(),
+        discovery_loop()
     )
 
 if __name__ == "__main__":

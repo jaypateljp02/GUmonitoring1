@@ -11,7 +11,7 @@ class Sensor(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(200), nullable=True)
     room_id = Column(UUID(as_uuid=True), ForeignKey("monitoring.rooms.id"), nullable=True)
-    type = Column(Enum("temperature", "humidity", name="sensor_type", create_type=False), nullable=False)
+    type = Column(Enum("temperature", "humidity", "plug", name="sensor_type", create_type=False), nullable=False)
     min_threshold = Column(Numeric)
     max_threshold = Column(Numeric)
     device_id = Column(String(50), nullable=True)
