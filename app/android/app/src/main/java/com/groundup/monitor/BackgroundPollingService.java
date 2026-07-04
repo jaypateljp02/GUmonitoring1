@@ -228,8 +228,8 @@ public class BackgroundPollingService extends Service {
                 long lastNotified = lastNotifiedAlerts.get(alertId);
                 int count = notifyCounts.get(alertId);
                 
-                long currentHour = now / (60 * 60 * 1000);
-                long lastNotifiedHour = lastNotified / (60 * 60 * 1000);
+                long currentHour = now / (3 * 60 * 60 * 1000);
+                long lastNotifiedHour = lastNotified / (3 * 60 * 60 * 1000);
                 
                 // Notify if first time OR if we have crossed into a new clock hour
                 if (count == 0 || (currentHour > lastNotifiedHour)) {
@@ -248,8 +248,8 @@ public class BackgroundPollingService extends Service {
                     String body = message;
                     
                     if (nextCount > 1) {
-                        int hours = nextCount - 1;
-                        String hoursStr = hours == 1 ? "1 hour" : hours + " hours";
+                        int hours = (nextCount - 1) * 3;
+                        String hoursStr = hours + " hours";
                         if (isOffline) {
                             title = "🚨 Offline: " + hoursStr;
                             body = "⚠️ Still Offline: " + message + " (Unresolved for " + hoursStr + ")";
