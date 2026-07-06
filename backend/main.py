@@ -211,4 +211,16 @@ def download_tasks_apk():
 def download_admin_apk():
     return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/admin-app.apk")
 
-
+@app.get("/app.apk", tags=["Frontend"])
+def serve_apk():
+    import os
+    from fastapi.responses import FileResponse
+    from fastapi import HTTPException
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    if os.path.exists(apk_path):
+        return FileResponse(
+            apk_path,
+            media_type="application/vnd.android.package-archive",
+            filename="ground-up-monitor.apk"
+        )
+    raise HTTPException(status_code=404, detail="APK not found")
