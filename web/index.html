@@ -1234,7 +1234,13 @@
         let badgeHtml = '';
         let metrics24hHtml = '';
         
-        if (error || (data && !data.supported) || (data && data.state === 'offline')) {
+        if (data && data.pending) {
+          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: rgba(59, 130, 246, 0.08); color: #2563eb; border: 1px solid rgba(59, 130, 246, 0.2);">CONFIGURING</span>`;
+          telemetryHtml = `<div style="text-align: center; color: #2563eb; font-size: 12px; font-weight: bold; margin: 15px 0;">
+            <div style="margin-bottom: 6px;">⏳ Waiting for data from Raspberry Pi...</div>
+            <div style="font-size: 10px; color: #64748b; font-weight: normal;">The plug has been configured. Data will appear automatically within 60 seconds.</div>
+          </div>`;
+        } else if (error || (data && !data.supported) || (data && data.state === 'offline')) {
           badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
           const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
           const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));

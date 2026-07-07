@@ -599,9 +599,9 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                     "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
                 }
             
-            # No DB records at all — device was never reachable
+            # No DB records at all — plug was just configured, waiting for edge agent to poll it
             return {
-                "state": "offline",
+                "state": "pending",
                 "voltage": 0.0,
                 "current": 0.0,
                 "apower": 0.0,
@@ -614,7 +614,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 "billing_rate": float(sensor.tapo_billing_rate) if sensor.tapo_billing_rate is not None else 10.0,
                 "supported": True,
                 "type": "tapo",
-                "error": str(e)
+                "pending": True
             }
 
     return {
