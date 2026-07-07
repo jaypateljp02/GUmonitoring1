@@ -58,7 +58,7 @@ def _dispatch_whatsapp_request(phone_number_id: str, access_token: str, recipien
     except Exception as e:
         logger.error(f"Exception raised while sending WhatsApp to {recipient}: {e}", exc_info=True)
 
-def send_whatsapp_template_to_all(template_name: str, body_parameters: List[str], button_parameter: Optional[str] = None):
+def send_whatsapp_template_to_all(template_name: str, body_parameters: List[str]):
     """
     Formats the payload and dispatches the WhatsApp template message to all configured recipients
     using a non-blocking background thread.
@@ -97,21 +97,6 @@ def send_whatsapp_template_to_all(template_name: str, body_parameters: List[str]
             "parameters": [{"type": "text", "text": str(param)} for param in body_parameters]
         }
         payload["template"]["components"].append(body_comp)
-
-        # Dynamic URL Button component (DETAILS button)
-        if button_parameter:
-            button_comp = {
-                "type": "button",
-                "sub_type": "url",
-                "index": "0",
-                "parameters": [
-                    {
-                        "type": "text",
-                        "text": str(button_parameter)
-                    }
-                ]
-            }
-            payload["template"]["components"].append(button_comp)
 
         logger.info(f"Queueing WhatsApp template '{template_name}' for {recipient}")
         
@@ -153,8 +138,7 @@ def send_whatsapp_alert(
     
     send_whatsapp_template_to_all(
         template_name="fermentary_alert_v1",
-        body_parameters=body_params,
-        button_parameter="health"
+        body_parameters=body_params
     )
 
 def send_whatsapp_daily_summary(
@@ -183,6 +167,5 @@ def send_whatsapp_daily_summary(
     
     send_whatsapp_template_to_all(
         template_name="fermentary_daily_summary_v1",
-        body_parameters=body_params,
-        button_parameter="reports/preview"
+        body_parameters=body_params
     )
