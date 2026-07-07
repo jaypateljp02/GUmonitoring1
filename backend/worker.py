@@ -18,6 +18,7 @@ from backend.models.compressor_stats import CompressorStats
 from backend.models.door_event import DoorEvent
 from backend.services.tapo import get_tapo_telemetry_cached
 from backend.services.ewelink import EwelinkClient
+from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -420,7 +421,25 @@ async def ingestion_loop():
                                     created_at=timestamp_parsed
                                 )
                                 db.add(new_alert)
+                                db.flush()
                                 alerts_by_sensor.setdefault(s.id, []).append(new_alert)
+
+                                # Send WhatsApp Alert
+                                try:
+                                    room = db.query(Room).filter(Room.id == s.room_id).first()
+                                    room_type = room.type if room else "room"
+                                    prio = calculate_priority(room_type, "offline", 0.0, s)
+                                    send_whatsapp_alert(
+                                        sensor_name=s.name,
+                                        alert_type="Offline",
+                                        current_value="N/A",
+                                        normal_range="Online",
+                                        duration="N/A",
+                                        priority=prio,
+                                        alert_id=str(new_alert.id)
+                                    )
+                                except Exception as wa_err:
+                                    logger.error(f"Failed to send offline WhatsApp alert: {wa_err}", exc_info=True)
                     else:
                         # Resolve active offline alerts
                         for s in sensors:
@@ -489,7 +508,31 @@ async def ingestion_loop():
                                             created_at=timestamp_parsed
                                         )
                                         db.add(new_alert)
+                                        db.flush()
                                         alerts_by_sensor.setdefault(s.id, []).append(new_alert)
+
+                                        # Send WhatsApp Alert
+                                        try:
+                                            room = db.query(Room).filter(Room.id == s.room_id).first()
+                                            room_type = room.type if room else "room"
+                                            prio = calculate_priority(room_type, s.type, float(val), s)
+
+                                            val_str = f"{val}°C" if s.type == "temperature" else f"{val}%"
+                                            min_th_str = f"{s.min_threshold}°C" if s.type == "temperature" else f"{s.min_threshold}%"
+                                            max_th_str = f"{s.max_threshold}°C" if s.type == "temperature" else f"{s.max_threshold}%"
+                                            range_str = f"{min_th_str} - {max_th_str}"
+
+                                            send_whatsapp_alert(
+                                                sensor_name=s.name,
+                                                alert_type=s.type.capitalize(),
+                                                current_value=val_str,
+                                                normal_range=range_str,
+                                                duration=f"{violation_duration:.1f} mins",
+                                                priority=prio,
+                                                alert_id=str(new_alert.id)
+                                            )
+                                        except Exception as wa_err:
+                                            logger.error(f"Failed to send threshold violation WhatsApp alert: {wa_err}", exc_info=True)
                                     else:
                                         logger.info(f"Threshold violation suppressed for sensor {s.id}: {val} (duration {violation_duration:.1f} mins < 10)")
                                 else:

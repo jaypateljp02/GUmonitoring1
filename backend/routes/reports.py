@@ -67,7 +67,7 @@ async def preview_daily_report(
 ):
     """Preview the daily report HTML template directly in the browser."""
     try:
-        html_body, _ = await generate_report_html(db)
+        html_body, _, _ = await generate_report_html(db)
         return HTMLResponse(content=html_body)
     except Exception as e:
         logger.error(f"Error in preview_daily_report: {e}", exc_info=True)

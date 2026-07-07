@@ -633,7 +633,7 @@ def build_report_html(report_date: str, overall_status: str, summary_msg: str, t
     """
     return html
 
-async def generate_report_html(db: Session) -> tuple[str, str]:
+async def generate_report_html(db: Session) -> tuple[str, str, str]:
     """Compile stats for all cold rooms, perform AI diagnostics, and build HTML body."""
     report_date = (datetime.utcnow() - timedelta(days=1)).strftime("%B %d, %Y")
     
@@ -641,7 +641,7 @@ async def generate_report_html(db: Session) -> tuple[str, str]:
     rooms = db.query(Room).filter(Room.active == True).all()
     if not rooms:
         logger.warning("No active rooms found in database.")
-        return "<html><body><h3>No active rooms found in database.</h3></body></html>", "healthy"
+        return "<html><body><h3>No active rooms found in database.</h3></body></html>", "healthy", "No active rooms found."
         
     # Filter rooms that have at least one temperature sensor configured
     monitored_rooms = []
@@ -653,7 +653,7 @@ async def generate_report_html(db: Session) -> tuple[str, str]:
             
     if not monitored_rooms:
         logger.info("No rooms have active temperature sensors.")
-        return "<html><body><h3>No rooms have active temperature sensors configured.</h3></body></html>", "healthy"
+        return "<html><body><h3>No rooms have active temperature sensors configured.</h3></body></html>", "healthy", "No monitored rooms found."
 
     # 2. Gather 24h metrics and 7d baselines
     cutoff_24h = datetime.utcnow() - timedelta(hours=24)
@@ -684,14 +684,14 @@ async def generate_report_html(db: Session) -> tuple[str, str]:
         telemetry_data=telemetry_data,
         insights=insights
     )
-    return html_body, overall_status
+    return html_body, overall_status, whatsapp_msg
 
 async def generate_daily_report(db: Session):
     """Compile stats for all cold rooms, perform AI diagnostics, and send the email report."""
     logger.info("Starting daily temperature & energy report generation...")
     report_date = (datetime.utcnow() - timedelta(days=1)).strftime("%B %d, %Y")
     
-    html_body, overall_status = await generate_report_html(db)
+    html_body, overall_status, whatsapp_msg = await generate_report_html(db)
     if "No rooms have active temperature sensors" in html_body or "No active rooms found" in html_body:
         return False
         
@@ -726,5 +726,50 @@ async def generate_daily_report(db: Session):
     else:
         logger.error("Failed to send daily cold storage insights email.")
         
+    # 7. Trigger WhatsApp Daily Summary Notification
+    try:
+        from backend.services.whatsapp import send_whatsapp_daily_summary, calculate_priority
+        from backend.models.alert import Alert
+        
+        active_sensors = db.query(Sensor).filter(Sensor.active == True).all()
+        unresolved_alerts = db.query(Alert).filter(Alert.resolved == False).all()
+        
+        active_count = len(unresolved_alerts)
+        normal_count = max(0, len(active_sensors) - active_count)
+        
+        highest_priority = "Healthy"
+        if unresolved_alerts:
+            priorities = []
+            for alert in unresolved_alerts:
+                sensor = db.query(Sensor).filter(Sensor.id == alert.sensor_id).first()
+                if sensor:
+                    room = db.query(Room).filter(Room.id == sensor.room_id).first()
+                    room_type = room.type if room else "room"
+                    p = calculate_priority(room_type, sensor.type, alert.value, sensor)
+                    priorities.append(p)
+            
+            # Calculate highest priority out of: Critical > High > Medium > Low
+            if "Critical" in priorities:
+                highest_priority = "Critical"
+            elif "High" in priorities:
+                highest_priority = "High"
+            elif "Medium" in priorities:
+                highest_priority = "Medium"
+            elif "Low" in priorities:
+                highest_priority = "Low"
+            else:
+                highest_priority = "Medium"
+                
+        logger.info(f"Dispatched daily summary to WhatsApp: date={report_date}, normal={normal_count}, active={active_count}, highest={highest_priority}")
+        send_whatsapp_daily_summary(
+            date_str=report_date,
+            normal_count=normal_count,
+            active_count=active_count,
+            highest_priority=highest_priority,
+            ai_summary=whatsapp_msg
+        )
+    except Exception as wa_err:
+        logger.error(f"Failed to dispatch daily summary to WhatsApp: {wa_err}", exc_info=True)
+
     return success
 
