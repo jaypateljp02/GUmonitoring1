@@ -364,17 +364,27 @@ async def ingestion_loop():
                             raw_bat = params.get("battery")
                             trig_time = params.get("trigTime")
 
-                            is_online_by_trig = True
+                            is_online_in_cloud = device_data.get("online", True)
                             if trig_time:
                                 try:
                                     trig_ts = float(trig_time) / 1000.0
-                                    if time.time() - trig_ts > 24 * 3600:
-                                        is_online_by_trig = False
-                                        logger.warning(f"Device {target_device} trigTime is stale (older than 24h): {datetime.utcfromtimestamp(trig_ts)}")
+                                    time_since_trig = time.time() - trig_ts
+                                    if not is_online_in_cloud:
+                                        # If cloud says offline, only treat it as online if it transmitted in the last 20 mins
+                                        if time_since_trig > 20 * 60:
+                                            is_online_in_cloud = False
+                                        else:
+                                            is_online_in_cloud = True
+                                    else:
+                                        # Even if cloud says online, if no transmission for > 1 hour, mark offline
+                                        if time_since_trig > 60 * 60:
+                                            is_online_in_cloud = False
                                 except Exception as ex:
                                     logger.error(f"Error parsing trigTime for device {target_device}: {ex}")
-
-                            is_online_in_cloud = device_data.get("online", True) if not trig_time else is_online_by_trig
+                            else:
+                                # No trig_time, trust the cloud online flag directly
+                                pass
+                                
                             if is_online_in_cloud:
                                 if raw_temp is not None:
                                     temp_val = float(raw_temp)

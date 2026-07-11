@@ -80,22 +80,29 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
         
         has_plug = False
         apower = None
+        plug_is_online = False
         if s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0:
             has_plug = True
             if plug_data:
-                is_stale = (now - plug_data["timestamp"]).total_seconds() > 180.0
-                apower = plug_data["apower"] if not is_stale else 0.0
+                is_stale = (now - plug_data["timestamp"]).total_seconds() > 600.0 # 10 minutes
+                if not is_stale:
+                    apower = plug_data["apower"]
+                    plug_is_online = True
+                else:
+                    apower = 0.0
+                    plug_is_online = False
             else:
                 apower = 0.0
+                plug_is_online = False
                 
         if s.device_id == "cold_room_1_plug":
             print(f"COLD_ROOM_DEBUG: latest={latest}, plug_data={plug_data}, has_plug={has_plug}, tapo_ip={s.tapo_ip}, type={s.type}")
         if latest or has_plug:
             is_online = False
             if latest:
-                is_online = (now - latest["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - latest["timestamp"]) < timedelta(minutes=10)
             elif plug_data:
-                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=10)
                 
             timestamp_val = None
             if latest:
@@ -117,6 +124,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
                 "timestamp": timestamp_val.isoformat(),
                 "is_online": is_online,
                 "has_plug": has_plug,
+                "plug_is_online": plug_is_online,
                 "apower": apower
             })
 
@@ -131,7 +139,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
         last_seen_times = [s.tapo_last_seen for s in tapo_sensors if s.tapo_last_seen is not None]
         if last_seen_times:
             agent_last_seen = max(last_seen_times)
-            if (now - agent_last_seen) < timedelta(minutes=3):
+            if (now - agent_last_seen) < timedelta(minutes=10):
                 agent_status = "running"
 
     return {

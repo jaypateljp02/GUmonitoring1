@@ -559,6 +559,10 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
             telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
                 sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
             ), timeout=1.5)
+            
+            if telemetry.get("state") == "offline" or "error" in telemetry:
+                raise ValueError(f"Direct Tapo connection returned offline status: {telemetry.get('error')}")
+                
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
             
@@ -590,8 +594,8 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 today_kwh = float(last_log.today_energy) / 1000.0
                 month_kwh = float(last_log.month_energy) / 1000.0
                 
-                # Check if telemetry is older than 3 minutes (180 seconds)
-                is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 180.0
+                # Check if telemetry is older than 10 minutes (600 seconds)
+                is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 600.0
                 if is_stale:
                     log.warning(f"Tapo telemetry for {device_id} is stale (last seen {last_log.timestamp}). Marking offline.")
                     return {

@@ -114,22 +114,22 @@
       z-index: 10; cursor: pointer; transition: transform 0.2s;
     }
     .map-pin:hover { transform: translate(-50%, -50%) scale(1.08); }
-    .pin-badge {
-      display: flex; align-items: center; gap: 6px;
+     .pin-badge {
+      display: flex; align-items: center; gap: 4px;
       background: rgba(10, 15, 30, 0.85); backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.1); padding: 6px 10px;
-      border-radius: 10px; color: #FFFFFF; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1); padding: 3px 5px;
+      border-radius: 6px; color: #FFFFFF; box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     }
     .pin-badge.alert { background: rgba(220, 38, 38, 0.85); border-color: #ef4444; }
     .pin-badge.offline { background: rgba(55, 65, 81, 0.85); border-color: #6b7280; }
-    .pin-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; }
+    .pin-dot { width: 5px; height: 5px; border-radius: 50%; background: #38bdf8; }
     .pin-dot.alert { background: #ef4444; }
     .pin-dot.offline { background: #6b7280; }
     .pin-name {
-      font-size: 8px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-      max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-size: 7px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+      max-width: 55px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .pin-temp { font-size: 11px; font-weight: bold; }
+    .pin-temp { font-size: 8.5px; font-weight: 800; }
 
     .pulse-ring-web {
       position: absolute; width: 48px; height: 48px; border-radius: 50%;
@@ -698,8 +698,35 @@
 
     <!-- MAP VIEW CONTAINER -->
     <div class="map-view active" id="mapViewContainer">
+      <div id="mapControls" style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 4px; padding: 0 2px;">
+        <label style="display: flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; opacity: 0.7;">
+          <input type="checkbox" id="mergePlugsCheckbox" checked onchange="toggleMergePlugs()" style="cursor: pointer; width: 10px; height: 10px; accent-color: var(--accent-blue);">
+          Merge
+        </label>
+        <button onclick="openMergeModal()" style="background: none; border: none; cursor: pointer; font-size: 12px; opacity: 0.6; padding: 0;" title="Manage Merge Groups">⚙️</button>
+      </div>
       <img src="/floorplan.jpg" class="map-image" alt="Factory Floor Plan">
       <div id="mapPinsContainer"></div>
+    </div>
+
+    <!-- Merge Groups Modal -->
+    <div id="mergeModal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width: 400px; max-height: 80vh; overflow-y: auto;">
+        <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 800; color: var(--text-primary);">Manage Merge Groups</h3>
+        
+        <!-- Existing groups -->
+        <div id="existingMergeGroups" style="margin-bottom: 16px;"></div>
+        
+        <!-- Create new group -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase;">Create New Group</div>
+          <input type="text" id="newMergeGroupName" placeholder="Group name (e.g. Hall F&F)" style="width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; margin-bottom: 8px; box-sizing: border-box;">
+          <div id="mergeRoomCheckboxes" style="max-height: 200px; overflow-y: auto; margin-bottom: 8px;"></div>
+          <button onclick="createMergeGroup()" style="width: 100%; padding: 8px; background: var(--accent-blue, #3b82f6); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Create Group</button>
+        </div>
+        
+        <button onclick="closeMergeModal()" style="width: 100%; padding: 8px; background: var(--border-color); color: var(--text-primary); border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px;">Close</button>
+      </div>
     </div>
 
     <!-- Scroll list of devices -->
@@ -946,6 +973,20 @@
       </div>
     </div>
 
+    <!-- Power Trend Chart Card -->
+    <div class="card" id="detailPowerChartCard" style="margin-top: 14px; display: none;">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+        <div class="card-title" id="detailPowerChartCardTitle" style="margin-bottom: 0;">7-Day Power Usage Trend</div>
+        <div class="chart-orientation-toggle" style="display: flex; gap: 4px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+          <button class="toggle-btn active" id="btn-horiz-power" onclick="setChartOrientation('power', 'horizontal')" style="border: none; background: #fff; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">Horizontal</button>
+          <button class="toggle-btn" id="btn-vert-power" onclick="setChartOrientation('power', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
+        </div>
+      </div>
+      <div id="detailPowerChartWrapper" style="position: relative; height: 150px; width: 100%;">
+        <canvas id="detailPowerChart"></canvas>
+      </div>
+    </div>
+
     <!-- Extremes Chart Card -->
     <div class="card" id="extremesChartCard" style="margin-top: 14px; display: none;">
       <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
@@ -1044,6 +1085,23 @@
     }
 
     let rooms = [];
+    let mergedGroups = [];
+
+    function buildMergedGroups() {
+      // Build merge groups dynamically from rooms' merge_group field
+      const groupMap = {};
+      rooms.forEach(room => {
+        if (room.merge_group) {
+          if (!groupMap[room.merge_group]) {
+            groupMap[room.merge_group] = { id: 'mg-' + room.merge_group, name: room.merge_group, roomIds: [], type: room.type || 'fridge' };
+          }
+          groupMap[room.merge_group].roomIds.push(room.id);
+        }
+      });
+      // Only keep groups with 2+ rooms
+      mergedGroups = Object.values(groupMap).filter(g => g.roomIds.length >= 2);
+    }
+
     let liveData = {};
     let currentDevice = null;
     let detailInterval = null;
@@ -1053,8 +1111,10 @@
     let humMax = null;
     let chartInstance = null;
     let extremesChartInstance = null;
+    let detailPowerChartInstance = null;
     let trendOrientation = 'horizontal';
     let extremesOrientation = 'horizontal';
+    let powerOrientation = 'horizontal';
     let currentTab = 'map';
     let tapoPlugsData = {};
     let tapoToggling = {};
@@ -1139,6 +1199,7 @@
         if (roomsRes.ok) {
           const data = await roomsRes.json();
           rooms = Array.isArray(data) ? data : [];
+          buildMergedGroups();
         }
       } catch(e) { /* use existing rooms data */ }
 
@@ -2167,6 +2228,133 @@
     let mapContainerRect = null;
     let hasDragged = false;
 
+    let mergePlugsEnabled = true;
+
+    function toggleMergePlugs() {
+      mergePlugsEnabled = document.getElementById('mergePlugsCheckbox').checked;
+      renderMapPins();
+    }
+
+    function openMergeModal() {
+      const modal = document.getElementById('mergeModal');
+      modal.style.display = 'flex';
+      
+      // Render existing groups
+      const existingDiv = document.getElementById('existingMergeGroups');
+      if (mergedGroups.length === 0) {
+        existingDiv.innerHTML = '<div style="font-size: 11px; color: var(--text-secondary); padding: 8px; text-align: center;">No merge groups yet</div>';
+      } else {
+        existingDiv.innerHTML = mergedGroups.map(g => {
+          const roomNames = g.roomIds.map(rid => {
+            const r = rooms.find(rm => rm.id === rid);
+            return r ? r.name : rid;
+          }).join(', ');
+          return `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-card, #f9fafb); border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--border-color);">
+              <div>
+                <div style="font-size: 12px; font-weight: 700; color: var(--text-primary);">${g.name}</div>
+                <div style="font-size: 9px; color: var(--text-secondary); margin-top: 2px;">${roomNames}</div>
+              </div>
+              <button onclick="deleteMergeGroup('${g.name}')" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 10px; font-weight: 700; cursor: pointer;">Remove</button>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      // Render room checkboxes (only unmerged rooms)
+      const mergedRoomIds = new Set();
+      mergedGroups.forEach(g => g.roomIds.forEach(id => mergedRoomIds.add(id)));
+      
+      const checkboxDiv = document.getElementById('mergeRoomCheckboxes');
+      const availableRooms = rooms.filter(r => !mergedRoomIds.has(r.id));
+      if (availableRooms.length === 0) {
+        checkboxDiv.innerHTML = '<div style="font-size: 10px; color: var(--text-secondary); padding: 6px;">All rooms are already in groups</div>';
+      } else {
+        checkboxDiv.innerHTML = availableRooms.map(r => `
+          <label style="display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 11px; cursor: pointer; color: var(--text-primary);">
+            <input type="checkbox" class="mergeRoomCb" value="${r.id}" style="width: 12px; height: 12px;">
+            ${r.name}
+          </label>
+        `).join('');
+      }
+      
+      document.getElementById('newMergeGroupName').value = '';
+    }
+
+    function closeMergeModal() {
+      document.getElementById('mergeModal').style.display = 'none';
+    }
+
+    async function createMergeGroup() {
+      const name = document.getElementById('newMergeGroupName').value.trim();
+      if (!name) { alert('Enter a group name'); return; }
+      
+      const checked = [...document.querySelectorAll('.mergeRoomCb:checked')].map(cb => cb.value);
+      if (checked.length < 2) { alert('Select at least 2 rooms'); return; }
+      
+      try {
+        const res = await fetch(`${API}/rooms/merge-group`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_ids: checked, group_name: name })
+        });
+        if (res.ok) {
+          // Update local room data
+          checked.forEach(rid => {
+            const r = rooms.find(rm => rm.id === rid);
+            if (r) r.merge_group = name;
+          });
+          buildMergedGroups();
+          renderMapPins();
+          openMergeModal(); // Refresh modal
+        } else {
+          alert('Failed to create merge group');
+        }
+      } catch(e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function deleteMergeGroup(groupName) {
+      try {
+        const res = await fetch(`${API}/rooms/merge-group/${encodeURIComponent(groupName)}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          rooms.forEach(r => {
+            if (r.merge_group === groupName) r.merge_group = null;
+          });
+          buildMergedGroups();
+          renderMapPins();
+          openMergeModal(); // Refresh modal
+        } else {
+          alert('Failed to remove merge group');
+        }
+      } catch(e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    function shortPinName(name) {
+      // Remove common long words to make pin labels compact
+      let s = name.replace(/\s+/g, ' ').trim();
+      s = s.replace(/freezer and fridge/gi, 'F&F');
+      s = s.replace(/fridge and freezer/gi, 'F&F');
+      s = s.replace(/tall fridge \& freezer/gi, 'Tall F&F');
+      s = s.replace(/hall fridge \& freezer/gi, 'Hall F&F');
+      s = s.replace(/terrace fridge \& freezer/gi, 'Terr F&F');
+      s = s.replace(/Samsung tall /gi, 'Samsung ');
+      s = s.replace(/ room /gi, ' ');
+      s = s.replace(/ room$/gi, '');
+      s = s.replace(/^Miso /gi, 'Miso ');
+      s = s.replace(/ centre /gi, ' C ');
+      s = s.replace(/ left side /gi, ' L ');
+      s = s.replace(/ right /gi, ' R ');
+      s = s.replace(/ white /gi, ' W ');
+      s = s.replace(/  +/g, ' ').trim();
+      return s;
+    }
+
     function renderMapPins() {
       const container = document.getElementById('mapPinsContainer');
       if (!container) return;
@@ -2174,11 +2362,109 @@
       let pinsHtml = '';
       let unplacedCount = 0;
       
+      // Keep track of which rooms are handled by merged groups
+      const handledRoomIds = new Set();
+      if (mergePlugsEnabled) {
+        mergedGroups.forEach(g => g.roomIds.forEach(id => handledRoomIds.add(id)));
+      }
+      
+      // 1. Render Merged Groups
+      if (mergePlugsEnabled) {
+        mergedGroups.forEach(group => {
+          const groupRooms = rooms.filter(r => group.roomIds.includes(r.id));
+          if (groupRooms.length === 0) return;
+          
+          // Use coordinates of the first room in the group
+          const primaryRoom = groupRooms[0];
+          let x = primaryRoom.map_x;
+          let y = primaryRoom.map_y;
+          let isUnplaced = false;
+          
+          const isMobile = window.innerWidth <= 600;
+          if (!x || !y) {
+            isUnplaced = true;
+            if (isMobile) {
+              x = `${10 + (unplacedCount * 18)}%`;
+              y = "94%";
+            } else {
+              x = `${10 + (unplacedCount * 18)}%`;
+              y = "90%";
+            }
+            unplacedCount++;
+          } else if (isMobile) {
+            const xVal = parseFloat(primaryRoom.map_x);
+            const yVal = parseFloat(primaryRoom.map_y);
+            x = `${100 - yVal}%`;
+            y = `${xVal}%`;
+          }
+          
+          let tempParts = [];
+          let hasAlert = false;
+          let allOffline = true;
+          let anyPlugOffline = false;
+          
+          groupRooms.forEach(room => {
+            const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+            if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
+              const data = liveData[tempSensor.device_id];
+              const temp = parseFloat(data.temperature);
+              const isOnline = data.is_online !== false;
+              
+              if (isOnline) {
+                allOffline = false;
+                let label = 'T';
+                if (room.name.toLowerCase().includes('freezer')) label = 'F';
+                else if (room.name.toLowerCase().includes('fridge')) label = 'R';
+                
+                tempParts.push(`${label}: ${temp.toFixed(1)}°C`);
+                
+                if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) hasAlert = true;
+                if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) hasAlert = true;
+              }
+              
+              if (data.has_plug && !data.plug_is_online) {
+                anyPlugOffline = true;
+              }
+            }
+          });
+          
+          let tempStr = '--';
+          if (tempParts.length > 0) {
+            tempStr = tempParts.join('<br>');
+          }
+          
+          let pinClass = '';
+          if (allOffline) pinClass = 'offline';
+          else if (hasAlert) pinClass = 'alert';
+          
+          const borderStyle = isUnplaced ? "border: 2px dashed #f59e0b;" : "";
+          const badgeLabel = isUnplaced ? `<span style="font-size: 7px; color: #f59e0b; font-weight: 800; margin-bottom: 2px;">[NEW]</span>` : "";
+          const plugStr = anyPlugOffline ? ' <span style="color: #ef4444; font-size: 7px;">🔌</span>' : '';
+          
+          pinsHtml += `
+            <div class="map-pin" id="pin-${group.id}" data-room-id="${group.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${group.name}">
+              ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
+              <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 3px 5px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
+                <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+                  ${badgeLabel}
+                  <span class="pin-name" style="font-size: 7px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 55px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${shortPinName(group.name)}</span>
+                  <span class="pin-temp" style="font-size: 8.5px; font-weight: 800; color: #ffffff; line-height: 1.2;">${tempStr}${plugStr}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      // 2. Render Single Rooms (not handled by merged groups)
       rooms.forEach(room => {
+        if (handledRoomIds.has(room.id)) return;
+        
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
         let tempStr = '--';
         let pinClass = 'offline';
         let dotClass = 'offline';
+        let plugStr = '';
         
         if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
           const data = liveData[tempSensor.device_id];
@@ -2199,6 +2485,10 @@
           } else {
             pinClass = '';
             dotClass = '';
+          }
+          
+          if (data.has_plug && !data.plug_is_online) {
+            plugStr = ' <span style="color: #ef4444; font-size: 7px;">🔌</span>';
           }
         }
         
@@ -2232,11 +2522,11 @@
         pinsHtml += `
           <div class="map-pin" id="pin-${room.id}" data-room-id="${room.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${room.name}">
             ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
-            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 4px 6px; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 3px 5px; display: flex; align-items: center; justify-content: center; border-radius: 6px;">
               <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                 ${badgeLabel}
-                <span class="pin-name" style="font-size: 7.5px; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
-                <span class="pin-temp" style="font-size: 10px; font-weight: 800;">${tempStr}</span>
+                <span class="pin-name" style="font-size: 7px; color: #ffffff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 55px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
+                <span class="pin-temp" style="font-size: 8.5px; font-weight: 800; line-height: 1.2;">${tempStr}${plugStr}</span>
               </div>
             </div>
           </div>
@@ -2244,12 +2534,36 @@
       });
       container.innerHTML = pinsHtml;
       
+      // Make merged groups draggable
+      if (mergePlugsEnabled) {
+        mergedGroups.forEach(group => {
+          const pinEl = document.getElementById(`pin-${group.id}`);
+          if (pinEl) {
+            makePinDraggable(pinEl, group.id);
+          }
+        });
+      }
+      
+      // Make single rooms draggable
       rooms.forEach(room => {
+        if (handledRoomIds.has(room.id)) return;
         const pinEl = document.getElementById(`pin-${room.id}`);
         if (pinEl) {
           makePinDraggable(pinEl, room.id);
         }
       });
+    }
+
+    function openDetailForPin(roomId) {
+      const matchedGroup = mergedGroups.find(g => g.id === roomId);
+      if (matchedGroup && mergePlugsEnabled) {
+        const firstRoom = rooms.find(r => matchedGroup.roomIds.includes(r.id));
+        if (firstRoom) {
+          showDetail(firstRoom.id);
+        }
+      } else {
+        showDetail(roomId);
+      }
     }
 
     function makePinDraggable(pinEl, roomId) {
@@ -2268,14 +2582,19 @@
           e.preventDefault();
           e.stopPropagation();
         } else {
-          showDetail(roomId);
+          openDetailForPin(roomId);
         }
       });
     }
 
+    let dragStartX = 0;
+    let dragStartY = 0;
+
     function startDrag(e, pinEl, roomId) {
       activeDragPin = { el: pinEl, roomId: roomId };
       hasDragged = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
       const mapContainer = document.getElementById('mapViewContainer');
       mapContainerRect = mapContainer.getBoundingClientRect();
       document.body.style.userSelect = 'none';
@@ -2284,14 +2603,22 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!activeDragPin) return;
-      hasDragged = true;
-      dragMove(e);
+      const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+      if (dist > 5) {
+        hasDragged = true;
+        dragMove(e);
+      }
     });
 
     window.addEventListener('touchmove', (e) => {
       if (!activeDragPin) return;
-      hasDragged = true;
-      dragMove(e.touches[0]);
+      const t = e.touches[0];
+      const dist = Math.hypot(t.clientX - dragStartX, t.clientY - dragStartY);
+      if (dist > 5) {
+        hasDragged = true;
+        dragMove(t);
+        if (e.cancelable) e.preventDefault();
+      }
     }, { passive: false });
 
     function dragMove(e) {
@@ -2343,21 +2670,45 @@
         mapY = `${(100 - leftVal).toFixed(2)}%`;
       }
       
-      try {
-        const res = await fetch(`${API}/rooms/${pin.roomId}/coordinates`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ map_x: mapX, map_y: mapY })
-        });
-        if (res.ok) {
-          const roomIdx = rooms.findIndex(r => r.id === pin.roomId);
-          if (roomIdx !== -1) {
-            rooms[roomIdx].map_x = mapX;
-            rooms[roomIdx].map_y = mapY;
+      const matchedGroup = mergedGroups.find(g => g.id === pin.roomId);
+      if (matchedGroup) {
+        // Save coordinates for all rooms in the group
+        await Promise.all(matchedGroup.roomIds.map(async (rid) => {
+          try {
+            const res = await fetch(`${API}/rooms/${rid}/coordinates`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ map_x: mapX, map_y: mapY })
+            });
+            if (res.ok) {
+              const roomIdx = rooms.findIndex(r => r.id === rid);
+              if (roomIdx !== -1) {
+                rooms[roomIdx].map_x = mapX;
+                rooms[roomIdx].map_y = mapY;
+              }
+            }
+          } catch (err) {
+            console.error("Failed to save merged pin coordinates:", err);
           }
+        }));
+      } else {
+        // Standard single room coordinate update
+        try {
+          const res = await fetch(`${API}/rooms/${pin.roomId}/coordinates`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ map_x: mapX, map_y: mapY })
+          });
+          if (res.ok) {
+            const roomIdx = rooms.findIndex(r => r.id === pin.roomId);
+            if (roomIdx !== -1) {
+              rooms[roomIdx].map_x = mapX;
+              rooms[roomIdx].map_y = mapY;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to save dragged pin coordinates:", err);
         }
-      } catch (err) {
-        console.error("Failed to save dragged pin coordinates:", err);
       }
     }
 
@@ -2462,6 +2813,7 @@
         if (roomsRes.ok) {
           const data = await roomsRes.json();
           rooms = Array.isArray(data) ? data : [];
+          buildMergedGroups();
         } else {
           rooms = [];
         }
@@ -2526,7 +2878,7 @@
               // Update power
               const powerEl = document.getElementById(`sp-${room.id}`);
               if (powerEl) {
-                if (isOnline && data.has_plug) {
+                if (data.has_plug && data.plug_is_online) {
                   const pwr = parseFloat(data.apower);
                   powerEl.textContent = `🔌 ${pwr.toFixed(0)}W`;
                   powerEl.style.display = 'inline-block';
@@ -2727,6 +3079,28 @@
         const btnHoriz = document.getElementById('btn-horiz-ext');
         const btnVert = document.getElementById('btn-vert-ext');
         const wrapper = document.getElementById('extremesChartWrapper');
+        if (orientation === 'vertical') {
+          btnHoriz.style.background = 'transparent';
+          btnHoriz.style.color = 'var(--text-secondary)';
+          btnHoriz.style.boxShadow = 'none';
+          btnVert.style.background = '#fff';
+          btnVert.style.color = 'var(--text-primary)';
+          btnVert.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '300px';
+        } else {
+          btnVert.style.background = 'transparent';
+          btnVert.style.color = 'var(--text-secondary)';
+          btnVert.style.boxShadow = 'none';
+          btnHoriz.style.background = '#fff';
+          btnHoriz.style.color = 'var(--text-primary)';
+          btnHoriz.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+          wrapper.style.height = '150px';
+        }
+      } else if (chartType === 'power') {
+        powerOrientation = orientation;
+        const btnHoriz = document.getElementById('btn-horiz-power');
+        const btnVert = document.getElementById('btn-vert-power');
+        const wrapper = document.getElementById('detailPowerChartWrapper');
         if (orientation === 'vertical') {
           btnHoriz.style.background = 'transparent';
           btnHoriz.style.color = 'var(--text-secondary)';
@@ -3107,6 +3481,107 @@
           extremesChartInstance = null;
         }
       }
+      
+      // 3. Update Plug Power Trend Chart (if room has a smart plug)
+      if (currentDevice.has_plug) {
+        if (days === 'custom' && customStart && customEnd) {
+          document.getElementById('detailPowerChartCardTitle').textContent = `Power Usage Trend (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
+        } else {
+          document.getElementById('detailPowerChartCardTitle').textContent = days === 'Monthly' ? `Monthly Power Usage Trend` : `${days}-Day Power Usage Trend`;
+        }
+        
+        try {
+          const resPower = await fetch(`${API}/sensors/device/${currentDevice.id}/plug/history?${queryStr}`);
+          if (resPower.ok) {
+            const resData = await resPower.json();
+            const historyData = (resData.history || []).reverse();
+            
+            if (historyData && historyData.length >= 2) {
+              document.getElementById('detailPowerChartCard').style.display = 'block';
+              
+              const wrapper = document.getElementById('detailPowerChartWrapper');
+              if (powerOrientation === 'vertical') {
+                const calcHeight = Math.min(1200, Math.max(300, historyData.length * 20));
+                wrapper.style.height = `${calcHeight}px`;
+              } else {
+                wrapper.style.height = '150px';
+              }
+              
+              const labels = historyData.map(log => {
+                const d = parseDate(log.timestamp);
+                if (days === '1') {
+                  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                } else {
+                  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+              });
+              const valuesPower = historyData.map(log => parseFloat(log.apower));
+              
+              if (detailPowerChartInstance) detailPowerChartInstance.destroy();
+              const ctxPower = document.getElementById('detailPowerChart').getContext('2d');
+              detailPowerChartInstance = new Chart(ctxPower, {
+                type: 'line',
+                data: {
+                  labels: labels,
+                  datasets: [{
+                    label: 'Load (W)',
+                    data: valuesPower,
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.04)',
+                    borderWidth: 2,
+                    pointRadius: historyData.length > 50 ? 0 : 2,
+                    fill: true,
+                    tension: 0.3
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: powerOrientation === 'vertical' ? 'y' : 'x',
+                  plugins: {
+                    legend: { display: false },
+                    datalabels: { display: false }
+                  },
+                  scales: {
+                    x: {
+                      grid: { display: powerOrientation === 'vertical', color: '#F1F5F9' },
+                      ticks: {
+                        color: '#4b5563',
+                        font: { family: 'Inter', size: powerOrientation === 'vertical' ? 10 : 8 },
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                      }
+                    },
+                    y: {
+                      grid: { display: powerOrientation === 'horizontal', color: '#F1F5F9' },
+                      ticks: {
+                        color: '#4b5563',
+                        font: { family: 'Inter', size: powerOrientation === 'vertical' ? 8 : 10 },
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                      }
+                    }
+                  }
+                }
+              });
+            } else {
+              document.getElementById('detailPowerChartCard').style.display = 'none';
+            }
+          } else {
+            document.getElementById('detailPowerChartCard').style.display = 'none';
+          }
+        } catch (e) {
+          console.error('Error fetching plug history metrics:', e);
+          document.getElementById('detailPowerChartCard').style.display = 'none';
+        }
+      } else {
+        document.getElementById('detailPowerChartCard').style.display = 'none';
+        if (detailPowerChartInstance) {
+          detailPowerChartInstance.destroy();
+          detailPowerChartInstance = null;
+        }
+      }
     }
 
     function toggleCollapse(contentId, arrowId) {
@@ -3151,6 +3626,7 @@
         return;
       }
       currentDevice = {
+        ...room,
         id: tempSensor.device_id,
         name: room.name,
         icon: getRoomIcon(room.type)
@@ -3167,6 +3643,7 @@
       // Default to horizontal on open
       trendOrientation = 'horizontal';
       extremesOrientation = 'horizontal';
+      powerOrientation = 'horizontal';
       
       // Reset button highlights
       document.getElementById('btn-horiz-trend').style.background = '#fff';
@@ -3176,6 +3653,14 @@
       document.getElementById('btn-vert-trend').style.color = 'var(--text-secondary)';
       document.getElementById('btn-vert-trend').style.boxShadow = 'none';
       document.getElementById('trendChartWrapper').style.height = '150px';
+
+      document.getElementById('btn-horiz-power').style.background = '#fff';
+      document.getElementById('btn-horiz-power').style.color = 'var(--text-primary)';
+      document.getElementById('btn-horiz-power').style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+      document.getElementById('btn-vert-power').style.background = 'transparent';
+      document.getElementById('btn-vert-power').style.color = 'var(--text-secondary)';
+      document.getElementById('btn-vert-power').style.boxShadow = 'none';
+      document.getElementById('detailPowerChartWrapper').style.height = '150px';
 
       document.getElementById('btn-horiz-ext').style.background = '#fff';
       document.getElementById('btn-horiz-ext').style.color = 'var(--text-primary)';
@@ -3213,6 +3698,10 @@
       if (extremesChartInstance) {
         extremesChartInstance.destroy();
         extremesChartInstance = null;
+      }
+      if (detailPowerChartInstance) {
+        detailPowerChartInstance.destroy();
+        detailPowerChartInstance = null;
       }
       pollList();
 
@@ -3273,7 +3762,8 @@
           const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
           const ts = parseDate(d.timestamp);
           
-          const isOnline = data.is_online !== false;
+          const tempSensor = currentDevice.sensors?.find(s => s.type === 'temperature');
+          const isOnline = (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) ? (liveData[tempSensor.device_id].is_online !== false) : false;
           
           if (isOnline) {
             document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
