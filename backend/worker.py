@@ -20,7 +20,9 @@ from backend.services.tapo import get_tapo_telemetry_cached
 from backend.services.ewelink import EwelinkClient
 from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
 
-load_dotenv()
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dotenv_path = os.path.join(base_dir, ".env")
+load_dotenv(dotenv_path=dotenv_path)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 

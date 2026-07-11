@@ -1,7 +1,9 @@
 """Monitoring API configuration."""
 import os
 from dotenv import load_dotenv
-load_dotenv()
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dotenv_path = os.path.join(base_dir, ".env")
+load_dotenv(dotenv_path=dotenv_path)
 
 # Render (and some other providers) supply a DATABASE_URL with the legacy
 # "postgres://" scheme. SQLAlchemy 2.0 only accepts "postgresql://", so we
