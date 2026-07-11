@@ -43,6 +43,10 @@
       position: relative;
       overflow-x: hidden;
     }
+    /* Mobile touch: remove 300ms click delay on all interactive elements */
+    button, a, [onclick], [data-room-id], .tab, .sensor-card, .action-btn, .map-pin, .chat-trigger-btn, .chat-chip {
+      touch-action: manipulation;
+    }
     body::before {
       content: "";
       position: fixed;
@@ -92,6 +96,7 @@
       flex: 1; padding: 8px; text-align: center; font-weight: 700;
       font-size: 13px; cursor: pointer; border-radius: 8px;
       color: var(--text-secondary); transition: all 0.2s ease-in-out;
+      touch-action: manipulation; -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
     }
     .tab.active {
       background: #ffffff; color: var(--text-primary);
@@ -154,6 +159,10 @@
       align-items: center;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+      -webkit-tap-highlight-color: rgba(37, 99, 235, 0.1);
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     }
     .sensor-card:hover {
       background: var(--card-hover-bg);
@@ -2756,7 +2765,7 @@
     function buildSensorCard(room) {
       const tempSensor = room.sensors?.find(s => s.type === 'temperature');
       return `
-      <div class="sensor-card" id="sc-${room.id}" onclick="showDetail('${room.id}')">
+      <div class="sensor-card" id="sc-${room.id}" data-room-id="${room.id}">
         <div class="sensor-left" style="display: flex; align-items: center; gap: 10px;">
           <span class="sensor-icon" style="display: inline-flex; align-items: center; justify-content: center;">${getRoomIcon(room.type)}</span>
           <div style="display: flex; flex-direction: column;">
@@ -2956,6 +2965,52 @@
           </div>`;
       }
     }
+
+    // ─── Mobile-friendly event delegation for sensor card taps ───
+    (function() {
+      const sensorList = document.getElementById('sensorList');
+      let touchStartTime = 0;
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchHandled = false;
+
+      function getRoomIdFromCard(target) {
+        const card = target.closest('.sensor-card');
+        return card ? card.getAttribute('data-room-id') : null;
+      }
+
+      sensorList.addEventListener('touchstart', function(e) {
+        touchHandled = false;
+        const t = e.touches[0];
+        touchStartTime = Date.now();
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+      }, { passive: true });
+
+      sensorList.addEventListener('touchend', function(e) {
+        const t = e.changedTouches[0];
+        const dt = Date.now() - touchStartTime;
+        const dx = Math.abs(t.clientX - touchStartX);
+        const dy = Math.abs(t.clientY - touchStartY);
+        // Only treat as tap if short duration and minimal movement
+        if (dt < 500 && dx < 15 && dy < 15) {
+          const roomId = getRoomIdFromCard(t.target);
+          if (roomId) {
+            touchHandled = true;
+            e.preventDefault();
+            showDetail(roomId);
+          }
+        }
+      });
+
+      sensorList.addEventListener('click', function(e) {
+        if (touchHandled) { touchHandled = false; return; }
+        const roomId = getRoomIdFromCard(e.target);
+        if (roomId) {
+          showDetail(roomId);
+        }
+      });
+    })();
 
     pollList();
     const listInterval = setInterval(pollList, 30000);
