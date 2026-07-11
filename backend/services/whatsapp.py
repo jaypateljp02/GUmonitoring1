@@ -21,14 +21,14 @@ def calculate_priority(room_type: str, sensor_type: str, value: float, sensor) -
     # For threshold violations (temperature, humidity)
     if room_type_lower in ["fridge", "freezer"]:
         if sensor_type_lower == "temperature":
-            # If temperature deviates by more than 5 degrees C, set to Critical
+            # If temperature deviates by more than 10 degrees C, set to Critical (high-high)
             min_th = float(sensor.min_threshold) if sensor.min_threshold is not None else None
             max_th = float(sensor.max_threshold) if sensor.max_threshold is not None else None
             
             val_float = float(value)
-            if max_th is not None and val_float > (max_th + 5.0):
+            if max_th is not None and val_float > (max_th + 10.0):
                 return "Critical"
-            if min_th is not None and val_float < (min_th - 5.0):
+            if min_th is not None and val_float < (min_th - 10.0):
                 return "Critical"
             return "High"
         else:
@@ -58,11 +58,7 @@ def _dispatch_whatsapp_request(phone_number_id: str, access_token: str, recipien
     except Exception as e:
         logger.error(f"Exception raised while sending WhatsApp to {recipient}: {e}", exc_info=True)
 
-def send_whatsapp_template_to_all(
-    template_name: str, 
-    body_parameters: List[str], 
-    button_parameters: Optional[List[str]] = None
-):
+def send_whatsapp_template_to_all(template_name: str, body_parameters: List[str]):
     """
     Formats the payload and dispatches the WhatsApp template message to all configured recipients
     using a non-blocking background thread.
@@ -102,22 +98,6 @@ def send_whatsapp_template_to_all(
         }
         payload["template"]["components"].append(body_comp)
 
-        # Button components (for dynamic URL buttons)
-        if button_parameters:
-            for idx, btn_param in enumerate(button_parameters):
-                btn_comp = {
-                    "type": "button",
-                    "sub_type": "url",
-                    "index": str(idx),
-                    "parameters": [
-                        {
-                            "type": "text",
-                            "text": str(btn_param)
-                        }
-                    ]
-                }
-                payload["template"]["components"].append(btn_comp)
-
         logger.info(f"Queueing WhatsApp template '{template_name}' for {recipient}")
         
         # Fire background thread to avoid blocking the caller
@@ -146,7 +126,6 @@ def send_whatsapp_alert(
     - Normal Range
     - Duration
     - Priority
-    - Alert ID (for Url Button param)
     """
     body_params = [
         sensor_name,
@@ -157,12 +136,9 @@ def send_whatsapp_alert(
         priority
     ]
     
-    button_params = [str(alert_id)] if alert_id else ["active"]
-    
     send_whatsapp_template_to_all(
         template_name="fermentary_alert_v1",
-        body_parameters=body_params,
-        button_parameters=button_params
+        body_parameters=body_params
     )
 
 def send_whatsapp_daily_summary(

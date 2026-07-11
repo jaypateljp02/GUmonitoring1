@@ -279,8 +279,8 @@ async def ingestion_loop():
                     except Exception as e:
                         logger.error(f"Failed to sync devices on reconnect: {e}")
 
-            # Sync devices periodically (every 10 minutes / 10 loops)
-            if use_live and sync_counter >= 10:
+            # Sync devices periodically (every ~10 minutes / 2 loops at 5-min interval)
+            if use_live and sync_counter >= 2:
                 try:
                     await asyncio.wait_for(sync_ewelink_devices(db, client), timeout=20.0)
                     sync_counter = 0
@@ -327,7 +327,7 @@ async def ingestion_loop():
                 logger.warning("Skipping device processing this cycle due to eWeLink API/login failure.")
                 sync_counter += 1
                 elapsed = time.time() - start_time
-                sleep_time = max(0, 60.0 - elapsed)
+                sleep_time = max(0, 300.0 - elapsed)
                 await asyncio.sleep(sleep_time)
                 continue
             
@@ -499,8 +499,18 @@ async def ingestion_loop():
                                             break
                                             
                                     violation_duration = (timestamp_parsed - first_violated_at).total_seconds() / 60.0
-                                    if violation_duration >= 10.0:
-                                        logger.warning(f"THRESHOLD VIOLATION SUSTAINED for sensor {s.id}: {val} (duration {violation_duration:.1f} mins)")
+                                    
+                                    # Calculate priority FIRST to determine required duration
+                                    room = db.query(Room).filter(Room.id == s.room_id).first()
+                                    room_type = room.type if room else "room"
+                                    prio = calculate_priority(room_type, s.type, float(val), s)
+                                    
+                                    # Critical (high-high) = 10 min — important, alert fast
+                                    # High / Medium / Low = 60 min (1 hour) — don't spam
+                                    required_duration = 10.0 if prio == "Critical" else 60.0
+                                    
+                                    if violation_duration >= required_duration:
+                                        logger.warning(f"THRESHOLD VIOLATION SUSTAINED for sensor {s.id}: {val} (duration {violation_duration:.1f} mins, priority={prio}, threshold={required_duration} mins)")
                                         new_alert = Alert(
                                             sensor_id=s.id,
                                             value=val,
@@ -513,10 +523,6 @@ async def ingestion_loop():
 
                                         # Send WhatsApp Alert
                                         try:
-                                            room = db.query(Room).filter(Room.id == s.room_id).first()
-                                            room_type = room.type if room else "room"
-                                            prio = calculate_priority(room_type, s.type, float(val), s)
-
                                             val_str = f"{val}°C" if s.type == "temperature" else f"{val}%"
                                             min_th_str = f"{s.min_threshold}°C" if s.type == "temperature" else f"{s.min_threshold}%"
                                             max_th_str = f"{s.max_threshold}°C" if s.type == "temperature" else f"{s.max_threshold}%"
@@ -534,7 +540,7 @@ async def ingestion_loop():
                                         except Exception as wa_err:
                                             logger.error(f"Failed to send threshold violation WhatsApp alert: {wa_err}", exc_info=True)
                                     else:
-                                        logger.info(f"Threshold violation suppressed for sensor {s.id}: {val} (duration {violation_duration:.1f} mins < 10)")
+                                        logger.info(f"Threshold violation suppressed for sensor {s.id}: {val} (duration {violation_duration:.1f} mins < {required_duration} mins, priority={prio})")
                                 else:
                                     # Normal value, check if previous reading was violating to log door open event
                                     recent_readings = db.query(SensorReading).filter(
@@ -618,7 +624,7 @@ async def ingestion_loop():
             
         sync_counter += 1
         elapsed = time.time() - start_time
-        sleep_time = max(0, 60.0 - elapsed)
+        sleep_time = max(0, 300.0 - elapsed)
         await asyncio.sleep(sleep_time)
 
 def start_worker():
