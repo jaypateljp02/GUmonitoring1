@@ -687,56 +687,6 @@
   </style>
 </head>
 <body class="map-active">
-  <!-- Global debug & error overlay for mobile debugging -->
-  <div id="error-console-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; max-height:180px; overflow-y:auto; background:rgba(15,23,42,0.97); color:white; font-family:monospace; font-size:11px; padding:10px; z-index:999999; box-sizing:border-box; border-bottom: 2px solid var(--accent-blue); box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">
-      <span style="color:#60a5fa;">🔍 Debug & Error Console</span>
-      <button onclick="document.getElementById('error-console-overlay').style.display='none'" style="background:none; border:none; color:white; font-size:16px; font-weight:800; cursor:pointer; padding:0 4px; line-height:1;">×</button>
-    </div>
-    <pre id="error-console-text" style="margin:0; white-space:pre-wrap; font-family:inherit; color:#e2e8f0;"></pre>
-  </div>
-  <script>
-    window.addEventListener('error', function(e) {
-      const overlay = document.getElementById('error-console-overlay');
-      const textEl = document.getElementById('error-console-text');
-      if (overlay && textEl) {
-        overlay.style.display = 'block';
-        textEl.textContent += (e.message || 'Error') + ' at ' + (e.filename || '').split('/').pop() + ':' + (e.lineno || '') + '\n';
-      }
-    });
-    window.addEventListener('unhandledrejection', function(e) {
-      const overlay = document.getElementById('error-console-overlay');
-      const textEl = document.getElementById('error-console-text');
-      if (overlay && textEl) {
-        overlay.style.display = 'block';
-        textEl.textContent += 'Unhandled promise: ' + (e.reason ? e.reason.message || e.reason : 'unknown') + '\n';
-      }
-    });
-
-    // Mobile touch debugging: log whatever element gets touched/clicked
-    document.addEventListener('touchstart', function(e) {
-      const overlay = document.getElementById('error-console-overlay');
-      const textEl = document.getElementById('error-console-text');
-      if (overlay && textEl) {
-        // Don't show debug console if tapping the close button of the console itself
-        if (e.target.closest('#error-console-overlay')) return;
-        overlay.style.display = 'block';
-        
-        let path = [];
-        let el = e.target;
-        while (el && el.tagName) {
-          let str = el.tagName.toLowerCase();
-          if (el.id) str += '#' + el.id;
-          if (el.className) str += '.' + Array.from(el.classList).join('.');
-          path.push(str);
-          el = el.parentElement;
-          if (path.length >= 3) break;
-        }
-        textEl.textContent += 'Touch: ' + path.join(' < ') + '\n';
-      }
-    }, { passive: true });
-  </script>
-
   <!-- LIST / MAP VIEW -->
   <div class="page list-view" id="listView">
     <div style="display: flex; justify-content: space-between; align-items: center;">
