@@ -1290,6 +1290,12 @@
     function handlePlugTimeframeChange(roomId, deviceId) {
       const days = document.getElementById(`plugDays-${roomId}`).value;
       plugSelectedDays[roomId] = days;
+      
+      const customRow = document.getElementById(`plugCustomDateRange-${roomId}`);
+      if (customRow) {
+        customRow.style.display = days === 'custom' ? 'flex' : 'none';
+      }
+      
       const intervalSelect = document.getElementById(`plugInterval-${roomId}`);
       if (days === '1') {
         intervalSelect.value = '1';
@@ -1299,6 +1305,8 @@
         intervalSelect.value = '60';
       } else if (days === '30') {
         intervalSelect.value = '120';
+      } else if (days === 'custom') {
+        intervalSelect.value = '60'; // Default to 1 hour intervals for custom
       }
       plugSelectedInterval[roomId] = intervalSelect.value;
       loadPlugChartsData(roomId, deviceId);
@@ -1314,14 +1322,36 @@
       plugSelectedDays[roomId] = days;
       plugSelectedInterval[roomId] = interval;
 
+      let queryStr = `days=${days}&interval_minutes=${interval}`;
+      if (days === 'custom') {
+        const startVal = document.getElementById(`plugStartDate-${roomId}`).value;
+        const endVal = document.getElementById(`plugEndDate-${roomId}`).value;
+        if (startVal && endVal) {
+          queryStr += `&start_date=${startVal}&end_date=${endVal}`;
+        } else {
+          // If custom is selected but dates are not set yet, default to last 7 days range
+          const now = new Date();
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+          const startStr = sevenDaysAgo.toISOString().split('T')[0];
+          const endStr = now.toISOString().split('T')[0];
+          queryStr += `&start_date=${startStr}&end_date=${endStr}`;
+          
+          // Set inputs to match defaults
+          const startInput = document.getElementById(`plugStartDate-${roomId}`);
+          const endInput = document.getElementById(`plugEndDate-${roomId}`);
+          if (startInput) startInput.value = startStr;
+          if (endInput) endInput.value = endStr;
+        }
+      }
+
       // Update export CSV link
       const csvLink = document.getElementById(`plugCsvExport-${roomId}`);
       if (csvLink) {
-        csvLink.href = `${API}/sensors/device/${deviceId}/plug/export?days=${days}&interval_minutes=${interval}`;
+        csvLink.href = `${API}/sensors/device/${deviceId}/plug/export?${queryStr}`;
       }
       
       try {
-        const res = await fetch(`${API}/sensors/device/${deviceId}/plug/history?days=${days}&interval_minutes=${interval}`);
+        const res = await fetch(`${API}/sensors/device/${deviceId}/plug/history?${queryStr}`);
         if (res.ok) {
           const resData = await res.json();
           const historyData = (resData.history || []).reverse();
@@ -1514,226 +1544,116 @@
             <div style="margin-bottom: 6px;">⏳ Waiting for data from Raspberry Pi...</div>
             <div style="font-size: 10px; color: #64748b; font-weight: normal;">The plug has been configured. Data will appear automatically within 60 seconds.</div>
           </div>`;
-        } else if (error || (data && !data.supported) || (data && data.state === 'offline')) {
-          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
-          const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
-          const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
-          const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
-          telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}${cloudNote}</div>`;
-        } else if (data && data.supported && data.last_known) {
-          // Last known data from DB — plug unreachable directly but worker logged it
-          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2);">LAST KNOWN</span>`;
-          telemetryHtml = `
-            <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; font-size: 10px; color: #92400e; text-align: center;">
-              ⚠️ Showing last known data (${data.last_known_at}) — plug unreachable from cloud. LAN access required for live control.
-            </div>
-            <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
-              <div style="flex: 1; text-align: center;">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ LAST POWER</div>
-                <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
-              </div>
-              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ VOLTAGE</div>
-                <div id="plugVoltage-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.voltage.toFixed(1)} V</div>
-              </div>
-              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ CURRENT</div>
-                <div id="plugCurrent-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.current.toFixed(3)} A</div>
-              </div>
-            </div>
-          `;
-          billingHtml = `
-            <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
-              <div style="text-align: center; flex: 1;">
-                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Today's Use</div>
-                <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
-                <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
-              </div>
-              ${isBillingDay ? `
-              <div style="border-left: 1px solid #E2E8F0;"></div>
-              <div style="text-align: center; flex: 1;">
-                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
-                <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
-                <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
-              </div>
-              ` : ''}
-            </div>
-          `;
-          toggleBtnHtml = `
-            <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
-              🌐 LAN Only (Toggle not available from cloud)
-            </button>
-          `;
-          metrics24hHtml = `
-            <div style="margin-top: 14px;">
-              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Power Bounds</div>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <div class="stat-box-large stat-temp-min" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
-                  <div style="color: #1d4ed8; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
-                  <div id="plugPowerMin-${roomId}" style="color: #1e3a8a; font-size: 18px; font-weight: 900;">--</div>
-                </div>
-                <div class="stat-box-large stat-box-avg stat-temp-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
-                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
-                  <div id="plugPowerAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
-                </div>
-                <div class="stat-box-large stat-temp-max" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
-                  <div style="color: #b91c1c; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
-                  <div id="plugPowerMax-${roomId}" style="color: #7f1d1d; font-size: 18px; font-weight: 900;">--</div>
-                </div>
-              </div>
-            </div>
-
-            <div style="margin-top: 14px;">
-              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Current Bounds</div>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(37, 99, 235, 0.04); border: 1px solid rgba(37, 99, 235, 0.15);">
-                  <div style="color: #2563eb; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MINIMUM</div>
-                  <div id="plugCurrentMin-${roomId}" style="color: #1e40af; font-size: 18px; font-weight: 900;">--</div>
-                </div>
-                <div class="stat-box-large stat-box-avg" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center;">
-                  <div style="color: #4b5563; font-size: 8px; font-weight: 800; margin-bottom: 4px;">AVERAGE</div>
-                  <div id="plugCurrentAvg-${roomId}" style="color: #111827; font-size: 15px; font-weight: 900;">--</div>
-                </div>
-                <div class="stat-box-large" style="padding: 8px 4px; border-radius: 10px; flex: 1; text-align: center; background: rgba(239, 68, 68, 0.04); border: 1px solid rgba(239, 68, 68, 0.15);">
-                  <div style="color: #ef4444; font-size: 9px; font-weight: 800; margin-bottom: 4px;">MAXIMUM</div>
-                  <div id="plugCurrentMax-${roomId}" style="color: #991b1b; font-size: 18px; font-weight: 900;">--</div>
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 14px; border-top: 1px dashed var(--card-border); padding-top: 12px;">
-              <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📊 7-Day Baseline Comparison</div>
-              <div style="background: rgba(0, 0, 0, 0.02); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; font-size: 11px;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                  <thead>
-                    <tr style="border-bottom: 1px solid var(--card-border); font-size: 8.5px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
-                      <th style="padding-bottom: 6px; font-weight: 800;">Metric</th>
-                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">Last 24h</th>
-                      <th style="padding-bottom: 6px; text-align: right; font-weight: 800;">7-Day Avg</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
-                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Compressor State</td>
-                      <td id="plugState24h-${roomId}" colspan="2" style="padding: 6px 0; text-align: right; font-weight: 800; text-transform: uppercase; color: var(--text-secondary);">--</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
-                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">Use Time</td>
-                      <td id="plugRuntime24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
-                      <td id="plugRuntimeAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0,0,0,0.03);">
-                      <td style="padding: 6px 0; font-weight: 600; color: var(--text-primary);">On/Off Cycles</td>
-                      <td id="plugCycles24h-${roomId}" style="padding: 6px 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
-                      <td id="plugCyclesAvg-${roomId}" style="padding: 6px 0; text-align: right; color: var(--text-secondary);">--</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 6px 0 0 0; font-weight: 600; color: var(--text-primary);">Daily Energy</td>
-                      <td id="plugEnergy24h-${roomId}" style="padding: 6px 0 0 0; text-align: right; font-weight: 800; color: var(--text-primary);">--</td>
-                      <td id="plugEnergyAvg-${roomId}" style="padding: 6px 0 0 0; text-align: right; color: var(--text-secondary);">--</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div id="plugObsBox-${roomId}" style="margin-top: 10px; display: none; padding: 10px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.4;"></div>
-            </div>
-          `;
-          analyticsHtml = `
-            <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
-              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${tempSensor.device_id}')">
-                📊 View Power Trend & Logs
-              </button>
-              <div id="plugAnalytics-${roomId}" style="display: ${expandedPlugAccordions[roomId] ? 'block' : 'none'}; margin-top: 12px;">
-                <div style="display: flex; gap: 6px; margin-bottom: 12px;">
-                  <div style="flex: 1;">
-                    <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">TIME FRAME</span>
-                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${tempSensor.device_id}')">
-                      <option value="1" ${getPlugSelectedDays(roomId) === '1' ? 'selected' : ''}>1 Day</option>
-                      <option value="3" ${getPlugSelectedDays(roomId) === '3' ? 'selected' : ''}>3 Days</option>
-                      <option value="7" ${getPlugSelectedDays(roomId) === '7' ? 'selected' : ''}>7 Days</option>
-                      <option value="30" ${getPlugSelectedDays(roomId) === '30' ? 'selected' : ''}>30 Days</option>
-                    </select>
-                  </div>
-                  <div style="flex: 1;">
-                    <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">INTERVAL</span>
-                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')">
-                      <option value="1" ${getPlugSelectedInterval(roomId) === '1' ? 'selected' : ''}>Raw (1 min)</option>
-                      <option value="15" ${getPlugSelectedInterval(roomId) === '15' ? 'selected' : ''}>15 min</option>
-                      <option value="30" ${getPlugSelectedInterval(roomId) === '30' ? 'selected' : ''}>30 min</option>
-                      <option value="60" ${getPlugSelectedInterval(roomId) === '60' ? 'selected' : ''}>1 hour</option>
-                      <option value="120" ${getPlugSelectedInterval(roomId) === '120' ? 'selected' : ''}>2 hours</option>
-                    </select>
-                  </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
-                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
-                </div>
-                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
-                  <canvas id="plugPowerChart-${roomId}"></canvas>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">ENERGY ACCUMULATION (KWH)</span>
-                </div>
-                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
-                  <canvas id="plugEnergyChart-${roomId}"></canvas>
-                </div>
-                <div id="plugOfflineCard-${roomId}" style="display: none; padding: 10px; background: #FFF; border: 1px solid #FCA5A5; border-radius: 12px; margin-top: 10px;">
-                  <div style="font-size: 9px; font-weight: 800; color: #EF4444; margin-bottom: 6px;">⚠️ Outage & Offline Logs</div>
-                  <div id="plugOfflineList-${roomId}" style="display: flex; flex-direction: column; gap: 4px; font-size: 10px; max-height: 80px; overflow-y: auto;"></div>
-                </div>
-              </div>
-            </div>
-          `;
         } else {
-          // Live connected state
-          const isOn = data.state === 'on';
-          badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
-          telemetryHtml = `
-            <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
-              <div style="flex: 1; text-align: center;">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ POWER</div>
-                <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
-              </div>
-              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ VOLTAGE</div>
-                <div id="plugVoltage-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.voltage.toFixed(1)} V</div>
-              </div>
-              <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
-                <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ CURRENT</div>
-                <div id="plugCurrent-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.current.toFixed(3)} A</div>
-              </div>
-            </div>
-          `;
-          billingHtml = `
-            <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
-              <div style="text-align: center; flex: 1;">
-                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Today's Use</div>
-                <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
-                <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
-              </div>
-              ${isBillingDay ? `
-              <div style="border-left: 1px solid #E2E8F0;"></div>
-              <div style="text-align: center; flex: 1;">
-                <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
-                <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
-                <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
-              </div>
-              ` : ''}
-            </div>
-          `;
-          if (tapoToggling[roomId]) {
+          // Status badge, live values & billing conditional on connection
+          if (error || (data && !data.supported) || (data && data.state === 'offline')) {
+            badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
+            const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
+            const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
+            const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
+            telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}${cloudNote}</div>`;
             toggleBtnHtml = `
-              <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" disabled>
-                Toggling...
+              <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
+                🔌 Plug Offline (Control unavailable)
+              </button>
+            `;
+          } else if (data && data.supported && data.last_known) {
+            // Last known data from DB
+            badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.2);">LAST KNOWN</span>`;
+            telemetryHtml = `
+              <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; font-size: 10px; color: #92400e; text-align: center;">
+                ⚠️ Showing last known data (${data.last_known_at}) — plug unreachable from cloud. LAN access required for live control.
+              </div>
+              <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
+                <div style="flex: 1; text-align: center;">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ LAST POWER</div>
+                  <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
+                </div>
+                <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ VOLTAGE</div>
+                  <div id="plugVoltage-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.voltage.toFixed(1)} V</div>
+                </div>
+                <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ CURRENT</div>
+                  <div id="plugCurrent-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.current.toFixed(3)} A</div>
+                </div>
+              </div>
+            `;
+            billingHtml = `
+              <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
+                <div style="text-align: center; flex: 1;">
+                  <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Today's Use</div>
+                  <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
+                  <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
+                </div>
+                ${isBillingDay ? `
+                <div style="border-left: 1px solid #E2E8F0;"></div>
+                <div style="text-align: center; flex: 1;">
+                  <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
+                  <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
+                  <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
+                </div>
+                ` : ''}
+              </div>
+            `;
+            toggleBtnHtml = `
+              <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
+                🌐 LAN Only (Toggle not available from cloud)
               </button>
             `;
           } else {
-            toggleBtnHtml = `
-              <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
-                Turn ${isOn ? 'OFF' : 'ON'}
-              </button>
+            // Live connected state
+            const isOn = data.state === 'on';
+            badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
+            telemetryHtml = `
+              <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
+                <div style="flex: 1; text-align: center;">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ POWER</div>
+                  <div id="plugPower-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.apower.toFixed(1)} W</div>
+                </div>
+                <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ VOLTAGE</div>
+                  <div id="plugVoltage-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.voltage.toFixed(1)} V</div>
+                </div>
+                <div style="flex: 1; text-align: center; border-left: 1px solid var(--card-border);">
+                  <div style="color: var(--text-secondary); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">⚡ CURRENT</div>
+                  <div id="plugCurrent-${roomId}" style="color: var(--text-primary); font-size: 18px; font-weight: 900;">${data.current.toFixed(3)} A</div>
+                </div>
+              </div>
             `;
+            billingHtml = `
+              <div style="display: flex; justify-content: space-around; background: #F8FAFC; border-radius: 12px; padding: 10px; margin-bottom: 14px; border: 1px solid #E2E8F0;">
+                <div style="text-align: center; flex: 1;">
+                  <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Today's Use</div>
+                  <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
+                  <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
+                </div>
+                ${isBillingDay ? `
+                <div style="border-left: 1px solid #E2E8F0;"></div>
+                <div style="text-align: center; flex: 1;">
+                  <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
+                  <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
+                  <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
+                </div>
+                ` : ''}
+              </div>
+            `;
+            if (tapoToggling[roomId]) {
+              toggleBtnHtml = `
+                <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" disabled>
+                  Toggling...
+                </button>
+              `;
+            } else {
+              toggleBtnHtml = `
+                <button id="plugToggleBtn-${roomId}" class="action-btn ${isOn ? 'red' : 'blue'}" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px;" onclick="toggleTapoPlugList('${roomId}', '${isOn ? 'off' : 'on'}')">
+                  Turn ${isOn ? 'OFF' : 'ON'}
+                </button>
+              `;
+            }
           }
+
+          // Build metrics and analytics HTML (retrieved from historical database records)
           metrics24hHtml = `
             <div style="margin-top: 14px;">
               <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase;">📈 24-Hour Power Bounds</div>
@@ -1821,6 +1741,7 @@
                       <option value="3" ${getPlugSelectedDays(roomId) === '3' ? 'selected' : ''}>3 Days</option>
                       <option value="7" ${getPlugSelectedDays(roomId) === '7' ? 'selected' : ''}>7 Days</option>
                       <option value="30" ${getPlugSelectedDays(roomId) === '30' ? 'selected' : ''}>30 Days</option>
+                      <option value="custom" ${getPlugSelectedDays(roomId) === 'custom' ? 'selected' : ''}>Custom Range</option>
                     </select>
                   </div>
                   <div style="flex: 1;">
@@ -1832,6 +1753,16 @@
                       <option value="60" ${getPlugSelectedInterval(roomId) === '60' ? 'selected' : ''}>1 hour</option>
                       <option value="120" ${getPlugSelectedInterval(roomId) === '120' ? 'selected' : ''}>2 hours</option>
                     </select>
+                  </div>
+                </div>
+                <div id="plugCustomDateRange-${roomId}" style="display: none; gap: 6px; margin-bottom: 12px;">
+                  <div style="flex: 1;">
+                    <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">START DATE</span>
+                    <input type="date" id="plugStartDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
+                  </div>
+                  <div style="flex: 1;">
+                    <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">END DATE</span>
+                    <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
                   </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1894,7 +1825,7 @@
       // Auto-fetch 24h metrics for all configured plug rooms
       configuredRooms.forEach(roomId => {
         const item = tapoPlugsData[roomId];
-        if (item && item.room && !item.error) {
+        if (item && item.room) {
           const tempSensor = item.room.sensors.find(s => s.type === 'temperature');
           if (tempSensor) {
             fetchPlugMetrics24h(roomId, tempSensor.device_id);
@@ -2964,15 +2895,22 @@
       };
 
       // 1. Update Telemetry Trend Chart
-      document.getElementById('dCsvLink').href = `${API}/sensors/device/${currentDevice.id}/export?days=${exportDays}&interval_minutes=${interval}`;
+      let queryStr = `days=${exportDays}&interval_minutes=${interval}`;
+      if (days === 'custom' && customStart && customEnd) {
+        const startStr = customStart.toISOString().split('T')[0];
+        const endStr = customEnd.toISOString().split('T')[0];
+        queryStr += `&start_date=${startStr}&end_date=${endStr}`;
+      }
+      
+      document.getElementById('dCsvLink').href = `${API}/sensors/device/${currentDevice.id}/export?${queryStr}`;
       if (days === 'custom' && customStart && customEnd) {
         document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
       } else {
         document.getElementById('chartCardTitle').textContent = days === 'Monthly' ? `Monthly Temperature Trend` : `${days}-Day Temperature Trend`;
       }
-
+ 
       try {
-        const resTrend = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?days=${exportDays}&interval_minutes=${interval}`);
+        const resTrend = await fetch(`${API}/sensors/device/${currentDevice.id}/telemetry?${queryStr}`);
         const dataObj = await resTrend.json();
         const trendData = dataObj.telemetry || [];
         const offlinePeriods = dataObj.offline_periods || [];

@@ -221,10 +221,21 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
 def get_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
-    cutoff = datetime.utcnow() - timedelta(days=days)
-    end_time = datetime.utcnow()
+    if start_date and end_date:
+        try:
+            start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
+            end_local = datetime.fromisoformat(end_date) if "T" in end_date else datetime.strptime(end_date, "%Y-%m-%d")
+            start_local = start_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+            cutoff = start_local - timedelta(hours=5, minutes=30)
+            end_time = end_local - timedelta(hours=5, minutes=30)
+        except Exception as err:
+            raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        end_time = datetime.utcnow()
     
     offline_periods = calculate_offline_periods(db, "device_telemetry", device_id, cutoff)
     aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
@@ -351,10 +362,24 @@ def get_rolling_analytics(
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
-    cutoff = datetime.utcnow() - timedelta(days=days)
-    end_time = datetime.utcnow()
+    if start_date and end_date:
+        try:
+            start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
+            end_local = datetime.fromisoformat(end_date) if "T" in end_date else datetime.strptime(end_date, "%Y-%m-%d")
+            start_local = start_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+            cutoff = start_local - timedelta(hours=5, minutes=30)
+            end_time = end_local - timedelta(hours=5, minutes=30)
+            filename = f"telemetry_{device_id}_{start_date}_to_{end_date}.csv"
+        except Exception as err:
+            raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        end_time = datetime.utcnow()
+        filename = f"telemetry_{device_id}_{days}d.csv"
+        
     aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     # Sort ascending (oldest first) for readability in exported CSV
@@ -373,7 +398,7 @@ def export_device_telemetry(
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=telemetry_{device_id}_{days}d.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 
 
@@ -817,21 +842,34 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
 
 @router.get("/device/{device_id}/plug/history")
 def get_plug_telemetry_history(
-    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Fetch plug telemetry history for charts."""
     from backend.models.plug_telemetry import PlugTelemetry
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    if start_date and end_date:
+        try:
+            start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
+            end_local = datetime.fromisoformat(end_date) if "T" in end_date else datetime.strptime(end_date, "%Y-%m-%d")
+            start_local = start_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+            cutoff = start_local - timedelta(hours=5, minutes=30)
+            end_time = end_local - timedelta(hours=5, minutes=30)
+        except Exception as err:
+            raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        end_time = datetime.utcnow()
+        
     logs = db.query(PlugTelemetry).filter(
         PlugTelemetry.device_id == device_id,
-        PlugTelemetry.timestamp >= cutoff
+        PlugTelemetry.timestamp >= cutoff,
+        PlugTelemetry.timestamp <= end_time
     ).order_by(PlugTelemetry.timestamp.asc()).all()  # Sort ascending for charts
     
     # Calculate offline periods using raw logs
     offline_periods = calculate_offline_periods(db, "plug_telemetry", device_id, cutoff)
     
     # Aggregate plug telemetry logs
-    end_time = datetime.utcnow()
     aggregated_logs = aggregate_plug_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     return {
@@ -841,11 +879,25 @@ def get_plug_telemetry_history(
 
 @router.get("/device/{device_id}/plug/export")
 def export_plug_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
+    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Export plug telemetry logs as a CSV file."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
-    end_time = datetime.utcnow()
+    if start_date and end_date:
+        try:
+            start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
+            end_local = datetime.fromisoformat(end_date) if "T" in end_date else datetime.strptime(end_date, "%Y-%m-%d")
+            start_local = start_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+            cutoff = start_local - timedelta(hours=5, minutes=30)
+            end_time = end_local - timedelta(hours=5, minutes=30)
+            filename = f"plug_telemetry_{device_id}_{start_date}_to_{end_date}.csv"
+        except Exception as err:
+            raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        end_time = datetime.utcnow()
+        filename = f"plug_telemetry_{device_id}_{days}d.csv"
+        
     aggregated_logs = aggregate_plug_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
     # Sort ascending (oldest first) for readability
@@ -878,7 +930,7 @@ def export_plug_telemetry(
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=plug_telemetry_{device_id}_{days}d.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 
 @router.post("/device/{device_id}/plug/toggle")
