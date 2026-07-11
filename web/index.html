@@ -710,6 +710,29 @@
         textEl.textContent += 'Unhandled promise: ' + (e.reason ? e.reason.message || e.reason : 'unknown') + '\n';
       }
     });
+
+    // Mobile touch debugging: log whatever element gets touched/clicked
+    document.addEventListener('touchstart', function(e) {
+      const overlay = document.getElementById('error-console-overlay');
+      const textEl = document.getElementById('error-console-text');
+      if (overlay && textEl) {
+        // Don't show debug console if tapping the close button of the console itself
+        if (e.target.closest('#error-console-overlay')) return;
+        overlay.style.display = 'block';
+        
+        let path = [];
+        let el = e.target;
+        while (el && el.tagName) {
+          let str = el.tagName.toLowerCase();
+          if (el.id) str += '#' + el.id;
+          if (el.className) str += '.' + Array.from(el.classList).join('.');
+          path.push(str);
+          el = el.parentElement;
+          if (path.length >= 3) break;
+        }
+        textEl.textContent += 'Touch: ' + path.join(' < ') + '\n';
+      }
+    }, { passive: true });
   </script>
 
   <!-- LIST / MAP VIEW -->
