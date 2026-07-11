@@ -5,6 +5,9 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def verify_edge_api_key(x_api_key: str = Header(...)):
     from backend.config import EDGE_API_KEY
@@ -351,23 +354,26 @@ def export_device_telemetry(
     device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
 ):
     cutoff = datetime.utcnow() - timedelta(days=days)
-    logs = db.query(DeviceTelemetry).filter(
-        DeviceTelemetry.device_id == device_id,
-        DeviceTelemetry.timestamp >= cutoff
-    ).order_by(DeviceTelemetry.timestamp.desc()).all()
-    
     end_time = datetime.utcnow()
     aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
+    # Sort ascending (oldest first) for readability in exported CSV
+    aggregated_logs = list(reversed(aggregated_logs))
+    
+    # IST offset for Indian users (UTC+5:30)
+    ist_offset = timedelta(hours=5, minutes=30)
+    
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Device ID", "Timestamp", "Temperature (C)", "Humidity (%)", "Battery (%)"])
+    writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Temperature (C)", "Humidity (%)", "Battery (%)"])
     for log in aggregated_logs:
-        writer.writerow([log.device_id, log.timestamp.strftime('%Y-%m-%d %H:%M:%S'), str(log.temperature), str(log.humidity), str(log.battery_level)])
+        utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+        writer.writerow([log.device_id, utc_str, ist_str, str(log.temperature), str(log.humidity), str(log.battery_level)])
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=telemetry_{device_id}.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename=telemetry_{device_id}_{days}d.csv"
     return response
 
 
@@ -838,24 +844,31 @@ def export_plug_telemetry(
     device_id: str, days: int = 1, interval_minutes: int = 1, db: Session = Depends(get_db)
 ):
     """Export plug telemetry logs as a CSV file."""
-    from backend.models.plug_telemetry import PlugTelemetry
     cutoff = datetime.utcnow() - timedelta(days=days)
-    logs = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id,
-        PlugTelemetry.timestamp >= cutoff
-    ).order_by(PlugTelemetry.timestamp.desc()).all()
-    
-    # Export aggregated logs
     end_time = datetime.utcnow()
     aggregated_logs = aggregate_plug_telemetry(db, device_id, cutoff, end_time, interval_minutes)
     
+    # Sort ascending (oldest first) for readability
+    aggregated_logs = list(reversed(aggregated_logs))
+    
+    # IST offset for Indian users (UTC+5:30)
+    ist_offset = timedelta(hours=5, minutes=30)
+    
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Device ID", "Timestamp", "Active Power (W)", "Voltage (V)", "Current (A)", "Today Energy (Wh)", "Month Energy (Wh)"])
+    writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Active Power (W)", "Voltage (V)", "Current (A)", "Today Energy (Wh)", "Month Energy (Wh)"])
     for log in aggregated_logs:
+        utc_str = log["timestamp"]
+        # Parse the timestamp string and add IST offset
+        try:
+            utc_dt = datetime.strptime(utc_str, '%Y-%m-%d %H:%M:%S')
+            ist_str = (utc_dt + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            ist_str = utc_str
         writer.writerow([
             log["device_id"],
-            log["timestamp"],
+            utc_str,
+            ist_str,
             str(log["apower"]),
             str(log["voltage"]),
             str(log["current"]),
@@ -865,7 +878,7 @@ def export_plug_telemetry(
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=plug_telemetry_{device_id}.csv"
+    response.headers["Content-Disposition"] = f"attachment; filename=plug_telemetry_{device_id}_{days}d.csv"
     return response
 
 @router.post("/device/{device_id}/plug/toggle")
@@ -1310,4 +1323,315 @@ async def get_device_ai_summary(device_id: str, db: Session = Depends(get_db)):
         "analysis": "No diagnostics findings returned by the AI engine.",
         "action_items": ["Verify sensor connections and threshold calibrations."]
     }
+
+
+# ─── ASK ME AI CHAT & DOWNLOAD CHANNELS ───
+
+from pydantic import BaseModel
+import httpx
+import json
+
+class ChatRequest(BaseModel):
+    message: str
+    timezone_offset_minutes: Optional[int] = -330  # Default to IST (UTC+5:30)
+    current_device_id: Optional[str] = None
+
+def _clean_json_text(text: str) -> str:
+    """Safely strip markdown code fences from JSON output if present."""
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+def _regex_parse_json(text: str) -> dict:
+    """Fallback parser using regex and bounding search if standard json.loads fails."""
+    import re
+    result = {}
+    
+    # 1. Bounded search for "answer" field
+    idx_answer = text.find('"answer"')
+    if idx_answer != -1:
+        start_val = text.find('"', idx_answer + 8)
+        if start_val != -1:
+            start_val += 1
+            end_bound = text.find('"is_report_requested"')
+            if end_bound != -1:
+                val_text = text[start_val:end_bound].strip()
+                if val_text.endswith(','):
+                    val_text = val_text[:-1].strip()
+                if val_text.endswith('"'):
+                    val_text = val_text[:-1].strip()
+                result["answer"] = val_text.replace('\\"', '"').replace('\\n', '\n')
+    
+    if "answer" not in result:
+        # Simple regex fallback for answer
+        answer_match = re.search(r'"answer"\s*:\s*"(.*?)"\s*(?:,|\})', text, re.DOTALL)
+        if answer_match:
+            result["answer"] = answer_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+            
+    # 2. Extract boolean and string fields
+    is_report_match = re.search(r'"is_report_requested"\s*:\s*(true|false)', text, re.IGNORECASE)
+    if is_report_match:
+        result["is_report_requested"] = is_report_match.group(1).lower() == "true"
+        
+    start_time_match = re.search(r'"report_start_time"\s*:\s*"(.*?)"', text)
+    if start_time_match:
+        val = start_time_match.group(1)
+        result["report_start_time"] = None if val.lower() == "null" or not val else val
+        
+    end_time_match = re.search(r'"report_end_time"\s*:\s*"(.*?)"', text)
+    if end_time_match:
+        val = end_time_match.group(1)
+        result["report_end_time"] = None if val.lower() == "null" or not val else val
+        
+    format_match = re.search(r'"report_format"\s*:\s*"(.*?)"', text)
+    if format_match:
+        val = format_match.group(1)
+        result["report_format"] = None if val.lower() == "null" or not val else val
+        
+    return result
+
+async def _call_gemini_json(prompt: str) -> dict:
+    """Helper to query Gemini API and enforce JSON response."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"error": "GEMINI_API_KEY is not configured on the server."}
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json"
+        }
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(url, json=payload, timeout=20.0)
+            if res.status_code == 200:
+                text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                cleaned_text = _clean_json_text(text)
+                try:
+                    return json.loads(cleaned_text)
+                except Exception as json_err:
+                    logger.warning(f"Standard JSON parsing failed: {json_err}. Attempting regex fallback parsing on: {cleaned_text}")
+                    parsed = _regex_parse_json(cleaned_text)
+                    if parsed and "answer" in parsed:
+                        return parsed
+                    raise json_err
+            else:
+                return {"error": f"Gemini API returned code {res.status_code}: {res.text}"}
+    except Exception as e:
+        return {"error": f"Failed to call Gemini API: {str(e)}"}
+
+@router.post("/chat")
+async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Handles natural language queries about temperature/humidity data.
+    """
+    # 1. Gather configured rooms & active sensors to guide extraction
+    from backend.models.room import Room
+    rooms = db.query(Room).filter(Room.active == True).all()
+    sensors = db.query(Sensor).filter(Sensor.active == True).all()
+    
+    # 2. Match target room/device from the message text or current fallback
+    device_id = None
+    room_name = "Sensor"
+    
+    for r in rooms:
+        if r.name.lower() in req.message.lower():
+            r_sensors = [s for s in sensors if s.room_id == r.id and s.type == "temperature"]
+            if not r_sensors:
+                r_sensors = [s for s in sensors if s.room_id == r.id]
+            if r_sensors:
+                device_id = r_sensors[0].device_id
+                room_name = r.name
+                break
+                
+    if not device_id and req.current_device_id:
+        device_id = req.current_device_id
+        matched_room = db.query(Room).join(Sensor).filter(Sensor.device_id == device_id).first()
+        if matched_room:
+            room_name = matched_room.name
+
+    if not device_id:
+        # Final fallback to first active sensor
+        fallback_sensor = db.query(Sensor).filter(Sensor.active == True).first()
+        if fallback_sensor:
+            device_id = fallback_sensor.device_id
+            
+    if not device_id:
+        return {"response": "No active sensors could be identified to fetch data from."}
+
+    # 3. Pre-fetch last 48 hours of telemetry data for context
+    ist_offset = timedelta(minutes=abs(req.timezone_offset_minutes))
+    cutoff_utc = datetime.utcnow() - timedelta(hours=48)
+    
+    logs = db.query(DeviceTelemetry).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= cutoff_utc
+    ).order_by(DeviceTelemetry.timestamp.desc()).all()
+
+    # Summarize stats
+    temps = [float(l.temperature) for l in logs if l.temperature is not None]
+    hums = [float(l.humidity) for l in logs if l.humidity is not None]
+    summary_stats = {
+        "temp_avg": round(sum(temps)/len(temps), 2) if temps else "N/A",
+        "temp_min": min(temps) if temps else "N/A",
+        "temp_max": max(temps) if temps else "N/A",
+        "hum_avg": round(sum(hums)/len(hums), 2) if hums else "N/A",
+        "hum_min": min(hums) if hums else "N/A",
+        "hum_max": max(hums) if hums else "N/A",
+        "total_readings": len(logs)
+    }
+
+    # Format recent sample data (last 80 rows to fit prompt context comfortably)
+    data_context = []
+    for log in logs[:80]:
+        local_time = log.timestamp + ist_offset
+        data_context.append({
+            "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
+            "temperature": float(log.temperature) if log.temperature is not None else None,
+            "humidity": float(log.humidity) if log.humidity is not None else None,
+            "battery": float(log.battery_level) if log.battery_level is not None else None
+        })
+
+    # Calculate current local time for prompt reference
+    if req.timezone_offset_minutes < 0:
+        local_now = datetime.utcnow() + ist_offset
+    else:
+        local_now = datetime.utcnow() - ist_offset
+    local_now_str = local_now.strftime('%Y-%m-%d %I:%M:%S %p')
+
+    # Construct unified JSON prompt
+    prompt = f"""
+    You are the AI Chatbot Assistant for the Ground Up Cold Storage factory in Pune, India.
+    Current Local Time at the factory (IST) is {local_now_str} (Saturday).
+    
+    Target Room: {room_name}
+    Target Device ID: {device_id}
+    User Query: "{req.message}"
+    
+    Telemetry Context (Last 48 Hours, oldest to newest):
+    - Summary: {json.dumps(summary_stats, indent=2)}
+    - Detailed Logs: {json.dumps(data_context[::-1], indent=2)}
+    
+    Formulate a clear response answering their query directly.
+    - If they ask for a specific time (e.g. "at 10 AM today"), search the Detailed Logs for the reading closest to that time (e.g. 10:00 AM IST) and report it.
+    - If no logs exist, state that politely.
+    - If they ask for a download, export, PDF, Excel, or CSV report, set "is_report_requested" to true, and calculate "report_start_time" and "report_end_time" in local factory time (IST) formatted strictly as "YYYY-MM-DDTHH:MM:SS" (ISO 8601 format).
+    - CRITICAL RULE FOR 24 HOURS REQUESTS: If the user requests data for "24 hours", "last 24 hours", "yesterday to today", or similar relative 24h ranges, you MUST calculate report_start_time as exactly 24 hours before the current local IST time ({local_now_str}), and report_end_time as exactly the current local IST time ({local_now_str}). For example: if current time is 2026-07-11T14:30:00, then report_start_time = 2026-07-10T14:30:00 and report_end_time = 2026-07-11T14:30:00.
+    - If they ask for a full day (e.g. "yesterday"), set report_start_time to start of day (00:00:00) and report_end_time to end of day (23:59:59).
+    
+    Format your response strictly as a JSON object matching this schema:
+    {{
+      "answer": "Your natural language response here.",
+      "is_report_requested": true | false,
+      "report_start_time": "YYYY-MM-DDTHH:MM:SS or null",
+      "report_end_time": "YYYY-MM-DDTHH:MM:SS or null",
+      "report_format": "pdf" | "csv" | null
+    }}
+    """
+    
+    result = await _call_gemini_json(prompt)
+    if "error" in result:
+        return {"response": f"I had trouble parsing your request: {result['error']}"}
+        
+    answer = result.get("answer") or "I could not generate a response."
+    
+    # 4. Generate report download link if requested
+    report_link = ""
+    if result.get("is_report_requested") and result.get("report_start_time"):
+        try:
+            start_local = datetime.fromisoformat(result["report_start_time"].replace(' ', 'T'))
+            end_local = datetime.fromisoformat(result["report_end_time"].replace(' ', 'T'))
+            
+            start_utc = start_local - ist_offset
+            end_utc = end_local - ist_offset
+            
+            fmt = result.get("report_format") or "pdf"
+            report_link = f"\n\n📥 **Download Report:** [/sensors/chat/download?device_id={device_id}&start_time_utc={start_utc.isoformat()}&end_time_utc={end_utc.isoformat()}&format={fmt}](download)"
+        except Exception as err:
+            logger.error(f"Error formulating download URL: {err}")
+            
+    return {"response": f"{answer}{report_link}"}
+
+
+@router.get("/chat/download")
+def download_chat_report(
+    device_id: str,
+    start_time_utc: str,
+    end_time_utc: str,
+    format: str = "pdf",
+    db: Session = Depends(get_db)
+):
+    """
+    Generates and returns the PDF or CSV telemetry report requested via Chat.
+    """
+    try:
+        start_utc = datetime.fromisoformat(start_time_utc)
+        end_utc = datetime.fromisoformat(end_time_utc)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ISO timestamps.")
+        
+    logs = db.query(DeviceTelemetry).filter(
+        DeviceTelemetry.device_id == device_id,
+        DeviceTelemetry.timestamp >= start_utc,
+        DeviceTelemetry.timestamp <= end_utc
+    ).order_by(DeviceTelemetry.timestamp.asc()).all()
+    
+    if not logs:
+        raise HTTPException(status_code=404, detail="No telemetry logs found for the requested timeframe.")
+        
+    # Resolve Room name
+    sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
+    room_name = "Unknown Room"
+    sensor_type = "both"
+    if sensor:
+        sensor_type = sensor.type
+        from backend.models.room import Room
+        room = db.query(Room).filter(Room.id == sensor.room_id).first()
+        if room:
+            room_name = room.name
+            
+    if format == "pdf":
+        from backend.services.pdf_generator import generate_telemetry_pdf
+        pdf_buffer = generate_telemetry_pdf(
+            device_id=device_id,
+            room_name=room_name,
+            sensor_type=sensor_type,
+            start_time=start_utc,
+            end_time=end_utc,
+            logs=logs
+        )
+        filename = f"report_{room_name.replace(' ', '_')}_{start_utc.strftime('%Y%m%d')}.pdf"
+        headers = {"Content-Disposition": f"attachment; filename={filename}"}
+        return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
+        
+    else:  # CSV format
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Temperature (C)", "Humidity (%)", "Battery (%)"])
+        
+        ist_offset = timedelta(hours=5, minutes=30)
+        for log in logs:
+            utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+            writer.writerow([
+                log.device_id,
+                utc_str,
+                ist_str,
+                str(log.temperature) if log.temperature is not None else "",
+                str(log.humidity) if log.humidity is not None else "",
+                str(log.battery_level) if log.battery_level is not None else ""
+            ])
+            
+        output.seek(0)
+        filename = f"report_{room_name.replace(' ', '_')}_{start_utc.strftime('%Y%m%d')}.csv"
+        headers = {"Content-Disposition": f"attachment; filename={filename}"}
+        return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
 

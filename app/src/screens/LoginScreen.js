@@ -102,7 +102,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.inputLabel}>BACKEND API URL (DEV ONLY)</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. https://gumonitoring.onrender.com"
+              placeholder="e.g. https://gu-monitoring.initiativesewafoundation.com"
               placeholderTextColor="#9CA3AF"
               value={apiUrl}
               onChangeText={setApiUrlState}

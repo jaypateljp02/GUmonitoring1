@@ -419,7 +419,7 @@ export default function SensorListScreen({ navigation }) {
                   style={{ backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, fontSize: 14, color: '#111827', marginBottom: 12 }}
                   value={newUrlInput}
                   onChangeText={setNewUrlInput}
-                  placeholder="e.g. https://gumonitoring.onrender.com"
+                  placeholder="e.g. https://gu-monitoring.initiativesewafoundation.com"
                   placeholderTextColor="#9CA3AF"
                   autoCapitalize="none"
                   keyboardType="url"
@@ -442,7 +442,7 @@ export default function SensorListScreen({ navigation }) {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     onPress={async () => {
-                      const defaultUrl = 'https://gumonitoring.onrender.com';
+                      const defaultUrl = 'https://gu-monitoring.initiativesewafoundation.com';
                       await setApiUrl(defaultUrl);
                       setCurrentUrl(defaultUrl);
                       setNewUrlInput(defaultUrl);

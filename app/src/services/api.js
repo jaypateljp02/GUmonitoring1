@@ -5,6 +5,11 @@ import RNFS from 'react-native-fs';
 const AUTH_KEY = '@gu_auth_token';
 const API_URL_KEY = '@gu_api_url';
 
+export const AUTH_URL = 'https://gu-production.initiativesewafoundation.com';
+export const PRODUCTION_URL = 'https://gu-production.initiativesewafoundation.com';
+export const TASKS_URL = 'https://gu-task.initiativesewafoundation.com';
+export const MONITORING_URL = 'https://gu-monitoring.initiativesewafoundation.com';
+export const ADMIN_URL = 'https://gu-factory.initiativesewafoundation.com';
 export const DEFAULT_API_URL = 'https://gu-monitoring.initiativesewafoundation.com';
 
 export const getApiUrl = async () => {
@@ -36,21 +41,20 @@ export const getServiceUrls = (currentUrl) => {
     monitoringUrl = currentUrl.replace(/:\d+/, ':8003');
     adminUrl = currentUrl.replace(/:\d+/, ':8004');
   } else {
-    // Fallback
-    authUrl = 'https://groundup-499909.el.r.appspot.com';
-    productionUrl = 'https://production-dot-groundup-499909.el.r.appspot.com';
-    tasksUrl = 'https://tasks-dot-groundup-499909.el.r.appspot.com';
-    monitoringUrl = 'https://monitoring-dot-groundup-499909.el.r.appspot.com';
-    adminUrl = 'https://admin-dot-groundup-499909.el.r.appspot.com';
+    authUrl = AUTH_URL;
+    productionUrl = PRODUCTION_URL;
+    tasksUrl = TASKS_URL;
+    monitoringUrl = MONITORING_URL;
+    adminUrl = ADMIN_URL;
   }
 
   return { auth: authUrl, production: productionUrl, tasks: tasksUrl, monitoring: monitoringUrl, admin: adminUrl };
 };
 
 export const api = axios.create({ baseURL: DEFAULT_API_URL });
-export const authApi = axios.create({ baseURL: 'https://groundup-499909.el.r.appspot.com' });
-export const productionApi = axios.create({ baseURL: 'https://production-dot-groundup-499909.el.r.appspot.com' });
-export const tasksApi = axios.create({ baseURL: 'https://tasks-dot-groundup-499909.el.r.appspot.com' });
+export const authApi = axios.create({ baseURL: AUTH_URL });
+export const productionApi = axios.create({ baseURL: PRODUCTION_URL });
+export const tasksApi = axios.create({ baseURL: TASKS_URL });
 
 const addAuthInterceptor = (instance) => {
   instance.interceptors.request.use(async (config) => {

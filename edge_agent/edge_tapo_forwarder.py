@@ -23,7 +23,7 @@ logger = logging.getLogger("tapo-edge-agent")
 # Load environment configuration
 load_dotenv()
 
-CLOUD_API_URL = os.getenv("CLOUD_API_URL", "https://monitoring-dot-groundup-499909.el.r.appspot.com")
+CLOUD_API_URL = os.getenv("CLOUD_API_URL", "https://gu-monitoring.initiativesewafoundation.com")
 EDGE_API_KEY = os.getenv("EDGE_API_KEY", "factory-tapo-123")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
 

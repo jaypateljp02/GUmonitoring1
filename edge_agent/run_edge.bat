@@ -57,7 +57,7 @@ if not exist .env (
     echo [WARNING] .env configuration file not found!
     echo Creating default .env fallback...
     (
-        echo CLOUD_API_URL=https://monitoring-dot-groundup-499909.el.r.appspot.com
+        echo CLOUD_API_URL=https://gu-monitoring.initiativesewafoundation.com
         echo EDGE_API_KEY=factory-tapo-123
         echo POLL_INTERVAL=60
         echo TAPO_USERNAME=saannkket@gmail.com

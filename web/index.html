@@ -397,6 +397,280 @@
     .pulse-red {
       animation: pulse-red 2s infinite;
     }
+
+    /* ─── FLOATING ASK ME CHATBOT WIDGET ─── */
+    .chat-widget-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .chat-trigger-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      position: relative;
+    }
+    .chat-trigger-btn:hover {
+      transform: scale(1.08) translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+    }
+    .chat-trigger-btn:active {
+      transform: scale(0.95);
+    }
+    .chat-trigger-btn .material-icons {
+      font-size: 28px;
+    }
+    
+    .chat-window {
+      width: 360px;
+      height: 480px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateY(30px) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .chat-window.active {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    .chat-header {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .chat-header-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .chat-header-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      display: inline-block;
+      box-shadow: 0 0 8px #10B981;
+    }
+    .chat-header-title {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.2px;
+    }
+    .chat-header-subtitle {
+      font-size: 10px;
+      color: #94A3B8;
+      margin-top: 1px;
+    }
+    .chat-close-btn {
+      color: #94A3B8;
+      cursor: pointer;
+      background: none;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    .chat-close-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+    
+    .chat-messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #F8FAFC;
+    }
+    
+    .chat-bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .chat-bubble.bot {
+      background: white;
+      color: #1E293B;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .chat-bubble.user {
+      background: #2563EB;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+    }
+    
+    .chat-quick-actions {
+      padding: 8px 12px;
+      background: #F8FAFC;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      border-top: 1px solid #E2E8F0;
+      scrollbar-width: none;
+    }
+    .chat-quick-actions::-webkit-scrollbar {
+      display: none;
+    }
+    .chat-chip {
+      white-space: nowrap;
+      background: white;
+      border: 1px solid #CBD5E1;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chat-chip:hover {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #2563eb;
+    }
+    
+    .chat-input-area {
+      padding: 10px 14px;
+      background: white;
+      border-top: 1px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .chat-input {
+      flex: 1;
+      border: 1px solid #CBD5E1;
+      border-radius: 24px;
+      padding: 8px 16px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .chat-input:focus {
+      border-color: #3B82F6;
+    }
+    .chat-send-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #2563EB;
+      color: white;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .chat-send-btn:hover {
+      background: #1D4ED8;
+    }
+    .chat-send-btn:disabled {
+      background: #94A3B8;
+      cursor: not-allowed;
+    }
+    
+    /* Typing Indicator Bouncing Dots */
+    .typing-dots {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 6px;
+    }
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #94A3B8;
+      animation: bounce 1.3s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
+    }
+    
+    /* Download report button inside chat bubble */
+    .chat-download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #10B981;
+      color: white;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 11px;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    .chat-download-btn:hover {
+      background: #059669;
+    }
+    
+    /* Notification dot on WhatsApp bubble */
+    .chat-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 14px;
+      height: 14px;
+      background: #EF4444;
+      border-radius: 50%;
+      border: 2px solid white;
+      animation: pulse-red 2s infinite;
+    }
+    
+    @media (max-width: 480px) {
+      .chat-window {
+        width: calc(100vw - 32px);
+        height: 400px;
+      }
+    }
   </style>
 </head>
 <body class="map-active">
@@ -3254,6 +3528,215 @@
     if (downloadCard) {
       downloadCard.style.display = 'block';
     }
+  </script>
+
+  <!-- ─── FLOATING ASK ME CHATBOT HTML ─── -->
+  <div class="chat-widget-container">
+    <div class="chat-window" id="chatWindow">
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <span class="chat-header-status"></span>
+          <div>
+            <div class="chat-header-title">Ground Up AI Assistant</div>
+            <div class="chat-header-subtitle">Online • Ask me about temp/hum data</div>
+          </div>
+        </div>
+        <button class="chat-close-btn" onclick="toggleChatWindow()">
+          <span class="material-icons" style="font-size: 18px;">close</span>
+        </button>
+      </div>
+      
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-bubble bot">
+          👋 Hello! I am your factory AI assistant. Ask me questions about temperature or humidity records. For example:
+          <br><br>
+          • *“What was the temperature of Miso Room at 10 AM today?”*
+          <br>
+          • *“Did Fridge 1 fluctuate yesterday afternoon?”*
+          <br>
+          • *“Export Freezer 1 data for today to Excel”*
+        </div>
+      </div>
+      
+      <div class="chat-quick-actions">
+        <div class="chat-chip" onclick="sendQuickPrompt('What was the temp of Miso Room at 10:00 AM today?')">🕒 Miso Room at 10 AM</div>
+        <div class="chat-chip" onclick="sendQuickPrompt('Show Fridge 1 status for today')">❄️ Fridge 1 Today</div>
+        <div class="chat-chip" onclick="sendQuickPrompt('Give me a PDF report for Device 1 today')">📋 Device 1 PDF Report</div>
+      </div>
+      
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Type your query here..." onkeypress="handleChatKeyPress(event)">
+        <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+          <span class="material-icons" style="font-size: 18px;">send</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="chat-trigger-btn" onclick="toggleChatWindow()">
+      <span class="material-icons">chat</span>
+      <div class="chat-badge" id="chatBadge"></div>
+    </div>
+  </div>
+
+  <script>
+    let isChatOpen = false;
+    let chatHasBeenOpened = false;
+
+    function toggleChatWindow() {
+      const win = document.getElementById('chatWindow');
+      const badge = document.getElementById('chatBadge');
+      isChatOpen = !isChatOpen;
+      
+      if (isChatOpen) {
+        win.classList.add('active');
+        if (badge) badge.style.display = 'none';
+        chatHasBeenOpened = true;
+        // Focus input
+        setTimeout(() => {
+          document.getElementById('chatInput').focus();
+        }, 100);
+      } else {
+        win.classList.remove('active');
+      }
+    }
+
+    function handleChatKeyPress(e) {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    }
+
+    function sendQuickPrompt(text) {
+      document.getElementById('chatInput').value = text;
+      sendChatMessage();
+    }
+
+    // Helper to format text markdown (bold, italic, links) to HTML
+    function formatMarkdown(text) {
+      if (!text) return "";
+      
+      // Escape HTML to prevent injection
+      let html = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+        
+      // Bold **text**
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      // Bold *text*
+      html = html.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+      
+      // Parse custom download report link [Download Report: ...](download) or generic markdown links
+      // e.g. [Download Report: ...](/sensors/chat/download?device_id=...)
+      const mdLinkRegex = /\[(.*?)\]\((.*?)\)/g;
+      let match;
+      while ((match = mdLinkRegex.exec(html)) !== null) {
+        const linkText = match[1];
+        const linkHref = match[2];
+        
+        if (linkHref === "download") {
+          // If the link text contains a URL path or route
+          const targetUrl = linkText.startsWith('/') ? `${API}${linkText}` : `${API}/${linkText}`;
+          const btnHtml = `<br><a href="${targetUrl}" class="chat-download-btn" target="_blank"><span class="material-icons" style="font-size: 14px;">download</span> Download Report File</a>`;
+          html = html.replace(match[0], btnHtml);
+        } else {
+          const targetUrl = linkHref.startsWith('http') ? linkHref : `${API}${linkHref}`;
+          const linkHtml = `<a href="${targetUrl}" style="color: #2563eb; text-decoration: underline;" target="_blank">${linkText}</a>`;
+          html = html.replace(match[0], linkHtml);
+        }
+      }
+      
+      // Convert newlines to breaks
+      return html.replace(/\n/g, '<br>');
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const messagesContainer = document.getElementById('chatMessages');
+      const sendBtn = document.getElementById('chatSendBtn');
+      const query = input.value.trim();
+      
+      if (!query) return;
+      
+      // Append user message
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user';
+      userBubble.textContent = query;
+      messagesContainer.appendChild(userBubble);
+      
+      // Clear input and disable elements
+      input.value = '';
+      input.disabled = true;
+      sendBtn.disabled = true;
+      
+      // Add typing indicator
+      const typingBubble = document.createElement('div');
+      typingBubble.className = 'chat-bubble bot';
+      typingBubble.id = 'typingBubble';
+      typingBubble.innerHTML = `
+        <div class="typing-dots">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      `;
+      messagesContainer.appendChild(typingBubble);
+      
+      // Scroll to bottom
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      try {
+        const offsetMin = new Date().getTimezoneOffset(); // e.g. -330 for IST
+        const response = await fetch(`${API}/sensors/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: query,
+            timezone_offset_minutes: offsetMin,
+            current_device_id: currentDevice ? currentDevice.id : null
+          })
+        });
+        
+        // Remove typing bubble
+        const tb = document.getElementById('typingBubble');
+        if (tb) tb.remove();
+        
+        if (response.ok) {
+          const data = await response.json();
+          const botBubble = document.createElement('div');
+          botBubble.className = 'chat-bubble bot';
+          botBubble.innerHTML = formatMarkdown(data.response);
+          messagesContainer.appendChild(botBubble);
+        } else {
+          const botBubble = document.createElement('div');
+          botBubble.className = 'chat-bubble bot';
+          botBubble.textContent = 'Sorry, the server encountered an error processing your query.';
+          messagesContainer.appendChild(botBubble);
+        }
+      } catch (err) {
+        const tb = document.getElementById('typingBubble');
+        if (tb) tb.remove();
+        
+        const botBubble = document.createElement('div');
+        botBubble.className = 'chat-bubble bot';
+        botBubble.textContent = 'Unable to reach the AI assistant. Please check your internet connection.';
+        messagesContainer.appendChild(botBubble);
+        console.error("Chat error:", err);
+      } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+
+    // Auto display notification badge after 1.5 seconds if chat wasn't opened
+    setTimeout(() => {
+      if (!chatHasBeenOpened) {
+        const badge = document.getElementById('chatBadge');
+        if (badge) badge.style.display = 'block';
+      }
+    }, 1500);
   </script>
 </body>
 </html>

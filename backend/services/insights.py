@@ -249,7 +249,7 @@ async def call_gemini_diagnose(telemetry_data: list) -> dict:
         logger.warning("No GEMINI_API_KEY configured. Falling back to rule-based insights.")
         return generate_rule_based_diagnoses(telemetry_data)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
     
     prompt = f"""
     You are an expert thermal dynamics and refrigeration maintenance engineer for a food/fermentation factory (Ground Up, Pune, India). Analyze the 24h operational telemetry below, comparing against 7-day baselines.

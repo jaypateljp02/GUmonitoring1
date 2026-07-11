@@ -172,6 +172,7 @@ export default function DashboardScreen({ route, navigation }) {
   const handleExportCSV = async () => {
     try {
       const response = await api.get(`/sensors/device/${device.id}/export`, {
+        params: { days: 1, interval_minutes: 1 },
         responseType: 'text'
       });
       const fileUri = `${RNFS.DocumentDirectoryPath}/telemetry_${device.id}.csv`;
@@ -185,6 +186,7 @@ export default function DashboardScreen({ route, navigation }) {
       Alert.alert('Error', 'Failed to export telemetry data');
     }
   };
+
 
 
   const handleSaveThresholds = async () => {
