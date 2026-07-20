@@ -416,20 +416,24 @@ async def ingestion_loop():
                                         current_val = round(current_val / 100.0, 2)
 
                                 # Energy data
-                                one_kwh = params.get("oneKwh")
-                                if one_kwh is not None:
-                                    today_energy_val = float(one_kwh) / 100.0  # 0.01 kWh units -> kWh
+                                day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else params.get("oneKwh")
+                                if day_kwh_raw is not None:
+                                    today_energy_val = float(day_kwh_raw) / 100.0  # 0.01 kWh units -> kWh
 
-                                hundred_days = params.get("hundredDaysKwh")
-                                if hundred_days and isinstance(hundred_days, str):
-                                    try:
-                                        days_to_sum = min(30, len(hundred_days) // 6)
-                                        for i in range(days_to_sum):
-                                            hex_chunk = hundred_days[i * 6:(i + 1) * 6]
-                                            if hex_chunk:
-                                                month_energy_val += int(hex_chunk, 16) / 100.0
-                                    except Exception:
-                                        pass
+                                month_kwh_raw = params.get("monthKwh")
+                                if month_kwh_raw is not None:
+                                    month_energy_val = float(month_kwh_raw) / 100.0
+                                else:
+                                    hundred_days = params.get("hundredDaysKwh")
+                                    if hundred_days and isinstance(hundred_days, str):
+                                        try:
+                                            days_to_sum = min(30, len(hundred_days) // 6)
+                                            for i in range(days_to_sum):
+                                                hex_chunk = hundred_days[i * 6:(i + 1) * 6]
+                                                if hex_chunk:
+                                                    month_energy_val += int(hex_chunk, 16) / 100.0
+                                        except Exception:
+                                            pass
 
                                 is_online_in_cloud = device_data.get("online", True)
                                 if is_online_in_cloud or power_val is not None:

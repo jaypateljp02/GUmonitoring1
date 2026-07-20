@@ -714,8 +714,15 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
                 success = await ew_client.set_device_switch(device_id, target_state)
                 if success:
                     return {"message": f"Successfully toggled eWeLink plug {device_id} to {target_state}", "state": target_state}
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
+            else:
+                raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
 
     # 2. Try Tapo direct LAN connection
     if sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:

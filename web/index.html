@@ -2166,12 +2166,13 @@
             }
           }, 1000);
         } else {
-          alert('Failed to toggle Tapo plug.');
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.detail || 'Failed to toggle plug.');
           tapoToggling[roomId] = false;
           await pollTapoPlugs(true);
         }
       } catch(e) {
-        alert('Connection error while toggling plug.');
+        alert(e.message || 'Connection error while toggling plug.');
         tapoToggling[roomId] = false;
         await pollTapoPlugs(true);
       }

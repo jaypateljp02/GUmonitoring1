@@ -241,28 +241,25 @@ class EwelinkClient:
         # Switch state (on/off)
         switch_state = params_obj.get("switch", "off")
 
-        # Some POW devices also report oneKwh (today's energy in 0.01 kWh units)
-        one_kwh = params_obj.get("oneKwh")
-        today_energy = 0.0
-        if one_kwh is not None:
-            today_energy = float(one_kwh) / 100.0  # Convert to kWh
+        # POWR320D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
+        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else params_obj.get("oneKwh")
+        today_energy = float(day_kwh_raw) / 100.0 if day_kwh_raw is not None else 0.0
 
-        # Monthly energy (endAt field or hundredDaysKwh aggregation)
-        month_energy = 0.0
-        hundred_days = params_obj.get("hundredDaysKwh")
-        if hundred_days and isinstance(hundred_days, str):
-            # hundredDaysKwh is a packed string of daily kWh values for last 100 days
-            # Each entry is 6 hex chars = 3 bytes, big-endian integer in 0.01 kWh
-            try:
-                # Sum up first 30 days (current month approx)
-                days_to_sum = min(30, len(hundred_days) // 6)
-                for i in range(days_to_sum):
-                    hex_chunk = hundred_days[i * 6:(i + 1) * 6]
-                    if hex_chunk:
-                        day_kwh = int(hex_chunk, 16) / 100.0
-                        month_energy += day_kwh
-            except Exception:
-                month_energy = 0.0
+        month_kwh_raw = params_obj.get("monthKwh")
+        if month_kwh_raw is not None:
+            month_energy = float(month_kwh_raw) / 100.0
+        else:
+            month_energy = 0.0
+            hundred_days = params_obj.get("hundredDaysKwh")
+            if hundred_days and isinstance(hundred_days, str):
+                try:
+                    days_to_sum = min(30, len(hundred_days) // 6)
+                    for i in range(days_to_sum):
+                        hex_chunk = hundred_days[i * 6:(i + 1) * 6]
+                        if hex_chunk:
+                            month_energy += int(hex_chunk, 16) / 100.0
+                except Exception:
+                    month_energy = 0.0
 
         is_online = target_device.get("online", False)
 
