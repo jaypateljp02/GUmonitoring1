@@ -1376,8 +1376,12 @@
             }
           });
           const valuesPower = historyData.map(log => log.apower);
-          const valuesEnergy = historyData.map(log => log.today_energy / 1000.0); // Wh to kWh
+          const valuesEnergy = historyData.map(log => parseFloat(log.today_energy || 0)); // kWh directly
           
+          // Get billing rate for tooltip cost computation
+          const item = tapoPlugsData[roomId];
+          const billingRate = (item && item.data && item.data.billing_rate) ? item.data.billing_rate : 17.0;
+
           // Render Power Chart
           const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
           if (plugChartInstances[`power-${roomId}`]) {
@@ -1388,14 +1392,15 @@
             data: {
               labels: labels,
               datasets: [{
-                label: 'Load (W)',
+                label: 'Power (Watts)',
                 data: valuesPower,
-                borderColor: '#3B82F6',
-                backgroundColor: 'rgba(59, 130, 246, 0.04)',
-                borderWidth: 2,
-                pointRadius: historyData.length > 50 ? 0 : 2,
+                borderColor: '#2563EB',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderWidth: 2.5,
+                pointRadius: historyData.length > 50 ? 0 : 3,
+                pointHoverRadius: 5,
                 fill: true,
-                tension: 0.3
+                tension: 0.35
               }]
             },
             options: {
@@ -1403,16 +1408,31 @@
               maintainAspectRatio: false,
               plugins: {
                 legend: { display: false },
-                datalabels: { display: false }
+                datalabels: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      const idx = ctx.dataIndex;
+                      const log = historyData[idx];
+                      const v = log ? log.voltage : '--';
+                      const c = log ? log.current : '--';
+                      return `Power: ${ctx.parsed.y.toFixed(1)} W (${v}V, ${c}A)`;
+                    }
+                  }
+                }
               },
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9 } }
+                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
                 },
                 y: {
                   grid: { color: '#F1F5F9' },
-                  ticks: { font: { size: 9 } }
+                  suggestedMin: 0,
+                  ticks: {
+                    font: { size: 9, weight: '600' },
+                    callback: function(value) { return value + ' W'; }
+                  }
                 }
               }
             }
@@ -1431,11 +1451,12 @@
                 label: 'Energy (kWh)',
                 data: valuesEnergy,
                 borderColor: '#10B981',
-                backgroundColor: 'rgba(16, 185, 129, 0.04)',
-                borderWidth: 2,
-                pointRadius: historyData.length > 50 ? 0 : 2,
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                borderWidth: 2.5,
+                pointRadius: historyData.length > 50 ? 0 : 3,
+                pointHoverRadius: 5,
                 fill: true,
-                tension: 0.3
+                tension: 0.35
               }]
             },
             options: {
@@ -1443,16 +1464,29 @@
               maintainAspectRatio: false,
               plugins: {
                 legend: { display: false },
-                datalabels: { display: false }
+                datalabels: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      const kwh = ctx.parsed.y;
+                      const bill = (kwh * billingRate).toFixed(2);
+                      return `Energy: ${kwh.toFixed(3)} kWh (₹ ${bill})`;
+                    }
+                  }
+                }
               },
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9 } }
+                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
                 },
                 y: {
                   grid: { color: '#F1F5F9' },
-                  ticks: { font: { size: 9 } }
+                  suggestedMin: 0,
+                  ticks: {
+                    font: { size: 9, weight: '600' },
+                    callback: function(value) { return value.toFixed(3) + ' kWh'; }
+                  }
                 }
               }
             }

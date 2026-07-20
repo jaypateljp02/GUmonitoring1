@@ -215,8 +215,8 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
         "apower": round(row.apower, 1) if row.apower else 0.0,
         "voltage": round(row.voltage, 1) if row.voltage else 0.0,
         "current": round(row.current, 3) if row.current else 0.0,
-        "today_energy": round(row.today_energy, 1) if row.today_energy else 0.0,
-        "month_energy": round(row.month_energy, 1) if row.month_energy else 0.0
+        "today_energy": round(row.today_energy, 3) if row.today_energy else 0.0,
+        "month_energy": round(row.month_energy, 3) if row.month_energy else 0.0
     } for row in agg_results]
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
