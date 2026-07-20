@@ -97,21 +97,22 @@ class ReportPreviewMiddleware(BaseHTTPMiddleware):
             finally:
                 db.close()
 
-        # 2. Alert detail paths (e.g., /alerts/5ca6b39e-..., /alerts/active, /alerts)
-        accept = request.headers.get("accept", "")
-        is_browser_request = "text/html" in accept or "application/json" not in accept
-        
-        if is_browser_request and "resolve" not in path and (path.startswith("alerts/") or path == "alerts" or path == "active"):
-            from backend.services.alert_detail import generate_alert_detail_html
-            alert_id_param = path.replace("alerts/", "").replace("alerts", "").strip() or "active"
-            db = SessionLocal()
-            try:
-                html_body = generate_alert_detail_html(alert_id_param, db)
-                return HTMLResponse(content=html_body)
-            except Exception as e:
-                logger.error(f"Middleware error rendering alert detail: {e}", exc_info=True)
-            finally:
-                db.close()
+        # 2. Alert detail HTML paths (e.g., /alerts/5ca6b39e-..., /alerts/active)
+        # Exclude exact API routes like /alerts, /alerts/count, and resolution endpoints
+        if path.startswith("alerts/") and not path.endswith("count") and "resolve" not in path:
+            subpath = path.replace("alerts/", "").strip()
+            if subpath and subpath not in ["count"]:
+                from backend.services.alert_detail import generate_alert_detail_html
+                accept = request.headers.get("accept", "")
+                if "application/json" not in accept or "text/html" in accept:
+                    db = SessionLocal()
+                    try:
+                        html_body = generate_alert_detail_html(subpath, db)
+                        return HTMLResponse(content=html_body)
+                    except Exception as e:
+                        logger.error(f"Middleware error rendering alert detail: {e}", exc_info=True)
+                    finally:
+                        db.close()
 
         return await call_next(request)
 
