@@ -591,6 +591,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
 
     # Try live eWeLink cloud status for eWeLink power devices (POWR320D)
     import os
+    import asyncio
     from dotenv import load_dotenv
     load_dotenv()
     if not os.getenv("EWELINK_EMAIL"):

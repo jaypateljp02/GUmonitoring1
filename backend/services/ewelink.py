@@ -309,12 +309,19 @@ class EwelinkClient:
                     "userAgent": "app",
                     "sequence": str(int(time.time() * 1000)),
                     "params": {
+                        "switches": [{"outlet": 0, "switch": state.lower()}],
                         "switch": state.lower()
                     }
                 }
                 await ws.send(json.dumps(toggle_payload))
-                logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state}")
-                return True
+                resp_raw = await ws.recv()
+                resp_data = json.loads(resp_raw)
+                if resp_data.get("error") == 0:
+                    logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
+                    return True
+                else:
+                    logger.error(f"Failed to toggle eWeLink device {device_id}: {resp_data}")
+                    return False
         except Exception as e:
             logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
             return False
