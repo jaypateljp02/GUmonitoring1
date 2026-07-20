@@ -134,7 +134,7 @@ def aggregate_telemetry(db: Session, device_id: str, start_time: datetime, end_t
         for row in agg_results
     ]
 
-def calculate_offline_periods(db: Session, table_name: str, device_id: str, start_time: datetime, threshold_minutes: int = 3) -> List[dict]:
+def calculate_offline_periods(db: Session, table_name: str, device_id: str, start_time: datetime, threshold_minutes: int = 12) -> List[dict]:
     from sqlalchemy import text
     
     offline_query = text(f'''
@@ -221,7 +221,7 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
 def get_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     if start_date and end_date:
         try:
@@ -234,7 +234,11 @@ def get_device_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
     
     offline_periods = calculate_offline_periods(db, "device_telemetry", device_id, cutoff)
@@ -362,7 +366,7 @@ def get_rolling_analytics(
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     if start_date and end_date:
         try:
@@ -376,7 +380,11 @@ def export_device_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         filename = f"telemetry_{device_id}_{days}d.csv"
         
@@ -842,7 +850,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
 
 @router.get("/device/{device_id}/plug/history")
 def get_plug_telemetry_history(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Fetch plug telemetry history for charts."""
     from backend.models.plug_telemetry import PlugTelemetry
@@ -857,7 +865,11 @@ def get_plug_telemetry_history(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         
     logs = db.query(PlugTelemetry).filter(
@@ -879,7 +891,7 @@ def get_plug_telemetry_history(
 
 @router.get("/device/{device_id}/plug/export")
 def export_plug_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Export plug telemetry logs as a CSV file with formatted energy (kWh) and power readings."""
     if start_date and end_date:
@@ -894,7 +906,11 @@ def export_plug_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         filename = f"plug_telemetry_{device_id}_{days}d.csv"
         
@@ -1545,10 +1561,20 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     ).order_by(DeviceTelemetry.timestamp.desc()).all()
 
     from backend.models.plug_telemetry import PlugTelemetry
+    
+    msg_lower = req.message.lower()
+    is_plug_query = any(k in msg_lower for k in ["plug", "tapo", "power", "watt", "energy", "voltage", "current", "apower", "kwh", "amp"])
+
     plug_logs = db.query(PlugTelemetry).filter(
         PlugTelemetry.device_id == device_id,
         PlugTelemetry.timestamp >= cutoff_utc
     ).order_by(PlugTelemetry.timestamp.desc()).all()
+
+    # Fallback if specific room has no plug but user asks for plug data
+    if is_plug_query and not plug_logs:
+        plug_logs = db.query(PlugTelemetry).filter(
+            PlugTelemetry.timestamp >= cutoff_utc
+        ).order_by(PlugTelemetry.timestamp.desc()).all()
 
     # Summarize stats
     temps = [float(l.temperature) for l in logs if l.temperature is not None]
@@ -1563,6 +1589,7 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
         "total_readings": len(logs)
     }
 
+    plug_context_list = []
     if plug_logs:
         powers = [float(l.apower) for l in plug_logs if l.apower is not None]
         voltages = [float(l.voltage) for l in plug_logs if l.voltage is not None]
@@ -1578,20 +1605,21 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
             "today_energy_kwh": energy_kwh,
             "plug_readings_count": len(plug_logs)
         }
-
-    # Build plug lookup map by timestamp string (minute precision)
-    plug_map = {}
-    for pl in plug_logs:
-        t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
-        if t_key not in plug_map:
-            plug_map[t_key] = pl
+        
+        for pl in plug_logs[:60]:
+            local_time = pl.timestamp + ist_offset
+            plug_context_list.append({
+                "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
+                "active_power_w": float(pl.apower) if pl.apower is not None else 0.0,
+                "voltage_v": float(pl.voltage) if pl.voltage is not None else 0.0,
+                "current_a": float(pl.current) if pl.current is not None else 0.0,
+                "today_energy_kwh": float(pl.today_energy) if pl.today_energy is not None else 0.0
+            })
 
     # Format recent sample data (last 80 rows)
     data_context = []
     for log in logs[:80]:
         local_time = log.timestamp + ist_offset
-        t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
-        pl_data = plug_map.get(t_key)
         
         row_dict = {
             "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
@@ -1599,10 +1627,6 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
             "humidity": float(log.humidity) if log.humidity is not None else None,
             "battery": float(log.battery_level) if log.battery_level is not None else None
         }
-        if pl_data:
-            row_dict["active_power_w"] = float(pl_data.apower) if pl_data.apower is not None else None
-            row_dict["voltage_v"] = float(pl_data.voltage) if pl_data.voltage is not None else None
-            row_dict["current_a"] = float(pl_data.current) if pl_data.current is not None else None
             
         data_context.append(row_dict)
 
@@ -1622,13 +1646,17 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     Target Device ID: {device_id}
     User Query: "{req.message}"
     
-    Telemetry Context (Last 48 Hours, including Temperature, Humidity, and Tapo Smart Plug metrics):
-    - Summary: {json.dumps(summary_stats, indent=2)}
-    - Detailed Logs: {json.dumps(data_context[::-1], indent=2)}
+    Telemetry Summary: {json.dumps(summary_stats, indent=2)}
+    
+    Tapo Smart Plug Telemetry Logs (Power W, Voltage V, Current A, Energy kWh):
+    {json.dumps(plug_context_list[::-1], indent=2)}
+    
+    Temperature & Humidity Logs:
+    {json.dumps(data_context[::-1], indent=2)}
     
     Formulate a clear response answering their query directly.
-    - If they ask about Tapo plug data, compressor power draw (Watts), energy (kWh), cycle count, or voltage, use the tapo_plug_telemetry summary and active_power_w fields.
-    - If they ask for a specific time (e.g. "at 10 AM today"), search the Detailed Logs for the reading closest to that time.
+    - CRITICAL RULE FOR TAPO PLUG / POWER QUERIES: If the user is asking about Tapo plug data, power draw (Watts), energy consumption (kWh), voltage (V), or current (A), answer strictly using the Tapo Smart Plug Telemetry metrics (active_power_w, voltage_v, today_energy_kwh, current_a). Do NOT present temperature or humidity numbers unless explicitly requested alongside power data.
+    - If they ask for a specific time (e.g. "at 10 AM today"), search the logs for the reading closest to that time.
     - If no logs exist, state that politely.
     - If they ask for a download, export, PDF, Excel, or CSV report, set "is_report_requested" to true, and calculate "report_start_time" and "report_end_time" in local factory time (IST) formatted strictly as "YYYY-MM-DDTHH:MM:SS" (ISO 8601 format).
     - CRITICAL RULE FOR 24 HOURS REQUESTS: If the user requests data for "24 hours", "last 24 hours", "yesterday to today", or similar relative 24h ranges, calculate report_start_time as exactly 24 hours before the current local IST time ({local_now_str}), and report_end_time as exactly the current local IST time ({local_now_str}).

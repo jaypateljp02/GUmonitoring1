@@ -380,9 +380,10 @@ async def ingestion_loop():
                                 bat_val = float(raw_bat)
                             
                             is_online_in_cloud = device_data.get("online", True)
-                            if is_online_in_cloud or (temp_val is not None or hum_val is not None):
+                            if is_online_in_cloud and (temp_val is not None or hum_val is not None):
                                 is_device_reporting = True
                             else:
+                                is_device_reporting = False
                                 logger.warning(f"Device {target_device} is offline in eWeLink cloud (online={device_data.get('online')}).")
                     else:
                         if mode == "ice":
@@ -436,7 +437,7 @@ async def ingestion_loop():
                                     alert.resolved = True
                                     logger.info(f"Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
 
-                    if temp_val is not None and hum_val is not None:
+                    if is_device_reporting and temp_val is not None and hum_val is not None:
                         # 1. Raw Telemetry
                         telemetry = DeviceTelemetry(
                             device_id=target_device,

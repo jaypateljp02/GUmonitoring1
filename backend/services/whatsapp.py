@@ -69,15 +69,29 @@ def send_whatsapp_template_to_all(
     """
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
     phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-    recipients_raw = os.getenv("WHATSAPP_RECIPIENTS")
+    recipients_set = set()
+    env_recipients = os.getenv("WHATSAPP_RECIPIENTS")
+    if env_recipients:
+        for r in env_recipients.split(","):
+            if r.strip():
+                recipients_set.add(r.strip())
+                
+    try:
+        from backend.database import SessionLocal
+        from backend.models.setting import Setting
+        db = SessionLocal()
+        s = db.query(Setting).filter(Setting.key == "whatsapp_recipients").first()
+        if s and s.value:
+            for r in s.value.split(","):
+                if r.strip():
+                    recipients_set.add(r.strip())
+        db.close()
+    except Exception as e:
+        logger.warning(f"Could not query database settings for whatsapp_recipients: {e}")
 
-    if not access_token or not phone_number_id or not recipients_raw:
-        logger.warning("WhatsApp API variables are not fully configured in environment (.env). Skipping notification.")
-        return
-
-    recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
+    recipients = list(recipients_set)
     if not recipients:
-        logger.warning("No WhatsApp recipients found in WHATSAPP_RECIPIENTS.")
+        logger.warning("No WhatsApp recipients found in database or WHATSAPP_RECIPIENTS.")
         return
 
     for recipient in recipients:

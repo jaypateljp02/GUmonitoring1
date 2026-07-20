@@ -440,7 +440,7 @@ async def call_gemini_diagnose(telemetry_data: list) -> dict:
     
     try:
         async with httpx.AsyncClient() as client:
-            res = await client.post(url, json=payload, timeout=20.0)
+            res = await client.post(url, json=payload, timeout=45.0)
             if res.status_code == 200:
                 result = res.json()
                 text = result["candidates"][0]["content"]["parts"][0]["text"]

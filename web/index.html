@@ -408,9 +408,11 @@
       flex-direction: column;
       align-items: flex-end;
       font-family: 'Inter', sans-serif;
+      pointer-events: none;
     }
     
     .chat-trigger-btn {
+      pointer-events: auto;
       width: 56px;
       height: 56px;
       border-radius: 50%;
@@ -2166,6 +2168,28 @@
       }
     }
 
+    function formatBatteryHtml(batteryVal) {
+      if (batteryVal === null || batteryVal === undefined || isNaN(batteryVal)) {
+        return `<span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>`;
+      }
+      const bat = parseFloat(batteryVal);
+      if (bat >= 70) {
+        return `<span class="meta-item-bat" style="color: #059669; font-weight: 700;">🔋 High (${bat.toFixed(0)}%)</span>`;
+      } else if (bat >= 30) {
+        return `<span class="meta-item-bat" style="color: #d97706; font-weight: 700;">🔋 Middle (${bat.toFixed(0)}%)</span>`;
+      } else {
+        return `<span class="meta-item-bat" style="color: #dc2626; font-weight: 800;">🪫 Low (${bat.toFixed(0)}%)</span>`;
+      }
+    }
+
+    function getBatteryLabel(batteryVal) {
+      if (batteryVal === null || batteryVal === undefined || isNaN(batteryVal)) return '🔋 --';
+      const bat = parseFloat(batteryVal);
+      if (bat >= 70) return `🔋 High (${bat.toFixed(0)}%)`;
+      if (bat >= 30) return `🔋 Middle (${bat.toFixed(0)}%)`;
+      return `🪫 Low (${bat.toFixed(0)}%)`;
+    }
+
     let activeDragPin = null;
     let mapContainerRect = null;
     let hasDragged = false;
@@ -2186,7 +2210,7 @@
         if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
-          const isOnline = data.is_online !== false;
+          const isOnline = (data && data.is_online === true);
           tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
           
           let isAlert = false;
@@ -2439,7 +2463,7 @@
       }
       const data = liveData[tempSensor.device_id];
       const temp = parseFloat(data.temperature);
-      const isOnline = data.is_online !== false;
+      const isOnline = (data && data.is_online === true);
       if (!isOnline) {
         return 2;
       }
@@ -2507,13 +2531,13 @@
               const ts = parseDate(data.timestamp);
               const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               
-              const isOnline = data.is_online !== false;
+              const isOnline = (data && data.is_online === true);
               
               if (el) el.textContent = isOnline ? temp.toFixed(1) + '°C' : '--';
               if (meta) {
                 if (isOnline) {
                   meta.innerHTML = `
-                    <span class="meta-item-bat" style="color: #059669;">🔋 ${battery}%</span>
+                    ${formatBatteryHtml(data.battery_level)}
                     <span class="meta-item-time">🕒 ${timeStr}</span>
                   `;
                 } else {
@@ -3148,13 +3172,16 @@
     async function showDetail(roomId, pushState = true) {
       const room = rooms.find(r => r.id === roomId);
       if (!room) return;
-      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-      if (!tempSensor) {
-        alert('This room has no temperature sensor.');
+      let targetSensor = room.sensors?.find(s => s.type === 'temperature');
+      if (!targetSensor && room.sensors && room.sensors.length > 0) {
+        targetSensor = room.sensors[0];
+      }
+      if (!targetSensor) {
+        alert('No sensor configured for this room.');
         return;
       }
       currentDevice = {
-        id: tempSensor.device_id,
+        id: targetSensor.device_id,
         name: room.name,
         icon: getRoomIcon(room.type)
       };
@@ -3276,12 +3303,14 @@
           const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
           const ts = parseDate(d.timestamp);
           
-          const isOnline = data.is_online !== false;
+          const deviceLiveData = liveData[currentDevice.id];
+          const diffMs = new Date() - ts;
+          const isOnline = (deviceLiveData && typeof deviceLiveData.is_online === 'boolean') ? deviceLiveData.is_online : (diffMs < 10 * 60 * 1000);
           
           if (isOnline) {
             document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
             document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
-            if (topBat) topBat.textContent = '🔋 ' + batPercent;
+            if (topBat) topBat.textContent = getBatteryLabel(d.battery_level);
             if (topTime) topTime.textContent = '🕒 ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           } else {
             document.getElementById('dTemp').textContent = '--';
@@ -3312,7 +3341,7 @@
 
           if (!isOnline) {
             card.className = 'card offline-card';
-            warn.textContent = `⚠️ DEVICE OFFLINE (No data for >2 mins)`;
+            warn.textContent = `⚠️ DEVICE OFFLINE (No data for >5 mins)`;
             warn.className = 'warning-text show offline-warn';
             if (topBat) topBat.className = 'sensor-badge badge-offline';
             if (topTime) topTime.className = 'sensor-badge badge-offline';

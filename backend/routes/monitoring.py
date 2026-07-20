@@ -93,9 +93,9 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
         if latest or has_plug:
             is_online = False
             if latest:
-                is_online = (now - latest["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - latest["timestamp"]) < timedelta(minutes=10)
             elif plug_data:
-                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=10)
                 
             timestamp_val = None
             if latest:
