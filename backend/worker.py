@@ -394,8 +394,6 @@ async def ingestion_loop():
                     elif use_live:
                         if device_data:
                             params = device_data.get("params", {})
-
-<<<<<<< HEAD
                             # Detect if this is a power monitoring device (POWR320D)
                             if EwelinkClient.is_power_device(params) and not EwelinkClient.is_temp_hum_device(params):
                                 is_power_device = True

@@ -607,14 +607,54 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     if target_sensor and target_sensor.tapo_billing_rate is not None:
         rate = float(target_sensor.tapo_billing_rate)
 
-    # If Tapo config exists, try to query it directly (works on local LAN)
+    # 1. Fast path: return PlugTelemetry database records ingested by edge agent or eWeLink worker
+    from backend.models.plug_telemetry import PlugTelemetry
+    last_log = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id == target_plug_id
+    ).order_by(PlugTelemetry.timestamp.desc()).first()
+
+    now = datetime.utcnow()
+    if last_log:
+        age_seconds = (now - last_log.timestamp).total_seconds()
+        is_stale = age_seconds > 600.0  # Mark last_known if older than 10 mins
+        raw_t_energy = float(last_log.today_energy or 0.0)
+        raw_m_energy = float(last_log.month_energy or 0.0)
+        today_kwh = (raw_t_energy / 1000.0) if raw_t_energy > 10.0 else raw_t_energy
+        month_kwh = (raw_m_energy / 1000.0) if raw_m_energy > 10.0 else raw_m_energy
+        p_val = float(last_log.apower or 0.0) if not is_stale else 0.0
+        v_val = float(last_log.voltage or 230.0) if float(last_log.voltage or 0.0) > 0 else 230.0
+        c_val = float(last_log.current or 0.0) if not is_stale else 0.0
+        sw_state = "on" if p_val > 0.5 else "off"
+
+        is_ewelink = (target_sensor and target_sensor.name and "ewelink" in target_sensor.name.lower()) or target_plug_id == "10029128ab"
+        plug_type = "ewelink" if is_ewelink else "tapo"
+
+        return {
+            "state": sw_state,
+            "voltage": round(v_val, 1),
+            "current": round(c_val, 3),
+            "apower": round(p_val, 1),
+            "today_energy": raw_t_energy,
+            "month_energy": raw_m_energy,
+            "today_kwh": round(today_kwh, 3),
+            "month_kwh": round(month_kwh, 3),
+            "today_bill": round(today_kwh * rate, 2),
+            "month_bill": round(month_kwh * rate, 2),
+            "billing_rate": rate,
+            "supported": True,
+            "type": plug_type,
+            "last_known": is_stale,
+            "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if is_stale else None
+        }
+
+    # 2. Slow fallback: Try direct LAN query if on local network
     if target_sensor and target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
             import asyncio
             telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
                 target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_plug_id
-            ), timeout=1.5)
+            ), timeout=0.4)
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
             

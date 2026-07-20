@@ -2036,13 +2036,17 @@
       // Find the room name for this device
       let roomName = 'Unknown Room';
       Object.values(tapoPlugsData).forEach(item => {
-        if (item && item.room) {
-          const ts = item.room.sensors.find(s => s.type === 'temperature');
-          if (ts && ts.device_id === deviceId) {
+        if (item && item.room && item.room.sensors) {
+          const match = item.room.sensors.find(s => s.device_id === deviceId);
+          if (match) {
             roomName = item.room.name;
           }
         }
       });
+      if (roomName === 'Unknown Room' && Array.isArray(rooms)) {
+        const r = rooms.find(rm => rm.sensors && rm.sensors.some(s => s.device_id === deviceId));
+        if (r) roomName = r.name;
+      }
       const opt = document.createElement('option');
       opt.value = deviceId;
       opt.textContent = roomName;
@@ -2077,11 +2081,11 @@
       roomSelect.innerHTML = '<option value="" disabled selected>Choose a room...</option>';
       
       Object.values(tapoPlugsData).forEach(item => {
-        if (item && item.error === 'Unconfigured' && item.room) {
-          const ts = item.room.sensors.find(s => s.type === 'temperature');
-          if (ts) {
+        if (item && item.error === 'Unconfigured' && item.room && item.room.sensors) {
+          const targetSensor = item.room.sensors.find(s => s.type === 'plug') || item.room.sensors.find(s => s.type === 'temperature') || item.room.sensors[0];
+          if (targetSensor) {
             const opt = document.createElement('option');
-            opt.value = ts.device_id;
+            opt.value = targetSensor.device_id;
             opt.textContent = item.room.name;
             roomSelect.appendChild(opt);
           }
