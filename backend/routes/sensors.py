@@ -535,8 +535,19 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
                 s.tapo_billing_rate = req["hum_tapo_billing_rate"]
             if "hum_tapo_running_threshold" in req:
                 s.tapo_running_threshold = req["hum_tapo_running_threshold"]
+        elif s.type == "plug":
+            if "temp_tapo_ip" in req:
+                s.tapo_ip = req["temp_tapo_ip"]
+            if "temp_tapo_username" in req:
+                s.tapo_username = req["temp_tapo_username"]
+            if "temp_tapo_password" in req:
+                s.tapo_password = req["temp_tapo_password"]
+            if "temp_tapo_billing_rate" in req:
+                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
+            if "temp_tapo_running_threshold" in req:
+                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
     db.commit()
-    return {"message": "Thresholds, webhooks, and Tapo configurations updated"}
+    return {"message": "Thresholds, webhooks, and plug configurations updated"}
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
@@ -587,9 +598,33 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     if last_log:
         raw_t_energy = float(last_log.today_energy)
         raw_m_energy = float(last_log.month_energy)
-        today_kwh = raw_t_energy if raw_t_energy < 100.0 else raw_t_energy / 1000.0
-        month_kwh = raw_m_energy if raw_m_energy < 100.0 else raw_m_energy / 1000.0
         
+        today_kwh = raw_t_energy if raw_t_energy > 0.001 else 0.0
+        if today_kwh == 0.0:
+            today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
+            today_recs = db.query(PlugTelemetry).filter(
+                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.timestamp >= today_start
+            ).order_by(PlugTelemetry.timestamp.asc()).all()
+            if today_recs:
+                avg_power = sum(float(r.apower) for r in today_recs) / float(len(today_recs))
+                first_ts = today_recs[0].timestamp
+                hrs = max(0.083, (datetime.utcnow() - first_ts).total_seconds() / 3600.0)
+                today_kwh = (avg_power * hrs) / 1000.0
+
+        month_kwh = raw_m_energy if raw_m_energy > 0.001 else 0.0
+        if month_kwh == 0.0:
+            month_start = datetime.combine(datetime.utcnow().date().replace(day=1), datetime.min.time())
+            month_recs = db.query(PlugTelemetry).filter(
+                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.timestamp >= month_start
+            ).order_by(PlugTelemetry.timestamp.asc()).all()
+            if month_recs:
+                avg_power_m = sum(float(r.apower) for r in month_recs) / float(len(month_recs))
+                first_ts_m = month_recs[0].timestamp
+                hrs_m = max(0.083, (datetime.utcnow() - first_ts_m).total_seconds() / 3600.0)
+                month_kwh = (avg_power_m * hrs_m) / 1000.0
+
         # Check if telemetry is older than 10 minutes (600 seconds)
         is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 600.0
         if is_stale:

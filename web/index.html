@@ -1539,7 +1539,10 @@
         const item = tapoPlugsData[roomId];
         if (!item) return;
         const { room, data, error } = item;
-        const tempSensor = room.sensors.find(s => s.type === 'temperature');
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+        const mainSensor = plugSensor || tempSensor;
+        if (!mainSensor) return;
         
         let telemetryHtml = '';
         let billingHtml = '';
@@ -1561,7 +1564,7 @@
             const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
             const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
             const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
-            telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}${cloudNote}</div>`;
+            telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Plug Offline: ${errMsg}${cloudNote}</div>`;
             toggleBtnHtml = `
               <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
                 🔌 Plug Offline (Control unavailable)
@@ -1638,14 +1641,12 @@
                   <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
                   <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
                 </div>
-                ${isBillingDay ? `
                 <div style="border-left: 1px solid #E2E8F0;"></div>
                 <div style="text-align: center; flex: 1;">
                   <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
                   <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
                   <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
                 </div>
-                ` : ''}
               </div>
             `;
             if (tapoToggling[roomId]) {
@@ -1739,14 +1740,14 @@
           `;
           analyticsHtml = `
             <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
-              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${tempSensor.device_id}')">
+              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${mainSensor.device_id}')">
                 📊 View Power Trend & Logs
               </button>
               <div id="plugAnalytics-${roomId}" style="display: ${expandedPlugAccordions[roomId] ? 'block' : 'none'}; margin-top: 12px;">
                 <div style="display: flex; gap: 6px; margin-bottom: 12px;">
                   <div style="flex: 1;">
                     <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">TIME FRAME</span>
-                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${tempSensor.device_id}')">
+                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${mainSensor.device_id}')">
                       <option value="1" ${getPlugSelectedDays(roomId) === '1' ? 'selected' : ''}>1 Day</option>
                       <option value="3" ${getPlugSelectedDays(roomId) === '3' ? 'selected' : ''}>3 Days</option>
                       <option value="7" ${getPlugSelectedDays(roomId) === '7' ? 'selected' : ''}>7 Days</option>
@@ -1756,7 +1757,7 @@
                   </div>
                   <div style="flex: 1;">
                     <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">INTERVAL</span>
-                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')">
+                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')">
                       <option value="1" ${getPlugSelectedInterval(roomId) === '1' ? 'selected' : ''}>Raw (1 min)</option>
                       <option value="15" ${getPlugSelectedInterval(roomId) === '15' ? 'selected' : ''}>15 min</option>
                       <option value="30" ${getPlugSelectedInterval(roomId) === '30' ? 'selected' : ''}>30 min</option>
@@ -1768,16 +1769,16 @@
                 <div id="plugCustomDateRange-${roomId}" style="display: none; gap: 6px; margin-bottom: 12px;">
                   <div style="flex: 1;">
                     <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">START DATE</span>
-                    <input type="date" id="plugStartDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
+                    <input type="date" id="plugStartDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')" />
                   </div>
                   <div style="flex: 1;">
                     <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">END DATE</span>
-                    <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
+                    <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')" />
                   </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
-                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
+                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${mainSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
                 </div>
                 <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugPowerChart-${roomId}"></canvas>
@@ -1803,8 +1804,8 @@
               <div style="display: flex; flex-direction: column;">
                 <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${room.name}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
-                  ID: ${tempSensor.device_id || 'N/A'} | IP: ${tempSensor.tapo_ip || 'None'} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
-                  <span onclick="openTapoSettingsModal('${tempSensor.device_id}', '${tempSensor.tapo_ip || ''}', '${tempSensor.tapo_username || ''}', '${tempSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${tempSensor.tapo_running_threshold !== null && tempSensor.tapo_running_threshold !== undefined ? tempSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Tapo Connection Settings">⚙️</span>
+                  ID: ${mainSensor.device_id || 'N/A'} ${mainSensor.tapo_ip ? '| IP: ' + mainSensor.tapo_ip : ''} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
+                  <span onclick="openTapoSettingsModal('${mainSensor.device_id}', '${mainSensor.tapo_ip || ''}', '${mainSensor.tapo_username || ''}', '${mainSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${mainSensor.tapo_running_threshold !== null && mainSensor.tapo_running_threshold !== undefined ? mainSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Plug & Energy Billing Settings">⚙️</span>
                 </span>
               </div>
               ${badgeHtml}
@@ -1824,9 +1825,11 @@
         if (expandedPlugAccordions[roomId]) {
           const item = tapoPlugsData[roomId];
           if (item && item.room) {
-            const tempSensor = item.room.sensors.find(s => s.type === 'temperature');
-            if (tempSensor) {
-              loadPlugChartsData(roomId, tempSensor.device_id);
+            const plugSensor = item.room.sensors?.find(s => s.type === 'plug');
+            const tempSensor = item.room.sensors?.find(s => s.type === 'temperature');
+            const mainSensor = plugSensor || tempSensor;
+            if (mainSensor) {
+              loadPlugChartsData(roomId, mainSensor.device_id);
             }
           }
         }
