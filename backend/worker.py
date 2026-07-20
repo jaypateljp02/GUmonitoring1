@@ -399,10 +399,10 @@ async def ingestion_loop():
                             if EwelinkClient.is_power_device(params) and not EwelinkClient.is_temp_hum_device(params):
                                 is_power_device = True
                                 sw_state = "off"
-                                if "switch" in params and params["switch"] is not None:
-                                    sw_state = str(params["switch"]).lower()
-                                elif "switches" in params and isinstance(params["switches"], list) and len(params["switches"]) > 0:
+                                if "switches" in params and isinstance(params["switches"], list) and len(params["switches"]) > 0:
                                     sw_state = str(params["switches"][0].get("switch", "off")).lower()
+                                elif "switch" in params and params["switch"] is not None:
+                                    sw_state = str(params["switch"]).lower()
 
                                 raw_power = params.get("power")
                                 raw_voltage = params.get("voltage")

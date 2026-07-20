@@ -238,12 +238,12 @@ class EwelinkClient:
         else:
             current_val = 0.0
 
-        # Switch state (check both 'switch' string and 'switches' array)
+        # Switch state (for POWR320D, check 'switches' array first, then fallback to 'switch' string)
         switch_state = "off"
-        if "switch" in params_obj and params_obj["switch"] is not None:
-            switch_state = str(params_obj["switch"]).lower()
-        elif "switches" in params_obj and isinstance(params_obj["switches"], list) and len(params_obj["switches"]) > 0:
+        if "switches" in params_obj and isinstance(params_obj["switches"], list) and len(params_obj["switches"]) > 0:
             switch_state = str(params_obj["switches"][0].get("switch", "off")).lower()
+        elif "switch" in params_obj and params_obj["switch"] is not None:
+            switch_state = str(params_obj["switch"]).lower()
 
         # POWR320D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
         day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else params_obj.get("oneKwh")
