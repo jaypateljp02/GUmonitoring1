@@ -885,3 +885,6 @@ def start_worker():
             db.commit()
         except:
             pass
+
+if __name__ == "__main__":
+    start_worker()
