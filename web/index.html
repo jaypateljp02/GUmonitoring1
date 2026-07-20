@@ -3384,7 +3384,11 @@
       
       // Poll Smart Plug status regardless of temp/hum telemetry
       try {
-        const plugRes = await fetch(`${API}/sensors/device/${currentDevice.id}/plug`);
+        const roomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+        const plugSensor = roomObj?.sensors?.find(s => s.type === 'plug');
+        const plugDevId = plugSensor ? plugSensor.device_id : currentDevice.id;
+
+        const plugRes = await fetch(`${API}/sensors/device/${plugDevId}/plug`);
         if (plugRes.ok) {
           const plugData = await plugRes.json();
           const plugCard = document.getElementById('plugCard');
@@ -3419,7 +3423,7 @@
             plugCard.style.display = 'none';
           }
         } else {
-          document.getElementById('plugCard').style.display = 'none';
+          plugCard.style.display = 'none';
         }
       } catch(plugErr) {
         console.error("Error polling plug status:", plugErr);
@@ -3430,6 +3434,10 @@
     // Toggle plug state
     async function togglePlug() {
       if (!currentDevice) return;
+      const roomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+      const plugSensor = roomObj?.sensors?.find(s => s.type === 'plug');
+      const plugDevId = plugSensor ? plugSensor.device_id : currentDevice.id;
+
       const btn = document.getElementById('btnPlugToggle');
       const currentState = btn.dataset.state || 'off';
       const nextState = currentState === 'on' ? 'off' : 'on';
@@ -3439,7 +3447,7 @@
       try {
         btn.disabled = true;
         btn.textContent = 'Toggling...';
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/plug/toggle`, {
+        const res = await fetch(`${API}/sensors/device/${plugDevId}/plug/toggle`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ state: nextState })
