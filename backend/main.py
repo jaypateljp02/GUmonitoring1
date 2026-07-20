@@ -84,8 +84,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 class ReportPreviewMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        path = request.url.path.lower()
-        if "preview" in path or path in ["/reports", "/reports/", "/report", "/report/"]:
+        path = request.url.path.lower().strip("/")
+        
+        # 1. Report preview paths
+        if "preview" in path or path in ["reports", "report"]:
             db = SessionLocal()
             try:
                 html_body, _, _ = await generate_report_html(db)
@@ -94,6 +96,23 @@ class ReportPreviewMiddleware(BaseHTTPMiddleware):
                 logger.error(f"Middleware error generating report preview: {e}", exc_info=True)
             finally:
                 db.close()
+
+        # 2. Alert detail paths (e.g., /alerts/5ca6b39e-..., /alerts/active, /alerts)
+        accept = request.headers.get("accept", "")
+        is_browser_request = "text/html" in accept or "application/json" not in accept
+        
+        if is_browser_request and "resolve" not in path and (path.startswith("alerts/") or path == "alerts" or path == "active"):
+            from backend.services.alert_detail import generate_alert_detail_html
+            alert_id_param = path.replace("alerts/", "").replace("alerts", "").strip() or "active"
+            db = SessionLocal()
+            try:
+                html_body = generate_alert_detail_html(alert_id_param, db)
+                return HTMLResponse(content=html_body)
+            except Exception as e:
+                logger.error(f"Middleware error rendering alert detail: {e}", exc_info=True)
+            finally:
+                db.close()
+
         return await call_next(request)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
