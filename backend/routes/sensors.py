@@ -540,19 +540,20 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
-    """Dynamic endpoint to fetch plug telemetry (voltage, current, power) from Tapo.
-    Falls back to last known DB record when direct LAN connection is unavailable (e.g. cloud deployment).
+    """Dynamic endpoint to fetch plug telemetry (voltage, current, power) from Tapo or eWeLink.
+    Falls back to last known DB record when direct LAN connection is unavailable.
     """
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
-        Sensor.type == "temperature",
         Sensor.active == True
     ).first()
 
+    rate = 10.0
+    if sensor and sensor.tapo_billing_rate is not None:
+        rate = float(sensor.tapo_billing_rate)
+
     # If Tapo config exists, try to query it directly (works on local LAN)
     if sensor and sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
-        rate = float(sensor.tapo_billing_rate) if sensor.tapo_billing_rate is not None else 10.0
-        
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
             import asyncio
@@ -576,77 +577,73 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
             import logging
             log = logging.getLogger(__name__)
             log.error(f"Direct Tapo connection failed for {device_id} ({sensor.tapo_ip}): {e}")
-            
-            # Fallback: serve the most recent PlugTelemetry record stored by the background worker.
-            # The worker runs on the same LAN as the plug so it CAN reach it. The API server
-            # on a cloud host (e.g. Render) cannot reach a local-network IP, so we serve the
-            # last logged value instead of returning zeros / OFFLINE.
-            from backend.models.plug_telemetry import PlugTelemetry
-            last_log = db.query(PlugTelemetry).filter(
-                PlugTelemetry.device_id == device_id
-            ).order_by(PlugTelemetry.timestamp.desc()).first()
-            
-            if last_log:
-                today_kwh = float(last_log.today_energy) / 1000.0
-                month_kwh = float(last_log.month_energy) / 1000.0
-                
-                # Check if telemetry is older than 3 minutes (180 seconds)
-                is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 180.0
-                if is_stale:
-                    log.warning(f"Tapo telemetry for {device_id} is stale (last seen {last_log.timestamp}). Marking offline.")
-                    return {
-                        "state": "offline",
-                        "voltage": 0.0,
-                        "current": 0.0,
-                        "apower": 0.0,
-                        "today_energy": float(last_log.today_energy),
-                        "month_energy": float(last_log.month_energy),
-                        "today_kwh": round(today_kwh, 3),
-                        "month_kwh": round(month_kwh, 3),
-                        "today_bill": round(today_kwh * rate, 2),
-                        "month_bill": round(month_kwh * rate, 2),
-                        "billing_rate": rate,
-                        "supported": True,
-                        "type": "tapo",
-                        "error": f"Plug is disconnected (offline since {last_log.timestamp.strftime('%Y-%m-%d %H:%M UTC')})"
-                    }
-                
-                log.info(f"Serving last DB plug record for {device_id} logged at {last_log.timestamp}")
-                return {
-                    "state": "on" if float(last_log.apower) > 0.5 else "off",
-                    "voltage": float(last_log.voltage),
-                    "current": float(last_log.current),
-                    "apower": float(last_log.apower),
-                    "today_energy": float(last_log.today_energy),
-                    "month_energy": float(last_log.month_energy),
-                    "today_kwh": round(today_kwh, 3),
-                    "month_kwh": round(month_kwh, 3),
-                    "today_bill": round(today_kwh * rate, 2),
-                    "month_bill": round(month_kwh * rate, 2),
-                    "billing_rate": rate,
-                    "supported": True,
-                    "type": "tapo",
-                    "last_known": False,
-                    "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
-                }
-            
-            # No DB records at all — plug was just configured, waiting for edge agent to poll it
+
+    # Fallback / eWeLink POWR320D path: serve the most recent PlugTelemetry record stored by worker
+    from backend.models.plug_telemetry import PlugTelemetry
+    last_log = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id == device_id
+    ).order_by(PlugTelemetry.timestamp.desc()).first()
+
+    if last_log:
+        raw_t_energy = float(last_log.today_energy)
+        raw_m_energy = float(last_log.month_energy)
+        today_kwh = raw_t_energy if raw_t_energy < 100.0 else raw_t_energy / 1000.0
+        month_kwh = raw_m_energy if raw_m_energy < 100.0 else raw_m_energy / 1000.0
+        
+        # Check if telemetry is older than 10 minutes (600 seconds)
+        is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 600.0
+        if is_stale:
             return {
-                "state": "pending",
+                "state": "offline",
                 "voltage": 0.0,
                 "current": 0.0,
                 "apower": 0.0,
-                "today_energy": 0.0,
-                "month_energy": 0.0,
-                "today_kwh": 0.0,
-                "month_kwh": 0.0,
-                "today_bill": 0.0,
-                "month_bill": 0.0,
-                "billing_rate": float(sensor.tapo_billing_rate) if sensor.tapo_billing_rate is not None else 10.0,
+                "today_energy": raw_t_energy,
+                "month_energy": raw_m_energy,
+                "today_kwh": round(today_kwh, 3),
+                "month_kwh": round(month_kwh, 3),
+                "today_bill": round(today_kwh * rate, 2),
+                "month_bill": round(month_kwh * rate, 2),
+                "billing_rate": rate,
                 "supported": True,
-                "type": "tapo",
-                "pending": True
+                "type": "plug",
+                "error": f"Plug is disconnected (offline since {last_log.timestamp.strftime('%Y-%m-%d %H:%M UTC')})"
             }
+        
+        return {
+            "state": "on" if float(last_log.apower) > 0.5 else "off",
+            "voltage": float(last_log.voltage),
+            "current": float(last_log.current),
+            "apower": float(last_log.apower),
+            "today_energy": raw_t_energy,
+            "month_energy": raw_m_energy,
+            "today_kwh": round(today_kwh, 3),
+            "month_kwh": round(month_kwh, 3),
+            "today_bill": round(today_kwh * rate, 2),
+            "month_bill": round(month_kwh * rate, 2),
+            "billing_rate": rate,
+            "supported": True,
+            "type": "plug",
+            "last_known": False,
+            "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
+        }
+
+    return {
+        "state": "pending",
+        "voltage": 0.0,
+        "current": 0.0,
+        "apower": 0.0,
+        "today_energy": 0.0,
+        "month_energy": 0.0,
+        "today_kwh": 0.0,
+        "month_kwh": 0.0,
+        "today_bill": 0.0,
+        "month_bill": 0.0,
+        "billing_rate": rate,
+        "supported": True,
+        "type": "plug",
+        "pending": True
+    }
 
     return {
         "state": "off",

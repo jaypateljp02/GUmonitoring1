@@ -1147,14 +1147,15 @@
 
       const tapoRooms = rooms.filter(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-        return tempSensor !== undefined;
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        return tempSensor !== undefined || plugSensor !== undefined;
       });
 
       if (tapoRooms.length === 0) {
         document.getElementById('tapoPlugsList').innerHTML = `
           <div style="text-align: center; color: #6B7280; font-size: 13px; margin: 30px 0; padding: 20px; border: 1px dashed #E5E7EB; border-radius: 12px; background: #FFFFFF;">
-            🔌 <strong>No rooms with temperature sensors found.</strong><br>
-            Link a device to a room to configure its Tapo plug here.
+            🔌 <strong>No rooms with plug or temperature sensors found.</strong><br>
+            Link a device to a room to configure power monitoring plugs.
           </div>
         `;
         previousConfiguredRoomsKey = '';
@@ -1162,13 +1163,19 @@
       }
 
       const fetchPromises = tapoRooms.map(async (room) => {
-        const tempSensor = room.sensors.find(s => s.type === 'temperature');
-        if (!tempSensor.tapo_ip) {
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+
+        const targetDevId = plugSensor ? plugSensor.device_id : (tempSensor ? tempSensor.device_id : null);
+        const hasTapoIp = tempSensor && tempSensor.tapo_ip;
+
+        if (!plugSensor && !hasTapoIp) {
           tapoPlugsData[room.id] = { room, data: null, error: 'Unconfigured' };
           return;
         }
+
         try {
-          const res = await fetch(`${API}/sensors/device/${tempSensor.device_id}/plug`);
+          const res = await fetch(`${API}/sensors/device/${targetDevId}/plug`);
           if (res.ok) {
             const data = await res.json();
             tapoPlugsData[room.id] = { room, data, error: null };
