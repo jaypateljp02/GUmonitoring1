@@ -275,3 +275,49 @@ class EwelinkClient:
             "month_energy": month_energy,
             "online": is_online
         }
+
+    async def set_device_switch(self, device_id: str, state: str) -> bool:
+        """
+        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API.
+        """
+        import websockets
+        if not self.access_token:
+            await self.login()
+
+        ws_url = f"wss://{self.region}-pconnect7.coolkit.cc/api/ws"
+        auth_payload = {
+            "action": "userOnline",
+            "at": self.access_token,
+            "apikey": self.apikey,
+            "appid": self.appid,
+            "nonce": self._get_nonce(),
+            "ts": int(time.time()),
+            "userAgent": "app",
+            "sequence": str(int(time.time() * 1000)),
+            "version": 8
+        }
+
+        try:
+            async with websockets.connect(ws_url, open_timeout=8.0, close_timeout=2.0) as ws:
+                await ws.send(json.dumps(auth_payload))
+                auth_raw = await ws.recv()
+                auth_resp = json.loads(auth_raw)
+                user_apikey = auth_resp.get("apikey") or self.apikey
+
+                toggle_payload = {
+                    "action": "update",
+                    "deviceid": device_id,
+                    "apikey": user_apikey,
+                    "selfApikey": user_apikey,
+                    "userAgent": "app",
+                    "sequence": str(int(time.time() * 1000)),
+                    "params": {
+                        "switch": state.lower()
+                    }
+                }
+                await ws.send(json.dumps(toggle_payload))
+                logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state}")
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
+            return False

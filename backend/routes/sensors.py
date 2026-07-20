@@ -134,7 +134,7 @@ def aggregate_telemetry(db: Session, device_id: str, start_time: datetime, end_t
         for row in agg_results
     ]
 
-def calculate_offline_periods(db: Session, table_name: str, device_id: str, start_time: datetime, threshold_minutes: int = 3) -> List[dict]:
+def calculate_offline_periods(db: Session, table_name: str, device_id: str, start_time: datetime, threshold_minutes: int = 12) -> List[dict]:
     from sqlalchemy import text
     
     offline_query = text(f'''
@@ -680,13 +680,53 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         "pending": True
     }
 
-    return {
-        "state": "off",
-        "voltage": 0.0,
-        "current": 0.0,
-        "apower": 0.0,
-        "supported": False
-    }
+@router.post("/device/{device_id}/plug/toggle")
+async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(get_db)):
+    """
+    Toggle plug power state ('on' or 'off') for Tapo or eWeLink power devices.
+    """
+    target_state = req.get("state", "on").lower()
+    sensor = db.query(Sensor).filter(
+        Sensor.device_id == device_id,
+        Sensor.active == True
+    ).first()
+
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # 1. Try eWeLink Cloud API for eWeLink power devices (like POWR320D)
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    if not os.getenv("EWELINK_EMAIL"):
+        load_dotenv("backend/.env")
+
+    email = os.getenv("EWELINK_EMAIL")
+    password = os.getenv("EWELINK_PASSWORD")
+    region = os.getenv("EWELINK_REGION", "as")
+
+    if email and password:
+        try:
+            from backend.services.ewelink import EwelinkClient
+            ew_client = EwelinkClient(email=email, password=password, region=region)
+            ok = await ew_client.login()
+            if ok:
+                success = await ew_client.set_device_switch(device_id, target_state)
+                if success:
+                    return {"message": f"Successfully toggled eWeLink plug {device_id} to {target_state}", "state": target_state}
+        except Exception as e:
+            logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
+
+    # 2. Try Tapo direct LAN connection
+    if sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+        try:
+            from backend.services.tapo import toggle_tapo_plug
+            res = await toggle_tapo_plug(sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, target_state)
+            return res
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to toggle Tapo plug: {e}")
+
+    raise HTTPException(status_code=400, detail="Device is not a supported Tapo or eWeLink plug, or credentials missing.")
 
 @router.get("/device/{device_id}/plug/metrics/24h", response_model=PlugMetrics24hResponse)
 def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
