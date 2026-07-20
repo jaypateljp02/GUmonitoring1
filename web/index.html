@@ -682,11 +682,14 @@
     </div>
     <div class="subheader" style="margin-bottom: 8px;">Cold Room Monitoring</div>
 
-    <!-- Download Mobile App Row -->
-    <div style="margin-bottom: 14px;">
-      <a href="/app.apk" style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.15); padding: 7px 12px; border-radius: 10px; text-decoration: none; font-family: 'Inter', sans-serif;" download>
-        <span class="material-icons" style="font-size: 15px;">phone_android</span> Download Mobile App
+    <!-- Action Buttons Row -->
+    <div style="margin-bottom: 14px; display: flex; gap: 8px;">
+      <a href="/app.apk" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.15); padding: 7px 12px; border-radius: 10px; text-decoration: none; font-family: 'Inter', sans-serif;" download>
+        <span class="material-icons" style="font-size: 15px;">phone_android</span> Download App
       </a>
+      <button onclick="triggerWhatsAppReport(event)" style="flex: 1.2; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #059669; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 7px 12px; border-radius: 10px; text-decoration: none; cursor: pointer; font-family: 'Inter', sans-serif;">
+        <span class="material-icons" style="font-size: 15px;">send</span> Send WhatsApp Report
+      </button>
     </div>
 
     <!-- TABS NAVIGATION -->
@@ -3520,7 +3523,33 @@
     let isChatOpen = false;
     let chatHasBeenOpened = false;
 
+    async function triggerWhatsAppReport(e) {
+      const btn = e ? e.currentTarget : null;
+      const originalText = btn ? btn.innerHTML : '';
+      try {
+        if (btn) {
+          btn.innerHTML = `<span class="material-icons" style="font-size: 15px; animation: spin 1s linear infinite;">sync</span> Sending...`;
+          btn.disabled = true;
+        }
+        const res = await fetch('/sensors/reports/trigger-daily-summary', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ WhatsApp Daily Summary report sent successfully to all configured phone numbers!");
+        } else {
+          alert("❌ Failed to send report: " + (data.detail || "Error sending report"));
+        }
+      } catch (err) {
+        alert("❌ Error connecting to server: " + err.message);
+      } finally {
+        if (btn) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      }
+    }
+
     function toggleChatWindow() {
+
       const win = document.getElementById('chatWindow');
       const badge = document.getElementById('chatBadge');
       isChatOpen = !isChatOpen;
