@@ -2101,10 +2101,6 @@
         alert('Please select a room first.');
         return;
       }
-      if (!ip) {
-        alert('Please enter the Tapo IP address.');
-        return;
-      }
       
       const rateVal = rate !== '' ? parseFloat(rate) : 10.0;
       const thresholdVal = threshold !== '' ? parseFloat(threshold) : 80.0;
