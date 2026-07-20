@@ -1027,7 +1027,7 @@
     const hostname = window.location.hostname;
     const resolvedHostname = hostname === 'localhost' ? '127.0.0.1' : hostname;
     const isLocal = resolvedHostname === '127.0.0.1' || resolvedHostname.startsWith('192.168.') || resolvedHostname.startsWith('10.');
-    const port = window.location.port || '8003';
+    const port = window.location.port || '8000';
     const API = isLocal ? `http://${resolvedHostname}:${port}` : window.location.origin;
 
     function formatOfflineTime(tStr) {
@@ -1149,14 +1149,15 @@
 
       const tapoRooms = rooms.filter(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-        return tempSensor !== undefined;
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        return tempSensor !== undefined || plugSensor !== undefined;
       });
 
       if (tapoRooms.length === 0) {
         document.getElementById('tapoPlugsList').innerHTML = `
           <div style="text-align: center; color: #6B7280; font-size: 13px; margin: 30px 0; padding: 20px; border: 1px dashed #E5E7EB; border-radius: 12px; background: #FFFFFF;">
-            🔌 <strong>No rooms with temperature sensors found.</strong><br>
-            Link a device to a room to configure its Tapo plug here.
+            🔌 <strong>No rooms with plug or temperature sensors found.</strong><br>
+            Link a device to a room to configure power monitoring plugs.
           </div>
         `;
         previousConfiguredRoomsKey = '';
@@ -1164,13 +1165,19 @@
       }
 
       const fetchPromises = tapoRooms.map(async (room) => {
-        const tempSensor = room.sensors.find(s => s.type === 'temperature');
-        if (!tempSensor.tapo_ip) {
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+
+        const targetDevId = plugSensor ? plugSensor.device_id : (tempSensor ? tempSensor.device_id : null);
+        const hasTapoIp = tempSensor && tempSensor.tapo_ip;
+
+        if (!plugSensor && !hasTapoIp) {
           tapoPlugsData[room.id] = { room, data: null, error: 'Unconfigured' };
           return;
         }
+
         try {
-          const res = await fetch(`${API}/sensors/device/${tempSensor.device_id}/plug`);
+          const res = await fetch(`${API}/sensors/device/${targetDevId}/plug`);
           if (res.ok) {
             const data = await res.json();
             tapoPlugsData[room.id] = { room, data, error: null };
@@ -1371,8 +1378,19 @@
             }
           });
           const valuesPower = historyData.map(log => log.apower);
-          const valuesEnergy = historyData.map(log => log.today_energy / 1000.0); // Wh to kWh
+          const valuesEnergy = historyData.map(log => parseFloat(log.today_energy || 0)); // kWh directly
           
+          // Compute dynamic flexible scale bounds
+          const maxPowerVal = valuesPower.length ? Math.max(...valuesPower) : 10;
+          const maxPowerScale = maxPowerVal > 0 ? Math.ceil(maxPowerVal * 1.15) : 10;
+
+          const maxEnergyVal = valuesEnergy.length ? Math.max(...valuesEnergy) : 0.1;
+          const maxEnergyScale = maxEnergyVal > 0 ? parseFloat((maxEnergyVal * 1.25).toFixed(3)) : 0.1;
+
+          // Get billing rate for tooltip cost computation
+          const item = tapoPlugsData[roomId];
+          const billingRate = (item && item.data && item.data.billing_rate) ? item.data.billing_rate : 17.0;
+
           // Render Power Chart
           const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
           if (plugChartInstances[`power-${roomId}`]) {
@@ -1383,14 +1401,15 @@
             data: {
               labels: labels,
               datasets: [{
-                label: 'Load (W)',
+                label: 'Power (Watts)',
                 data: valuesPower,
-                borderColor: '#3B82F6',
-                backgroundColor: 'rgba(59, 130, 246, 0.04)',
-                borderWidth: 2,
-                pointRadius: historyData.length > 50 ? 0 : 2,
+                borderColor: '#2563EB',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderWidth: 2.5,
+                pointRadius: historyData.length > 50 ? 0 : 3,
+                pointHoverRadius: 5,
                 fill: true,
-                tension: 0.3
+                tension: 0.35
               }]
             },
             options: {
@@ -1398,16 +1417,34 @@
               maintainAspectRatio: false,
               plugins: {
                 legend: { display: false },
-                datalabels: { display: false }
+                datalabels: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      const idx = ctx.dataIndex;
+                      const log = historyData[idx];
+                      const v = log ? log.voltage : '--';
+                      const c = log ? log.current : '--';
+                      return `Power: ${ctx.parsed.y.toFixed(1)} W (${v}V, ${c}A)`;
+                    }
+                  }
+                }
               },
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9 } }
+                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
                 },
                 y: {
                   grid: { color: '#F1F5F9' },
-                  ticks: { font: { size: 9 } }
+                  beginAtZero: true,
+                  suggestedMax: maxPowerScale,
+                  ticks: {
+                    font: { size: 9, weight: '600' },
+                    callback: function(value) {
+                      return (value >= 1000) ? (value / 1000).toFixed(1) + ' kW' : Math.round(value) + ' W';
+                    }
+                  }
                 }
               }
             }
@@ -1426,11 +1463,12 @@
                 label: 'Energy (kWh)',
                 data: valuesEnergy,
                 borderColor: '#10B981',
-                backgroundColor: 'rgba(16, 185, 129, 0.04)',
-                borderWidth: 2,
-                pointRadius: historyData.length > 50 ? 0 : 2,
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                borderWidth: 2.5,
+                pointRadius: historyData.length > 50 ? 0 : 3,
+                pointHoverRadius: 5,
                 fill: true,
-                tension: 0.3
+                tension: 0.35
               }]
             },
             options: {
@@ -1438,16 +1476,32 @@
               maintainAspectRatio: false,
               plugins: {
                 legend: { display: false },
-                datalabels: { display: false }
+                datalabels: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      const kwh = ctx.parsed.y;
+                      const bill = (kwh * billingRate).toFixed(2);
+                      return `Energy: ${kwh.toFixed(3)} kWh (₹ ${bill})`;
+                    }
+                  }
+                }
               },
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9 } }
+                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
                 },
                 y: {
                   grid: { color: '#F1F5F9' },
-                  ticks: { font: { size: 9 } }
+                  beginAtZero: true,
+                  suggestedMax: maxEnergyScale,
+                  ticks: {
+                    font: { size: 9, weight: '600' },
+                    callback: function(value) {
+                      return (maxEnergyVal < 1.0) ? value.toFixed(3) + ' kWh' : value.toFixed(2) + ' kWh';
+                    }
+                  }
                 }
               }
             }
@@ -1478,7 +1532,7 @@
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
       
-      const isBillingDay = (new Date().getDate() === 30 || new Date().getDate() === 31);
+      const isBillingDay = (new Date().getDate() >= 28);
       
       // Show/hide the Add button based on whether there are unconfigured rooms
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
@@ -1534,7 +1588,10 @@
         const item = tapoPlugsData[roomId];
         if (!item) return;
         const { room, data, error } = item;
-        const tempSensor = room.sensors.find(s => s.type === 'temperature');
+        const plugSensor = room.sensors?.find(s => s.type === 'plug');
+        const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+        const mainSensor = plugSensor || tempSensor;
+        if (!mainSensor) return;
         
         let telemetryHtml = '';
         let billingHtml = '';
@@ -1556,7 +1613,7 @@
             const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
             const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
             const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
-            telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Tapo Plug Offline: ${errMsg}${cloudNote}</div>`;
+            telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Plug Offline: ${errMsg}${cloudNote}</div>`;
             toggleBtnHtml = `
               <button id="plugToggleBtn-${roomId}" class="action-btn" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; opacity: 0.5; cursor: not-allowed;" disabled>
                 🔌 Plug Offline (Control unavailable)
@@ -1734,14 +1791,14 @@
           `;
           analyticsHtml = `
             <div style="margin-top: 12px; border-top: 1px dashed #E2E8F0; padding-top: 10px;">
-              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${tempSensor.device_id}')">
+              <button class="action-btn" style="width: 100%; margin-bottom: 0; padding: 8px; font-size: 12px; background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; font-weight: bold;" onclick="togglePlugCharts('${roomId}', '${mainSensor.device_id}')">
                 📊 View Power Trend & Logs
               </button>
               <div id="plugAnalytics-${roomId}" style="display: ${expandedPlugAccordions[roomId] ? 'block' : 'none'}; margin-top: 12px;">
                 <div style="display: flex; gap: 6px; margin-bottom: 12px;">
                   <div style="flex: 1;">
                     <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">TIME FRAME</span>
-                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${tempSensor.device_id}')">
+                    <select id="plugDays-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="handlePlugTimeframeChange('${roomId}', '${mainSensor.device_id}')">
                       <option value="1" ${getPlugSelectedDays(roomId) === '1' ? 'selected' : ''}>1 Day</option>
                       <option value="3" ${getPlugSelectedDays(roomId) === '3' ? 'selected' : ''}>3 Days</option>
                       <option value="7" ${getPlugSelectedDays(roomId) === '7' ? 'selected' : ''}>7 Days</option>
@@ -1751,7 +1808,7 @@
                   </div>
                   <div style="flex: 1;">
                     <span style="font-size: 8px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">INTERVAL</span>
-                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')">
+                    <select id="plugInterval-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')">
                       <option value="1" ${getPlugSelectedInterval(roomId) === '1' ? 'selected' : ''}>Raw (1 min)</option>
                       <option value="15" ${getPlugSelectedInterval(roomId) === '15' ? 'selected' : ''}>15 min</option>
                       <option value="30" ${getPlugSelectedInterval(roomId) === '30' ? 'selected' : ''}>30 min</option>
@@ -1763,16 +1820,16 @@
                 <div id="plugCustomDateRange-${roomId}" style="display: none; gap: 6px; margin-bottom: 12px;">
                   <div style="flex: 1;">
                     <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">START DATE</span>
-                    <input type="date" id="plugStartDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
+                    <input type="date" id="plugStartDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')" />
                   </div>
                   <div style="flex: 1;">
                     <span style="font-size: 8.5px; font-weight: 800; color: #64748B; display: block; margin-bottom: 2px;">END DATE</span>
-                    <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${tempSensor.device_id}')" />
+                    <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')" />
                   </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
-                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${tempSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
+                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${mainSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
                 </div>
                 <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugPowerChart-${roomId}"></canvas>
@@ -1798,8 +1855,8 @@
               <div style="display: flex; flex-direction: column;">
                 <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${room.name}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
-                  ID: ${tempSensor.device_id || 'N/A'} | IP: ${tempSensor.tapo_ip || 'None'} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
-                  <span onclick="openTapoSettingsModal('${tempSensor.device_id}', '${tempSensor.tapo_ip || ''}', '${tempSensor.tapo_username || ''}', '${tempSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${tempSensor.tapo_running_threshold !== null && tempSensor.tapo_running_threshold !== undefined ? tempSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Tapo Connection Settings">⚙️</span>
+                  ID: ${mainSensor.device_id || 'N/A'} ${mainSensor.tapo_ip ? '| IP: ' + mainSensor.tapo_ip : ''} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
+                  <span onclick="openTapoSettingsModal('${mainSensor.device_id}', '${mainSensor.tapo_ip || ''}', '${mainSensor.tapo_username || ''}', '${mainSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${mainSensor.tapo_running_threshold !== null && mainSensor.tapo_running_threshold !== undefined ? mainSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Plug & Energy Billing Settings">⚙️</span>
                 </span>
               </div>
               ${badgeHtml}
@@ -1819,9 +1876,11 @@
         if (expandedPlugAccordions[roomId]) {
           const item = tapoPlugsData[roomId];
           if (item && item.room) {
-            const tempSensor = item.room.sensors.find(s => s.type === 'temperature');
-            if (tempSensor) {
-              loadPlugChartsData(roomId, tempSensor.device_id);
+            const plugSensor = item.room.sensors?.find(s => s.type === 'plug');
+            const tempSensor = item.room.sensors?.find(s => s.type === 'temperature');
+            const mainSensor = plugSensor || tempSensor;
+            if (mainSensor) {
+              loadPlugChartsData(roomId, mainSensor.device_id);
             }
           }
         }
@@ -2091,10 +2150,6 @@
         alert('Please select a room first.');
         return;
       }
-      if (!ip) {
-        alert('Please enter the Tapo IP address.');
-        return;
-      }
       
       const rateVal = rate !== '' ? parseFloat(rate) : 10.0;
       const thresholdVal = threshold !== '' ? parseFloat(threshold) : 80.0;
@@ -2126,7 +2181,10 @@
       const item = tapoPlugsData[roomId];
       if (!item) return;
       const { room } = item;
-      const tempSensor = room.sensors.find(s => s.type === 'temperature');
+      const plugSensor = room.sensors?.find(s => s.type === 'plug');
+      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+      const mainSensor = plugSensor || tempSensor;
+      if (!mainSensor) return;
       
       tapoToggling[roomId] = true;
       
@@ -2137,7 +2195,7 @@
       });
       
       try {
-        const res = await fetch(`${API}/sensors/device/${tempSensor.device_id}/plug/toggle`, {
+        const res = await fetch(`${API}/sensors/device/${mainSensor.device_id}/plug/toggle`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ state: nextState })
@@ -2157,12 +2215,13 @@
             }
           }, 1000);
         } else {
-          alert('Failed to toggle Tapo plug.');
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.detail || 'Failed to toggle plug.');
           tapoToggling[roomId] = false;
           await pollTapoPlugs(true);
         }
       } catch(e) {
-        alert('Connection error while toggling plug.');
+        alert(e.message || 'Connection error while toggling plug.');
         tapoToggling[roomId] = false;
         await pollTapoPlugs(true);
       }
@@ -3401,7 +3460,11 @@
       
       // Poll Smart Plug status regardless of temp/hum telemetry
       try {
-        const plugRes = await fetch(`${API}/sensors/device/${currentDevice.id}/plug`);
+        const roomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+        const plugSensor = roomObj?.sensors?.find(s => s.type === 'plug');
+        const plugDevId = plugSensor ? plugSensor.device_id : currentDevice.id;
+
+        const plugRes = await fetch(`${API}/sensors/device/${plugDevId}/plug`);
         if (plugRes.ok) {
           const plugData = await plugRes.json();
           const plugCard = document.getElementById('plugCard');
@@ -3436,7 +3499,7 @@
             plugCard.style.display = 'none';
           }
         } else {
-          document.getElementById('plugCard').style.display = 'none';
+          plugCard.style.display = 'none';
         }
       } catch(plugErr) {
         console.error("Error polling plug status:", plugErr);
@@ -3447,6 +3510,10 @@
     // Toggle plug state
     async function togglePlug() {
       if (!currentDevice) return;
+      const roomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+      const plugSensor = roomObj?.sensors?.find(s => s.type === 'plug');
+      const plugDevId = plugSensor ? plugSensor.device_id : currentDevice.id;
+
       const btn = document.getElementById('btnPlugToggle');
       const currentState = btn.dataset.state || 'off';
       const nextState = currentState === 'on' ? 'off' : 'on';
@@ -3456,7 +3523,7 @@
       try {
         btn.disabled = true;
         btn.textContent = 'Toggling...';
-        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/plug/toggle`, {
+        const res = await fetch(`${API}/sensors/device/${plugDevId}/plug/toggle`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ state: nextState })

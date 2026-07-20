@@ -175,3 +175,157 @@ class EwelinkClient:
             "humidity": hum_val,
             "battery": bat_val
         }
+
+    @staticmethod
+    def is_power_device(params: Dict[str, Any]) -> bool:
+        """
+        Detect if an eWeLink device is a power monitoring device (like Sonoff POWR320D).
+        Power devices report 'power'/'voltage'/'current' instead of 'temperature'/'humidity'.
+        """
+        return ("power" in params or "voltage" in params or "current" in params)
+
+    @staticmethod
+    def is_temp_hum_device(params: Dict[str, Any]) -> bool:
+        """Detect if an eWeLink device is a temperature/humidity sensor (like SNZB-02)."""
+        return ("temperature" in params or "humidity" in params)
+
+    async def get_power_device_status(self, device_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch power monitoring data for a specific eWeLink power device (e.g. POWR320D).
+        Returns power (W), voltage (V), current (A), switch state, and energy if available.
+        """
+        thing_list = await self.get_all_devices()
+        if not thing_list:
+            return None
+
+        target_device = None
+        for t in thing_list:
+            item_data = t.get("itemData", {})
+            if item_data.get("deviceid") == device_id:
+                target_device = item_data
+                break
+
+        if not target_device:
+            logger.warning(f"Power device {device_id} not found in thingList")
+            return None
+
+        params_obj = target_device.get("params", {})
+
+        # Power in Watts (POWR320D reports in 0.01 W / cW)
+        power = params_obj.get("power")
+        if power is not None:
+            power_val = float(power)
+            if power_val > 1000:
+                power_val = round(power_val / 100.0, 2)
+        else:
+            power_val = 0.0
+
+        # Voltage in Volts (POWR320D reports in 0.01 V / cV)
+        voltage = params_obj.get("voltage")
+        if voltage is not None:
+            voltage_val = float(voltage)
+            if voltage_val > 1000:
+                voltage_val = round(voltage_val / 100.0, 1)
+        else:
+            voltage_val = 0.0
+
+        # Current in Amperes (POWR320D reports in 0.01 A / cA)
+        current = params_obj.get("current")
+        if current is not None:
+            current_val = float(current)
+            if current_val > 100:
+                current_val = round(current_val / 100.0, 2)
+        else:
+            current_val = 0.0
+
+        # Switch state (for POWR320D, check 'switches' array first, then fallback to 'switch' string)
+        switch_state = "off"
+        if "switches" in params_obj and isinstance(params_obj["switches"], list) and len(params_obj["switches"]) > 0:
+            switch_state = str(params_obj["switches"][0].get("switch", "off")).lower()
+        elif "switch" in params_obj and params_obj["switch"] is not None:
+            switch_state = str(params_obj["switch"]).lower()
+
+        # POWR320D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
+        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else params_obj.get("oneKwh")
+        today_energy = float(day_kwh_raw) / 100.0 if day_kwh_raw is not None else 0.0
+
+        month_kwh_raw = params_obj.get("monthKwh")
+        if month_kwh_raw is not None:
+            month_energy = float(month_kwh_raw) / 100.0
+        else:
+            month_energy = 0.0
+            hundred_days = params_obj.get("hundredDaysKwh")
+            if hundred_days and isinstance(hundred_days, str):
+                try:
+                    days_to_sum = min(30, len(hundred_days) // 6)
+                    for i in range(days_to_sum):
+                        hex_chunk = hundred_days[i * 6:(i + 1) * 6]
+                        if hex_chunk:
+                            month_energy += int(hex_chunk, 16) / 100.0
+                except Exception:
+                    month_energy = 0.0
+
+        is_online = target_device.get("online", False)
+
+        return {
+            "power": power_val,
+            "voltage": voltage_val,
+            "current": current_val,
+            "switch": switch_state,
+            "today_energy": today_energy,
+            "month_energy": month_energy,
+            "online": is_online
+        }
+
+    async def set_device_switch(self, device_id: str, state: str) -> bool:
+        """
+        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API.
+        """
+        import websockets
+        if not self.access_token:
+            await self.login()
+
+        ws_url = f"wss://{self.region}-pconnect7.coolkit.cc/api/ws"
+        auth_payload = {
+            "action": "userOnline",
+            "at": self.access_token,
+            "apikey": self.apikey,
+            "appid": self.appid,
+            "nonce": self._get_nonce(),
+            "ts": int(time.time()),
+            "userAgent": "app",
+            "sequence": str(int(time.time() * 1000)),
+            "version": 8
+        }
+
+        try:
+            async with websockets.connect(ws_url, open_timeout=8.0, close_timeout=2.0) as ws:
+                await ws.send(json.dumps(auth_payload))
+                auth_raw = await ws.recv()
+                auth_resp = json.loads(auth_raw)
+                user_apikey = auth_resp.get("apikey") or self.apikey
+
+                toggle_payload = {
+                    "action": "update",
+                    "deviceid": device_id,
+                    "apikey": user_apikey,
+                    "selfApikey": user_apikey,
+                    "userAgent": "app",
+                    "sequence": str(int(time.time() * 1000)),
+                    "params": {
+                        "switches": [{"outlet": 0, "switch": state.lower()}],
+                        "switch": state.lower()
+                    }
+                }
+                await ws.send(json.dumps(toggle_payload))
+                resp_raw = await ws.recv()
+                resp_data = json.loads(resp_raw)
+                if resp_data.get("error") == 0:
+                    logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
+                    return True
+                else:
+                    logger.error(f"Failed to toggle eWeLink device {device_id}: {resp_data}")
+                    return False
+        except Exception as e:
+            logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
+            return False
