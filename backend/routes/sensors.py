@@ -591,17 +591,29 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         Sensor.active == True
     ).first()
 
+    target_plug_id = device_id
+    target_sensor = sensor
+    if sensor and sensor.type != "plug" and sensor.room_id:
+        plug_sensor = db.query(Sensor).filter(
+            Sensor.room_id == sensor.room_id,
+            Sensor.type == "plug",
+            Sensor.active == True
+        ).first()
+        if plug_sensor:
+            target_plug_id = plug_sensor.device_id
+            target_sensor = plug_sensor
+
     rate = 10.0
-    if sensor and sensor.tapo_billing_rate is not None:
-        rate = float(sensor.tapo_billing_rate)
+    if target_sensor and target_sensor.tapo_billing_rate is not None:
+        rate = float(target_sensor.tapo_billing_rate)
 
     # If Tapo config exists, try to query it directly (works on local LAN)
-    if sensor and sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+    if target_sensor and target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
             import asyncio
             telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
-                sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
+                target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_plug_id
             ), timeout=1.5)
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
@@ -619,7 +631,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         except Exception as e:
             import logging
             log = logging.getLogger(__name__)
-            log.error(f"Direct Tapo connection failed for {device_id} ({sensor.tapo_ip}): {e}")
+            log.error(f"Direct Tapo connection failed for {target_plug_id} ({target_sensor.tapo_ip}): {e}")
 
     # Try live eWeLink cloud status for eWeLink power devices (POWR320D)
     import os
@@ -637,9 +649,9 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         try:
             from backend.services.ewelink import EwelinkClient
             ew_client = EwelinkClient(email=email, password=password, region=region)
-            login_ok = await asyncio.wait_for(ew_client.login(), timeout=3.0)
+            login_ok = await asyncio.wait_for(ew_client.login(), timeout=4.0)
             if login_ok:
-                status = await asyncio.wait_for(ew_client.get_power_device_status(device_id), timeout=3.0)
+                status = await asyncio.wait_for(ew_client.get_power_device_status(target_plug_id), timeout=4.0)
                 if status:
                     today_kwh = status.get("today_energy", 0.0)
                     month_kwh = status.get("month_energy", 0.0)
@@ -663,12 +675,12 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                         "last_known": False
                     }
         except Exception as e:
-            logger.error(f"Live eWeLink status check failed for {device_id}: {e}")
+            logger.error(f"Live eWeLink status check failed for {target_plug_id}: {e}")
 
     # Fallback / DB log path: serve the most recent PlugTelemetry record stored by worker
     from backend.models.plug_telemetry import PlugTelemetry
     last_log = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id
+        PlugTelemetry.device_id == target_plug_id
     ).order_by(PlugTelemetry.timestamp.desc()).first()
 
     if last_log:
@@ -679,7 +691,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         if today_kwh == 0.0:
             today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
             today_recs = db.query(PlugTelemetry).filter(
-                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.device_id == target_plug_id,
                 PlugTelemetry.timestamp >= today_start
             ).order_by(PlugTelemetry.timestamp.asc()).all()
             if today_recs:
@@ -692,7 +704,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         if month_kwh == 0.0:
             month_start = datetime.combine(datetime.utcnow().date().replace(day=1), datetime.min.time())
             month_recs = db.query(PlugTelemetry).filter(
-                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.device_id == target_plug_id,
                 PlugTelemetry.timestamp >= month_start
             ).order_by(PlugTelemetry.timestamp.asc()).all()
             if month_recs:
@@ -701,9 +713,10 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 hrs_m = max(0.083, (datetime.utcnow() - first_ts_m).total_seconds() / 3600.0)
                 month_kwh = (avg_power_m * hrs_m) / 1000.0
 
-        # Check if telemetry is older than 10 minutes (600 seconds)
-        is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 600.0
+        # Check if telemetry is older than 3 minutes (180 seconds)
+        is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 180.0
         if is_stale:
+            logger.warning(f"Plug telemetry for {target_plug_id} is stale (last seen {last_log.timestamp}). Marking offline.")
             return {
                 "state": "offline",
                 "voltage": 0.0,
@@ -740,20 +753,11 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         }
 
     return {
-        "state": "pending",
+        "state": "off",
         "voltage": 0.0,
         "current": 0.0,
         "apower": 0.0,
-        "today_energy": 0.0,
-        "month_energy": 0.0,
-        "today_kwh": 0.0,
-        "month_kwh": 0.0,
-        "today_bill": 0.0,
-        "month_bill": 0.0,
-        "billing_rate": rate,
-        "supported": True,
-        "type": "plug",
-        "pending": True
+        "supported": False
     }
 
 @router.post("/device/{device_id}/plug/toggle")
@@ -770,6 +774,18 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
 
     if not sensor:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    target_plug_id = device_id
+    target_sensor = sensor
+    if sensor.type != "plug" and sensor.room_id:
+        plug_sensor = db.query(Sensor).filter(
+            Sensor.room_id == sensor.room_id,
+            Sensor.type == "plug",
+            Sensor.active == True
+        ).first()
+        if plug_sensor:
+            target_plug_id = plug_sensor.device_id
+            target_sensor = plug_sensor
 
     # 1. Try eWeLink Cloud API for eWeLink power devices (like POWR320D)
     import os
@@ -788,11 +804,11 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             ew_client = EwelinkClient(email=email, password=password, region=region)
             ok = await ew_client.login()
             if ok:
-                success = await ew_client.set_device_switch(device_id, target_state)
+                success = await ew_client.set_device_switch(target_plug_id, target_state)
                 if success:
                     # Save immediate log in DB so GET /plug returns new state instantly
                     from backend.models.plug_telemetry import PlugTelemetry
-                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == device_id).order_by(PlugTelemetry.timestamp.desc()).first()
+                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_id).order_by(PlugTelemetry.timestamp.desc()).first()
                     t_energy = last_rec.today_energy if last_rec else decimal.Decimal("150.0")
                     m_energy = last_rec.month_energy if last_rec else decimal.Decimal("150.0")
                     p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("126.9")
@@ -800,7 +816,7 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
                     v_val = decimal.Decimal("239.0") if target_state == "off" else decimal.Decimal("240.0")
 
                     new_log = PlugTelemetry(
-                        device_id=device_id,
+                        device_id=target_plug_id,
                         timestamp=datetime.utcnow(),
                         apower=p_val,
                         voltage=v_val,
@@ -810,7 +826,7 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
                     )
                     db.add(new_log)
                     db.commit()
-                    return {"message": f"Successfully toggled eWeLink plug {device_id} to {target_state}", "state": target_state}
+                    return {"message": f"Successfully toggled eWeLink plug {target_plug_id} to {target_state}", "state": target_state}
                 else:
                     raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
             else:
@@ -818,14 +834,14 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
+            logger.error(f"Error toggling eWeLink plug {target_plug_id}: {e}")
             raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
 
     # 2. Try Tapo direct LAN connection
-    if sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+    if target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
         try:
             from backend.services.tapo import toggle_tapo_plug
-            res = await toggle_tapo_plug(sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, target_state)
+            res = await toggle_tapo_plug(target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_state)
             return res
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to toggle Tapo plug: {e}")
