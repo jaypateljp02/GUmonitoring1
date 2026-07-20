@@ -16,7 +16,9 @@ from backend.models.alert import Alert
 from backend.models.device_telemetry import DeviceTelemetry
 from backend.models.plug_telemetry import PlugTelemetry
 from backend.models.user import User
+from backend.models.device_metadata import DeviceDailyMetadata
 from backend.services.email import send_html_email
+
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +131,20 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
                     if delta < 0.25:
                         runtime_hours += delta
                         
+    last_seen_str = None
+    if device_id:
+        last_rec = db.query(DeviceTelemetry).filter(
+            DeviceTelemetry.device_id == device_id
+        ).order_by(DeviceTelemetry.timestamp.desc()).first()
+        if last_rec and last_rec.timestamp:
+            ist_offset = timedelta(hours=5, minutes=30)
+            last_seen_str = (last_rec.timestamp + ist_offset).strftime("%b %d, %I:%M %p IST")
+
     return {
+        "room_id": str(room.id),
         "room_name": room.name,
         "temp_sensor_id": str(temp_sensor.id) if temp_sensor else None,
+        "last_seen_str": last_seen_str,
         "temp_min_threshold": temp_min_th,
         "temp_max_threshold": temp_max_th,
         "t_avg": t_avg,
@@ -241,6 +254,131 @@ def fetch_7d_baselines(db: Session, room: Room, sensors: list):
         "starts_count": round(sum(daily_starts) / num_days, 1),
         "energy_kwh": round(sum(daily_energies) / num_days, 3)
     }
+
+def persist_device_daily_metadata(db: Session, telemetry_data: list, target_date: datetime.date):
+    """
+    Generate short device summary & save/update DeviceDailyMetadata in DB for target_date.
+    """
+    try:
+        for r in telemetry_data:
+            m = r["last_24h"]
+            room_name = r["room_name"]
+            room_type = r.get("room_type", "room")
+            room_id = m.get("room_id")
+            temp_sensor_id = m.get("temp_sensor_id")
+            
+            above_max_hours = m.get("above_max_hours", 0.0) or 0.0
+            below_min_hours = m.get("below_min_hours", 0.0) or 0.0
+            
+            has_issues = False
+            issue_type = "healthy"
+            issue_duration = 0.0
+            
+            if above_max_hours > 0.25:
+                has_issues = True
+                issue_type = "temp_high"
+                issue_duration = above_max_hours
+            elif below_min_hours > 0.25:
+                has_issues = True
+                issue_type = "temp_low"
+                issue_duration = below_min_hours
+            elif m.get("has_plug") and m.get("runtime_hours") is None:
+                has_issues = True
+                issue_type = "offline"
+                issue_duration = 24.0
+            elif (r.get("baseline_7d", {}).get("runtime_hours") is not None and
+                  m.get("runtime_hours") is not None and
+                  m["runtime_hours"] > 1.3 * r["baseline_7d"]["runtime_hours"]):
+                has_issues = True
+                issue_type = "overworking"
+                issue_duration = m["runtime_hours"]
+                
+            temp_part = f"T: {m.get('t_min', '--')} to {m.get('t_max', '--')}°C (avg {m.get('t_avg', '--')}°C)"
+            last_seen = m.get("last_seen_str") or "recently"
+            if issue_type == "offline":
+                summary_str = f"[{room_name}] {temp_part} | ISSUE: offline (went offline at {last_seen})"
+            elif has_issues:
+                summary_str = f"[{room_name}] {temp_part} | ISSUE: {issue_type} ({issue_duration:.1f}h)"
+            else:
+                summary_str = f"[{room_name}] {temp_part} | Normal"
+                
+            if m.get("has_plug") and m.get("runtime_hours") is not None:
+                summary_str += f" | Runtime: {m['runtime_hours']}h ({m.get('energy_kwh', 0.0)} kWh)"
+
+            # Save / Update record in DB
+            query = db.query(DeviceDailyMetadata).filter(
+                DeviceDailyMetadata.date == target_date
+            )
+            if room_id:
+                query = query.filter(DeviceDailyMetadata.room_id == room_id)
+            else:
+                query = query.filter(DeviceDailyMetadata.room_name == room_name)
+                
+            record = query.first()
+            if not record:
+                record = DeviceDailyMetadata(
+                    room_id=room_id,
+                    sensor_id=temp_sensor_id,
+                    room_name=room_name,
+                    room_type=room_type,
+                    date=target_date
+                )
+                db.add(record)
+                
+            record.short_summary = summary_str
+            record.has_issues = has_issues
+            record.issue_type = issue_type
+            record.issue_duration_hours = Decimal(str(round(issue_duration, 2)))
+            record.t_avg = Decimal(str(m["t_avg"])) if m.get("t_avg") is not None else None
+            record.t_min = Decimal(str(m["t_min"])) if m.get("t_min") is not None else None
+            record.t_max = Decimal(str(m["t_max"])) if m.get("t_max") is not None else None
+            record.below_min_hours = Decimal(str(round(below_min_hours, 2)))
+            record.above_max_hours = Decimal(str(round(above_max_hours, 2)))
+            record.runtime_hours = Decimal(str(round(m["runtime_hours"], 2))) if m.get("runtime_hours") is not None else None
+            record.starts_count = Decimal(str(m["starts_count"])) if m.get("starts_count") is not None else None
+            record.energy_kwh = Decimal(str(m["energy_kwh"])) if m.get("energy_kwh") is not None else None
+
+        db.commit()
+        logger.info(f"Persisted daily device metadata for {target_date}")
+    except Exception as e:
+        logger.error(f"Failed to persist device daily metadata: {e}", exc_info=True)
+        db.rollback()
+
+def fetch_historical_recurrence(db: Session, room_name: str, room_id, current_issue_type: str, current_date: datetime.date, lookback_days: int = 30) -> list:
+    """
+    Search DeviceDailyMetadata over the past 30 days for previous occurrences of the SAME issue_type
+    on this specific room/device.
+    """
+    if not current_issue_type or current_issue_type == "healthy":
+        return []
+        
+    try:
+        start_lookback = current_date - timedelta(days=lookback_days)
+        
+        query = db.query(DeviceDailyMetadata).filter(
+            DeviceDailyMetadata.date >= start_lookback,
+            DeviceDailyMetadata.date < current_date,
+            DeviceDailyMetadata.has_issues == True,
+            DeviceDailyMetadata.issue_type == current_issue_type
+        )
+        if room_id:
+            query = query.filter(DeviceDailyMetadata.room_id == room_id)
+        else:
+            query = query.filter(DeviceDailyMetadata.room_name == room_name)
+            
+        past_records = query.order_by(DeviceDailyMetadata.date.desc()).all()
+        
+        recurrences = []
+        for p in past_records:
+            days_ago = (current_date - p.date).days
+            date_str = p.date.strftime("%b %d, %Y")
+            dur_str = f"{p.issue_duration_hours}h" if p.issue_duration_hours else ""
+            recurrences.append(f"Same '{current_issue_type}' issue occurred on {date_str} ({days_ago} days ago, duration: {dur_str})")
+            
+        return recurrences
+    except Exception as e:
+        logger.error(f"Error fetching historical recurrence for {room_name}: {e}")
+        return []
 
 async def call_gemini_diagnose(telemetry_data: list) -> dict:
     """Send structured telemetry data to the Gemini API to get diagnostic insights."""
@@ -389,7 +527,8 @@ def generate_rule_based_diagnoses(telemetry_data: list) -> dict:
                                "Clean evaporator/condenser filters.", "Inspect thermostat sensor placement."]
         else:
             # --- TEMPERATURE-ONLY DIAGNOSIS (no plug data / plug offline) ---
-            plug_reason = "Smart plug is offline" if has_plug else "No smart plug is installed"
+            last_seen = metrics.get("last_seen_str") or "recently"
+            plug_reason = f"Smart plug went offline at {last_seen}" if has_plug else f"Unit went offline at {last_seen}"
             if temp_high:
                 status = "critical"
                 analysis = (f"{label} temperature exceeded maximum threshold for {metrics['above_max_hours']}h today. "
@@ -402,6 +541,10 @@ def generate_rule_based_diagnoses(telemetry_data: list) -> dict:
                            f"The unit may be over-cooling.")
                 action_items = ["Calibrate thermostat controller settings.",
                                "Ensure auto-defrost cycle is functioning."]
+            elif metrics.get("runtime_hours") is None and (metrics.get("t_avg") is None or metrics.get("t_avg") == "N/A"):
+                status = "warning"
+                analysis = f"{label} equipment went offline at {last_seen} (stopped sending telemetry logs)."
+                action_items = ["Check factory Wi-Fi and power router.", "Ensure device is plugged into outlet."]
             
         if status == "critical":
             overall_status = "critical"
@@ -516,11 +659,12 @@ def build_report_html(report_date: str, overall_status: str, summary_msg: str, t
         elif has_plug:
             avg_val = b.get('runtime_hours')
             avg_str = f"avg: {avg_val:.1f}h" if avg_val is not None else "avg: —"
+            last_seen = m.get("last_seen_str") or "Recently"
             runtime_str = f"""
-            <div style="font-weight: 700; color: #64748B;">0.0h <span style="font-size: 9px; color: #EA4335; font-weight: bold;">(Offline)</span></div>
+            <div style="font-weight: 700; color: #64748B;">0.0h <span style="font-size: 9px; color: #EA4335; font-weight: bold;">(Offline since {last_seen})</span></div>
             <div style="font-size: 10px; color: #64748B;">({avg_str})</div>
             """
-            energy_str = "<span style='font-weight: 700; color: #64748B;'>0.000 kWh <span style='font-size: 9px; color: #EA4335; font-weight: bold;'>(Offline)</span></span>"
+            energy_str = f"<span style='font-weight: 700; color: #64748B;'>0.000 kWh <span style='font-size: 9px; color: #EA4335; font-weight: bold;'>(Offline since {last_seen})</span></span>"
         else:
             runtime_str = "<span style='color: #94A3B8;'>—</span>"
             energy_str = "<span style='color: #94A3B8;'>—</span>"
@@ -634,8 +778,11 @@ def build_report_html(report_date: str, overall_status: str, summary_msg: str, t
     return html
 
 async def generate_report_html(db: Session) -> tuple[str, str, str]:
-    """Compile stats for all cold rooms, perform AI diagnostics, and build HTML body."""
-    report_date = (datetime.utcnow() - timedelta(days=1)).strftime("%B %d, %Y")
+    """Compile stats for all cold rooms, perform AI diagnostics, store metadata, and build HTML body."""
+    ist_offset = timedelta(hours=5, minutes=30)
+    report_date_obj = (datetime.utcnow() + ist_offset).date()
+    report_date = report_date_obj.strftime("%B %d, %Y")
+
     
     # 1. Fetch active rooms
     rooms = db.query(Room).filter(Room.active == True).all()
@@ -670,13 +817,53 @@ async def generate_report_html(db: Session) -> tuple[str, str, str]:
             "baseline_7d": baselines
         })
 
-    # 3. Call Gemini to get diagnostic insights
+    # 3. Persist today's per-device metadata to DB
+    persist_device_daily_metadata(db, telemetry_data, report_date_obj)
+
+    # 4. Fetch historical recurrences over past 30 days for devices with issues today
+    for r in telemetry_data:
+        m = r["last_24h"]
+        room_id = m.get("room_id")
+        above_max_hours = m.get("above_max_hours", 0.0) or 0.0
+        below_min_hours = m.get("below_min_hours", 0.0) or 0.0
+        
+        curr_issue = "healthy"
+        if above_max_hours > 0.25:
+            curr_issue = "temp_high"
+        elif below_min_hours > 0.25:
+            curr_issue = "temp_low"
+        elif m.get("has_plug") and m.get("runtime_hours") is None:
+            curr_issue = "offline"
+        elif (r.get("baseline_7d", {}).get("runtime_hours") is not None and
+              m.get("runtime_hours") is not None and
+              m["runtime_hours"] > 1.3 * r["baseline_7d"]["runtime_hours"]):
+            curr_issue = "overworking"
+            
+        r["historical_recurrences"] = fetch_historical_recurrence(
+            db=db,
+            room_name=r["room_name"],
+            room_id=room_id,
+            current_issue_type=curr_issue,
+            current_date=report_date_obj,
+            lookback_days=30
+        )
+
+    # 5. Call Gemini to get diagnostic insights
     insights = await call_gemini_diagnose(telemetry_data)
     
     overall_status = insights.get("overall_status", "healthy")
     whatsapp_msg = insights.get("whatsapp_message", "Report compiled successfully.")
 
-    # 4. Generate HTML email body
+    # Attach historical recurrences to insights diagnoses list
+    for diag in insights.get("diagnoses", []):
+        matched = next((t for t in telemetry_data if t["room_name"] == diag.get("room_name")), None)
+        if matched and matched.get("historical_recurrences"):
+            diag["historical_recurrences"] = matched["historical_recurrences"]
+            for rec in matched["historical_recurrences"]:
+                if "action_items" in diag and not any(rec in item for item in diag["action_items"]):
+                    diag["action_items"].append(f"🔁 {rec}")
+
+    # 6. Generate HTML email body
     html_body = build_report_html(
         report_date=report_date,
         overall_status=overall_status,
@@ -687,46 +874,18 @@ async def generate_report_html(db: Session) -> tuple[str, str, str]:
     return html_body, overall_status, whatsapp_msg
 
 async def generate_daily_report(db: Session):
-    """Compile stats for all cold rooms, perform AI diagnostics, and send the email report."""
+    """Compile stats for all cold rooms, perform AI diagnostics, store metadata, and send WhatsApp & Email reports."""
     logger.info("Starting daily temperature & energy report generation...")
-    report_date = (datetime.utcnow() - timedelta(days=1)).strftime("%B %d, %Y")
+    ist_offset = timedelta(hours=5, minutes=30)
+    report_date = (datetime.utcnow() + ist_offset).strftime("%B %d, %Y")
+
     
     html_body, overall_status, whatsapp_msg = await generate_report_html(db)
     if "No rooms have active temperature sensors" in html_body or "No active rooms found" in html_body:
         return False
-        
-    # 5. Compile recipient lists
-    recipients = []
-    
-    # Add from DB (active users who opted in)
-    db_users = db.query(User).filter(User.active == True, User.receive_reports == True).all()
-    for u in db_users:
-        if u.email and u.email.strip():
-            email_val = u.email.strip()
-            if not email_val.lower().endswith("@groundup.app"):
-                recipients.append(email_val)
-            
-    # Add from ENV (fallback)
-    env_recipients = os.getenv("REPORT_RECIPIENT")
-    if env_recipients:
-        for r in env_recipients.split(","):
-            if r.strip() and r.strip() not in recipients:
-                recipients.append(r.strip())
-                
-    if not recipients:
-        logger.warning("No recipient emails found in database or REPORT_RECIPIENT env. Aborting send.")
-        return False
 
-    # 6. Send the HTML report email
-    subject = f"[Cold Storage Report] {report_date} - Status: {overall_status.upper()}"
-    success = send_html_email(subject=subject, html_body=html_body, recipients=recipients)
-    
-    if success:
-        logger.info("Daily cold storage insights email sent successfully.")
-    else:
-        logger.error("Failed to send daily cold storage insights email.")
-        
-    # 7. Trigger WhatsApp Daily Summary Notification
+    # 1. ALWAYS Trigger WhatsApp Daily Summary Notification (Independent of Email)
+    whatsapp_sent = False
     try:
         from backend.services.whatsapp import send_whatsapp_daily_summary, calculate_priority
         from backend.models.alert import Alert
@@ -748,7 +907,6 @@ async def generate_daily_report(db: Session):
                     p = calculate_priority(room_type, sensor.type, alert.value, sensor)
                     priorities.append(p)
             
-            # Calculate highest priority out of: Critical > High > Medium > Low
             if "Critical" in priorities:
                 highest_priority = "Critical"
             elif "High" in priorities:
@@ -760,16 +918,52 @@ async def generate_daily_report(db: Session):
             else:
                 highest_priority = "Medium"
                 
+        # Format trimmed summary for Meta WhatsApp Cloud API template (<= 990 chars)
+        trimmed_summary = whatsapp_msg[:990] if len(whatsapp_msg) > 990 else whatsapp_msg
+
         logger.info(f"Dispatched daily summary to WhatsApp: date={report_date}, normal={normal_count}, active={active_count}, highest={highest_priority}")
         send_whatsapp_daily_summary(
             date_str=report_date,
             normal_count=normal_count,
             active_count=active_count,
             highest_priority=highest_priority,
-            ai_summary=whatsapp_msg
+            ai_summary=trimmed_summary
         )
+        whatsapp_sent = True
     except Exception as wa_err:
         logger.error(f"Failed to dispatch daily summary to WhatsApp: {wa_err}", exc_info=True)
 
-    return success
+    # 2. Compile recipient lists & send email report if configured
+    email_sent = False
+    recipients = []
+    
+    try:
+        db_users = db.query(User).filter(User.active == True, User.receive_reports == True).all()
+        for u in db_users:
+            if u.email and u.email.strip():
+                email_val = u.email.strip()
+                if not email_val.lower().endswith("@groundup.app"):
+                    recipients.append(email_val)
+    except Exception as user_err:
+        logger.warning(f"Could not query User table for report recipients: {user_err}")
+
+            
+    env_recipients = os.getenv("REPORT_RECIPIENT")
+    if env_recipients:
+        for r in env_recipients.split(","):
+            if r.strip() and r.strip() not in recipients:
+                recipients.append(r.strip())
+                
+    if recipients:
+        subject = f"[Cold Storage Report] {report_date} - Status: {overall_status.upper()}"
+        email_sent = send_html_email(subject=subject, html_body=html_body, recipients=recipients)
+        if email_sent:
+            logger.info("Daily cold storage insights email sent successfully.")
+        else:
+            logger.error("Failed to send daily cold storage insights email.")
+    else:
+        logger.warning("No recipient emails found in database or REPORT_RECIPIENT env. Skipping email send.")
+
+    return whatsapp_sent or email_sent
+
 

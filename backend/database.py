@@ -49,7 +49,10 @@ def ensure_db_ready():
     # Ensure columns exist on sensors and rooms tables for backwards compatibility
     # Each statement is wrapped individually so one failure doesn't abort all migrations
     migrations = [
+        "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS receive_reports BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS receive_reports BOOLEAN DEFAULT TRUE",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS name VARCHAR(200)",
+
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS device_id VARCHAR(50)",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS mock_mode VARCHAR(50) DEFAULT 'normal'",
         "ALTER TABLE sensors ALTER COLUMN room_id DROP NOT NULL",
@@ -77,6 +80,31 @@ def ensure_db_ready():
             executed_at TIMESTAMP,
             error VARCHAR(500)
         )""",
+        """CREATE TABLE IF NOT EXISTS device_daily_metadata (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            sensor_id UUID,
+            room_id UUID,
+            device_id VARCHAR(50),
+            date DATE NOT NULL,
+            room_name VARCHAR(200),
+            room_type VARCHAR(50),
+            short_summary TEXT,
+            has_issues BOOLEAN DEFAULT FALSE,
+            issue_type VARCHAR(100),
+            issue_duration_hours NUMERIC DEFAULT 0.0,
+            t_avg NUMERIC,
+            t_min NUMERIC,
+            t_max NUMERIC,
+            below_min_hours NUMERIC DEFAULT 0.0,
+            above_max_hours NUMERIC DEFAULT 0.0,
+            runtime_hours NUMERIC,
+            starts_count NUMERIC,
+            energy_kwh NUMERIC,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_device_daily_metadata_date ON device_daily_metadata (date)",
+        "CREATE INDEX IF NOT EXISTS ix_device_daily_metadata_room_id ON device_daily_metadata (room_id)",
     ]
     for stmt in migrations:
         try:

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import subprocess
 import json
 from datetime import datetime, timedelta
@@ -9,17 +10,17 @@ import bcrypt
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import sys
+import threading
+import os
+import logging
 
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
 from backend.routes import sensors, rooms, alerts, monitoring, reports
 from backend.database import SessionLocal, ensure_db_ready, get_db
 from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry, User
 from backend.schemas import LoginRequest, LoginResponse, UserResponseModel
-import threading
-import os
-import logging
+from backend.services.insights import generate_report_html
 from backend.worker import start_worker
-
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -78,7 +79,26 @@ def startup_event():
     else:
         print("Worker thread disabled via DISABLE_WORKER=true")
 
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class ReportPreviewMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        path = request.url.path.lower()
+        if "preview" in path or path in ["/reports", "/reports/", "/report", "/report/"]:
+            db = SessionLocal()
+            try:
+                html_body, _, _ = await generate_report_html(db)
+                return HTMLResponse(content=html_body)
+            except Exception as e:
+                logger.error(f"Middleware error generating report preview: {e}", exc_info=True)
+            finally:
+                db.close()
+        return await call_next(request)
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(ReportPreviewMiddleware)
+
 
 app.include_router(sensors.router)
 app.include_router(rooms.router)
@@ -136,18 +156,31 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="Internal server error"
         )
 
-@app.get("/", tags=["Dashboard"], include_in_schema=False)
-def root_redirect():
-    """Redirect root to the dashboard."""
-    return RedirectResponse(url="/health")
-
-
+@app.get("/", tags=["Dashboard"])
 @app.get("/health", tags=["Dashboard"])
-def dashboard():
+@app.get("/dashboard", tags=["Dashboard"])
+@app.get("/index.html", tags=["Dashboard"], include_in_schema=False)
+def serve_dashboard():
+    """Serve the main Web Dashboard."""
     html_path = os.path.join(os.path.dirname(__file__), "..", "web", "index.html")
-    response = FileResponse(html_path, media_type="text/html")
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+    if os.path.exists(html_path):
+        response = FileResponse(html_path, media_type="text/html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    raise HTTPException(status_code=404, detail="Dashboard index.html not found")
+
+@app.get("/reports/preview", response_class=HTMLResponse, tags=["Reports"])
+@app.get("/sensors/reports/preview", response_class=HTMLResponse, tags=["Reports"])
+@app.get("/api/reports/preview", response_class=HTMLResponse, tags=["Reports"])
+@app.get("/api/sensors/reports/preview", response_class=HTMLResponse, tags=["Reports"])
+async def preview_report_alias(db: Session = Depends(get_db)):
+    """Serve the detailed daily report preview page for any WhatsApp button URL variant."""
+    try:
+        html_body, _, _ = await generate_report_html(db)
+        return HTMLResponse(content=html_body)
+    except Exception as e:
+        logger.error(f"Error in preview_report_alias: {e}", exc_info=True)
+        return HTMLResponse(content=f"<h3>Error generating report preview: {str(e)}</h3>", status_code=500)
 
 @app.get("/version", tags=["Dashboard"])
 def get_version():
@@ -159,14 +192,12 @@ def get_version():
         "apk_exists": os.path.exists(apk_path)
     }
 
-
 @app.get("/floorplan.jpg", tags=["Dashboard"])
 def get_floorplan():
     img_path = os.path.join(os.path.dirname(__file__), "..", "web", "floorplan.jpg")
     if os.path.exists(img_path):
         return FileResponse(img_path, media_type="image/jpeg")
     raise HTTPException(status_code=404, detail="Floor plan image not found")
-
 
 # Cache for dynamic EAS build APK URL redirect
 APK_CACHE = {
@@ -213,9 +244,6 @@ def download_admin_apk():
 
 @app.get("/app.apk", tags=["Frontend"])
 def serve_apk():
-    import os
-    from fastapi.responses import FileResponse
-    from fastapi import HTTPException
     apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
     if os.path.exists(apk_path):
         return FileResponse(
@@ -227,9 +255,6 @@ def serve_apk():
 
 @app.head("/app.apk", include_in_schema=False)
 def serve_apk_head():
-    import os
-    from fastapi.responses import FileResponse
-    from fastapi import HTTPException
     apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
     if os.path.exists(apk_path):
         return FileResponse(
@@ -238,3 +263,8 @@ def serve_apk_head():
             filename="ground-up-monitor.apk"
         )
     raise HTTPException(status_code=404, detail="APK not found")
+
+# Mount web directory for static assets
+web_dir = os.path.join(os.path.dirname(__file__), "..", "web")
+if os.path.exists(web_dir):
+    app.mount("/web", StaticFiles(directory=web_dir), name="web")

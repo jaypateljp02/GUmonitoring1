@@ -16,6 +16,8 @@ from backend.models.alert import Alert
 from backend.models.plug_telemetry import PlugTelemetry
 from backend.models.compressor_stats import CompressorStats
 from backend.models.door_event import DoorEvent
+from backend.models.setting import Setting
+
 from backend.services.tapo import get_tapo_telemetry_cached
 from backend.services.ewelink import EwelinkClient
 from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
@@ -332,6 +334,7 @@ async def ingestion_loop():
                 continue
             
             # Process each active device
+            new_offline_alerts = []
             for target_device, sensors in devices_map.items():
                 try:
                     if not sensors:
@@ -362,37 +365,25 @@ async def ingestion_loop():
                             raw_temp = params.get("temperature")
                             raw_hum = params.get("humidity")
                             raw_bat = params.get("battery")
-                            trig_time = params.get("trigTime")
 
-                            is_online_by_trig = True
-                            if trig_time:
-                                try:
-                                    trig_ts = float(trig_time) / 1000.0
-                                    if time.time() - trig_ts > 24 * 3600:
-                                        is_online_by_trig = False
-                                        logger.warning(f"Device {target_device} trigTime is stale (older than 24h): {datetime.utcfromtimestamp(trig_ts)}")
-                                except Exception as ex:
-                                    logger.error(f"Error parsing trigTime for device {target_device}: {ex}")
-
-                            is_online_in_cloud = device_data.get("online", True) if not trig_time else is_online_by_trig
-                            if is_online_in_cloud:
-                                if raw_temp is not None:
-                                    temp_val = float(raw_temp)
-                                    is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
-                                    if is_int or temp_val > 100 or temp_val < -100:
-                                        temp_val = temp_val / 100.0
-                                if raw_hum is not None:
-                                    hum_val = float(raw_hum)
-                                    is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
-                                    if is_int or hum_val > 100:
-                                        hum_val = hum_val / 100.0
-                                if raw_bat is not None:
-                                    bat_val = float(raw_bat)
-                                
-                                if temp_val is not None or hum_val is not None:
-                                    is_device_reporting = True
+                            if raw_temp is not None:
+                                temp_val = float(raw_temp)
+                                is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
+                                if is_int or temp_val > 100 or temp_val < -100:
+                                    temp_val = temp_val / 100.0
+                            if raw_hum is not None:
+                                hum_val = float(raw_hum)
+                                is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
+                                if is_int or hum_val > 100:
+                                    hum_val = hum_val / 100.0
+                            if raw_bat is not None:
+                                bat_val = float(raw_bat)
+                            
+                            is_online_in_cloud = device_data.get("online", True)
+                            if is_online_in_cloud or (temp_val is not None or hum_val is not None):
+                                is_device_reporting = True
                             else:
-                                logger.warning(f"Device {target_device} is offline (cloud online={device_data.get('online')}, trigTime={trig_time}).")
+                                logger.warning(f"Device {target_device} is offline in eWeLink cloud (online={device_data.get('online')}).")
                     else:
                         if mode == "ice":
                             temp_val = round(random.uniform(-5.0, -2.0), 2)
@@ -409,44 +400,41 @@ async def ingestion_loop():
                     if not is_device_reporting:
                         logger.warning(f"Device {target_device} is offline or not reporting. Queueing offline alerts.")
                         from decimal import Decimal
+                        ist_offset = timedelta(hours=5, minutes=30)
+                        
+                        # Find last telemetry timestamp for this device
+                        last_telemetry = db.query(DeviceTelemetry).filter(
+                            DeviceTelemetry.device_id == target_device
+                        ).order_by(DeviceTelemetry.timestamp.desc()).first()
+                        
+                        if last_telemetry and last_telemetry.timestamp:
+                            last_seen_ist = (last_telemetry.timestamp + ist_offset).strftime("%I:%M %p IST (%b %d)")
+                            offline_detail = f"went offline at {last_seen_ist}"
+                        else:
+                            offline_detail = "is offline (stopped sending telemetry data)"
+
                         for s in sensors:
-                            # Check if active offline alert exists in pre-loaded alerts
                             sensor_alerts = alerts_by_sensor.get(s.id, [])
-                            has_offline = any("offline" in (a.message or "").lower() for a in sensor_alerts)
+                            has_offline = any("offline" in (a.message or "").lower() for a in sensor_alerts if not a.resolved)
                             if not has_offline:
                                 new_alert = Alert(
                                     sensor_id=s.id,
                                     value=Decimal("0.0"),
-                                    message=f"[{s.name}] {s.type.capitalize()} sensor is offline: Device {target_device} stopped sending data.",
+                                    message=f"[{s.name}] {s.type.capitalize()} sensor {offline_detail}.",
                                     created_at=timestamp_parsed
                                 )
                                 db.add(new_alert)
                                 db.flush()
                                 alerts_by_sensor.setdefault(s.id, []).append(new_alert)
-
-                                # Send WhatsApp Alert
-                                try:
-                                    room = db.query(Room).filter(Room.id == s.room_id).first()
-                                    room_type = room.type if room else "room"
-                                    prio = calculate_priority(room_type, "offline", 0.0, s)
-                                    send_whatsapp_alert(
-                                        sensor_name=s.name,
-                                        alert_type="Offline",
-                                        current_value="N/A",
-                                        normal_range="Online",
-                                        duration="N/A",
-                                        priority=prio,
-                                        alert_id=str(new_alert.id)
-                                    )
-                                except Exception as wa_err:
-                                    logger.error(f"Failed to send offline WhatsApp alert: {wa_err}", exc_info=True)
+                                new_offline_alerts.append(new_alert)
                     else:
-                        # Resolve active offline alerts
+                        # Immediately resolve any active offline alerts as soon as device is reporting
                         for s in sensors:
                             sensor_alerts = alerts_by_sensor.get(s.id, [])
                             for alert in sensor_alerts:
                                 if "offline" in (alert.message or "").lower() and not alert.resolved:
                                     alert.resolved = True
+                                    logger.info(f"Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
 
                     if temp_val is not None and hum_val is not None:
                         # 1. Raw Telemetry
@@ -600,6 +588,94 @@ async def ingestion_loop():
                     except Exception as ex:
                         logger.error(f"Error updating compressor stats for sensor {s.id}: {ex}")
 
+            # Evaluate consolidated offline alerts (check if ALL sensors are offline across DB, or send new offline alerts)
+            try:
+                total_active_sensors = len(active_sensors)
+                current_unresolved_offline_alerts = db.query(Alert).filter(
+                    Alert.resolved == False,
+                    Alert.message.like("%offline%")
+                ).count()
+                
+                all_sensors_offline = (total_active_sensors > 0 and current_unresolved_offline_alerts >= total_active_sensors)
+                
+                if all_sensors_offline:
+                    # Check cooldown timer for ALL SENSORS OFFLINE alert (send at most once every 2 hours)
+                    last_all_offline_setting = db.query(Setting).filter(Setting.key == "last_all_devices_offline_alert").first()
+                    now_ts = datetime.utcnow()
+                    should_send_all_offline = True
+                    if last_all_offline_setting and last_all_offline_setting.value:
+                        try:
+                            last_sent_dt = datetime.fromisoformat(last_all_offline_setting.value)
+                            if (now_ts - last_sent_dt).total_seconds() < 7200:
+                                should_send_all_offline = False
+                        except Exception:
+                            pass
+                            
+                    if should_send_all_offline:
+                        logger.warning("🚨 ALL SENSORS & DEVICES ARE OFFLINE! Sending consolidated WhatsApp alert.")
+                        alert_id = str(new_offline_alerts[0].id) if new_offline_alerts else "all_offline"
+                        send_whatsapp_alert(
+                            sensor_name="ALL SENSORS & EQUIPMENT",
+                            alert_type="CRITICAL ALL OFFLINE",
+                            current_value="ALL OFFLINE",
+                            normal_range="Online",
+                            duration="N/A",
+                            priority="Critical",
+                            alert_id=alert_id
+                        )
+                        if not last_all_offline_setting:
+                            last_all_offline_setting = Setting(
+                                key="last_all_devices_offline_alert",
+                                value=now_ts.isoformat(),
+                                description="Timestamp of last ALL DEVICES OFFLINE alert dispatch"
+                            )
+                            db.add(last_all_offline_setting)
+                        else:
+                            last_all_offline_setting.value = now_ts.isoformat()
+                        db.flush()
+                elif new_offline_alerts:
+                    logger.info(f"Processing {len(new_offline_alerts)} new offline alerts in this ingestion cycle.")
+                    if len(new_offline_alerts) >= 3:
+                        logger.info("Sending a single consolidated offline alert for multiple sensors.")
+                        send_whatsapp_alert(
+                            sensor_name=f"Multiple ({len(new_offline_alerts)}) Sensors",
+                            alert_type="Offline",
+                            current_value="OFFLINE",
+                            normal_range="Online",
+                            duration="N/A",
+                            priority="High",
+                            alert_id=str(new_offline_alerts[0].id)
+                        )
+                    else:
+                        for alert in new_offline_alerts:
+                            s = db.query(Sensor).filter(Sensor.id == alert.sensor_id).first()
+                            if s:
+                                room = db.query(Room).filter(Room.id == s.room_id).first()
+                                room_type = room.type if room else "room"
+                                prio = calculate_priority(room_type, "offline", 0.0, s)
+                                
+                                # Query last seen timestamp
+                                last_seen_str = "Offline"
+                                if s.device_id:
+                                    last_tel = db.query(DeviceTelemetry).filter(
+                                        DeviceTelemetry.device_id == s.device_id
+                                    ).order_by(DeviceTelemetry.timestamp.desc()).first()
+                                    if last_tel and last_tel.timestamp:
+                                        last_seen_str = (last_tel.timestamp + timedelta(hours=5, minutes=30)).strftime("%I:%M %p IST")
+
+                                send_whatsapp_alert(
+                                    sensor_name=s.name,
+                                    alert_type="Offline",
+                                    current_value="OFFLINE",
+                                    normal_range="Online",
+                                    duration=f"Since {last_seen_str}",
+                                    priority=prio,
+                                    alert_id=str(alert.id)
+                                )
+                    db.flush()
+            except Exception as wa_err:
+                logger.error(f"Failed to process offline WhatsApp alerts: {wa_err}", exc_info=True)
+
             # Commit the entire batch at the end of the loop
             try:
                 db.commit()
@@ -607,6 +683,42 @@ async def ingestion_loop():
             except Exception as e:
                 logger.error(f"Error committing batch telemetry ingestion: {e}")
                 db.rollback()
+
+            # Check and trigger daily report at 10:40 PM IST (22:40 IST)
+            try:
+                from backend.services.insights import generate_daily_report
+                from backend.models.setting import Setting
+                
+                # Get current date/time in IST
+                now_utc = datetime.utcnow()
+                now_ist = now_utc + timedelta(hours=5, minutes=30)
+                today_str = now_ist.strftime("%Y-%m-%d")
+                
+                # We target 22:40 (10:40 PM) IST
+                target_time = now_ist.replace(hour=22, minute=40, second=0, microsecond=0)
+                
+                if now_ist >= target_time:
+                    # Check if we already sent report for today
+                    last_run_setting = db.query(Setting).filter(Setting.key == "last_daily_report_date").first()
+                    if not last_run_setting or last_run_setting.value != today_str:
+                        logger.info(f"Triggering scheduled daily report for IST date {today_str}...")
+                        success = await generate_daily_report(db)
+                        if success:
+                            logger.info(f"Daily report sent successfully for {today_str}")
+                            if not last_run_setting:
+                                last_run_setting = Setting(
+                                    key="last_daily_report_date",
+                                    value=today_str,
+                                    description="Date of the last successful daily report run"
+                                )
+                                db.add(last_run_setting)
+                            else:
+                                last_run_setting.value = today_str
+                            db.commit()
+                        else:
+                            logger.warning(f"Daily report generation returned False/failed for {today_str}")
+            except Exception as cron_err:
+                logger.error(f"Error checking/triggering daily report scheduler: {cron_err}", exc_info=True)
         except Exception as e:
             logger.error(f"Error in ingestion loop: {e}")
             try:

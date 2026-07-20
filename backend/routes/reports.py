@@ -47,19 +47,22 @@ async def trigger_daily_report(
         raise HTTPException(status_code=500, detail=f"Failed to generate and send report: {str(e)}")
 
 @router.get("/reports/send-test", response_model=MessageResponse)
+@router.post("/reports/trigger-daily-summary", response_model=MessageResponse)
+@router.get("/reports/trigger-daily-summary", response_model=MessageResponse)
 async def send_test_report(
     db: Session = Depends(get_db)
 ):
-    """Developer test endpoint to manually trigger a report send immediately."""
+    """Developer test endpoint to manually trigger a report send & WhatsApp summary immediately."""
     try:
         success = await generate_daily_report(db)
         if success:
-            return MessageResponse(message="Test report generated and sent successfully.")
+            return MessageResponse(message="Daily summary report generated and dispatched successfully.")
         else:
-            raise HTTPException(status_code=500, detail="Failed to send test report. Check server logs.")
+            raise HTTPException(status_code=500, detail="Failed to send daily summary report. Check server logs.")
     except Exception as e:
         logger.error(f"Error in send_test_report: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/reports/preview", response_class=HTMLResponse)
 async def preview_daily_report(

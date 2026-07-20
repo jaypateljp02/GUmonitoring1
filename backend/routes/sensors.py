@@ -881,7 +881,7 @@ def get_plug_telemetry_history(
 def export_plug_telemetry(
     device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
-    """Export plug telemetry logs as a CSV file."""
+    """Export plug telemetry logs as a CSV file with formatted energy (kWh) and power readings."""
     if start_date and end_date:
         try:
             start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
@@ -902,36 +902,52 @@ def export_plug_telemetry(
     
     # Sort ascending (oldest first) for readability
     aggregated_logs = list(reversed(aggregated_logs))
-    
-    # IST offset for Indian users (UTC+5:30)
     ist_offset = timedelta(hours=5, minutes=30)
     
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Active Power (W)", "Voltage (V)", "Current (A)", "Today Energy (Wh)", "Month Energy (Wh)"])
+    writer.writerow([
+        "Device ID", 
+        "Timestamp (UTC)", 
+        "Timestamp (IST)", 
+        "Active Power (W)", 
+        "Voltage (V)", 
+        "Current (A)", 
+        "Today Energy (kWh)", 
+        "Month Energy (kWh)"
+    ])
+    
     for log in aggregated_logs:
         utc_str = log["timestamp"]
-        # Parse the timestamp string and add IST offset
         try:
             utc_dt = datetime.strptime(utc_str, '%Y-%m-%d %H:%M:%S')
             ist_str = (utc_dt + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
         except Exception:
             ist_str = utc_str
+            
+        today_wh = float(log.get("today_energy") or 0.0)
+        month_wh = float(log.get("month_energy") or 0.0)
+        
+        # Convert Wh to kWh if value > 500
+        today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
+        month_kwh = round(month_wh / 1000.0 if month_wh > 500.0 else month_wh, 3)
+
         writer.writerow([
-            log["device_id"],
+            log.get("device_id", device_id),
             utc_str,
             ist_str,
-            str(log["apower"]),
-            str(log["voltage"]),
-            str(log["current"]),
-            str(log["today_energy"]),
-            str(log["month_energy"])
+            str(round(float(log.get("apower") or 0.0), 1)),
+            str(round(float(log.get("voltage") or 0.0), 1)),
+            str(round(float(log.get("current") or 0.0), 3)),
+            str(today_kwh),
+            str(month_kwh)
         ])
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
+
 
 @router.post("/device/{device_id}/plug/toggle")
 async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(get_db)):
@@ -1519,7 +1535,7 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     if not device_id:
         return {"response": "No active sensors could be identified to fetch data from."}
 
-    # 3. Pre-fetch last 48 hours of telemetry data for context
+    # 3. Pre-fetch last 48 hours of telemetry data & Tapo Plug telemetry for context
     ist_offset = timedelta(minutes=abs(req.timezone_offset_minutes))
     cutoff_utc = datetime.utcnow() - timedelta(hours=48)
     
@@ -1527,6 +1543,12 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
         DeviceTelemetry.device_id == device_id,
         DeviceTelemetry.timestamp >= cutoff_utc
     ).order_by(DeviceTelemetry.timestamp.desc()).all()
+
+    from backend.models.plug_telemetry import PlugTelemetry
+    plug_logs = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id == device_id,
+        PlugTelemetry.timestamp >= cutoff_utc
+    ).order_by(PlugTelemetry.timestamp.desc()).all()
 
     # Summarize stats
     temps = [float(l.temperature) for l in logs if l.temperature is not None]
@@ -1541,16 +1563,48 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
         "total_readings": len(logs)
     }
 
-    # Format recent sample data (last 80 rows to fit prompt context comfortably)
+    if plug_logs:
+        powers = [float(l.apower) for l in plug_logs if l.apower is not None]
+        voltages = [float(l.voltage) for l in plug_logs if l.voltage is not None]
+        energies = [float(l.today_energy) for l in plug_logs if l.today_energy is not None]
+        max_energy_wh = max(energies) if energies else 0.0
+        energy_kwh = round(max_energy_wh / 1000.0 if max_energy_wh > 500 else max_energy_wh, 3)
+        
+        summary_stats["tapo_plug_telemetry"] = {
+            "has_plug": True,
+            "power_avg_w": round(sum(powers)/len(powers), 1) if powers else 0.0,
+            "power_max_w": round(max(powers), 1) if powers else 0.0,
+            "voltage_avg_v": round(sum(voltages)/len(voltages), 1) if voltages else 0.0,
+            "today_energy_kwh": energy_kwh,
+            "plug_readings_count": len(plug_logs)
+        }
+
+    # Build plug lookup map by timestamp string (minute precision)
+    plug_map = {}
+    for pl in plug_logs:
+        t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
+        if t_key not in plug_map:
+            plug_map[t_key] = pl
+
+    # Format recent sample data (last 80 rows)
     data_context = []
     for log in logs[:80]:
         local_time = log.timestamp + ist_offset
-        data_context.append({
+        t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
+        pl_data = plug_map.get(t_key)
+        
+        row_dict = {
             "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
             "temperature": float(log.temperature) if log.temperature is not None else None,
             "humidity": float(log.humidity) if log.humidity is not None else None,
             "battery": float(log.battery_level) if log.battery_level is not None else None
-        })
+        }
+        if pl_data:
+            row_dict["active_power_w"] = float(pl_data.apower) if pl_data.apower is not None else None
+            row_dict["voltage_v"] = float(pl_data.voltage) if pl_data.voltage is not None else None
+            row_dict["current_a"] = float(pl_data.current) if pl_data.current is not None else None
+            
+        data_context.append(row_dict)
 
     # Calculate current local time for prompt reference
     if req.timezone_offset_minutes < 0:
@@ -1562,21 +1616,22 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     # Construct unified JSON prompt
     prompt = f"""
     You are the AI Chatbot Assistant for the Ground Up Cold Storage factory in Pune, India.
-    Current Local Time at the factory (IST) is {local_now_str} (Saturday).
+    Current Local Time at the factory (IST) is {local_now_str}.
     
     Target Room: {room_name}
     Target Device ID: {device_id}
     User Query: "{req.message}"
     
-    Telemetry Context (Last 48 Hours, oldest to newest):
+    Telemetry Context (Last 48 Hours, including Temperature, Humidity, and Tapo Smart Plug metrics):
     - Summary: {json.dumps(summary_stats, indent=2)}
     - Detailed Logs: {json.dumps(data_context[::-1], indent=2)}
     
     Formulate a clear response answering their query directly.
-    - If they ask for a specific time (e.g. "at 10 AM today"), search the Detailed Logs for the reading closest to that time (e.g. 10:00 AM IST) and report it.
+    - If they ask about Tapo plug data, compressor power draw (Watts), energy (kWh), cycle count, or voltage, use the tapo_plug_telemetry summary and active_power_w fields.
+    - If they ask for a specific time (e.g. "at 10 AM today"), search the Detailed Logs for the reading closest to that time.
     - If no logs exist, state that politely.
     - If they ask for a download, export, PDF, Excel, or CSV report, set "is_report_requested" to true, and calculate "report_start_time" and "report_end_time" in local factory time (IST) formatted strictly as "YYYY-MM-DDTHH:MM:SS" (ISO 8601 format).
-    - CRITICAL RULE FOR 24 HOURS REQUESTS: If the user requests data for "24 hours", "last 24 hours", "yesterday to today", or similar relative 24h ranges, you MUST calculate report_start_time as exactly 24 hours before the current local IST time ({local_now_str}), and report_end_time as exactly the current local IST time ({local_now_str}). For example: if current time is 2026-07-11T14:30:00, then report_start_time = 2026-07-10T14:30:00 and report_end_time = 2026-07-11T14:30:00.
+    - CRITICAL RULE FOR 24 HOURS REQUESTS: If the user requests data for "24 hours", "last 24 hours", "yesterday to today", or similar relative 24h ranges, calculate report_start_time as exactly 24 hours before the current local IST time ({local_now_str}), and report_end_time as exactly the current local IST time ({local_now_str}).
     - If they ask for a full day (e.g. "yesterday"), set report_start_time to start of day (00:00:00) and report_end_time to end of day (23:59:59).
     
     Format your response strictly as a JSON object matching this schema:
@@ -1605,7 +1660,7 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
             start_utc = start_local - ist_offset
             end_utc = end_local - ist_offset
             
-            fmt = result.get("report_format") or "pdf"
+            fmt = result.get("report_format") or "csv"
             report_link = f"\n\n📥 **Download Report:** [/sensors/chat/download?device_id={device_id}&start_time_utc={start_utc.isoformat()}&end_time_utc={end_utc.isoformat()}&format={fmt}](download)"
         except Exception as err:
             logger.error(f"Error formulating download URL: {err}")
@@ -1622,7 +1677,7 @@ def download_chat_report(
     db: Session = Depends(get_db)
 ):
     """
-    Generates and returns the PDF or CSV telemetry report requested via Chat.
+    Generates and returns the PDF or CSV telemetry report (including Tapo Plug telemetry) requested via Chat.
     """
     try:
         start_utc = datetime.fromisoformat(start_time_utc)
@@ -1636,7 +1691,14 @@ def download_chat_report(
         DeviceTelemetry.timestamp <= end_utc
     ).order_by(DeviceTelemetry.timestamp.asc()).all()
     
-    if not logs:
+    from backend.models.plug_telemetry import PlugTelemetry
+    plug_logs = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id == device_id,
+        PlugTelemetry.timestamp >= start_utc,
+        PlugTelemetry.timestamp <= end_utc
+    ).order_by(PlugTelemetry.timestamp.asc()).all()
+
+    if not logs and not plug_logs:
         raise HTTPException(status_code=404, detail="No telemetry logs found for the requested timeframe.")
         
     # Resolve Room name
@@ -1665,25 +1727,57 @@ def download_chat_report(
         return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
         
     else:  # CSV format
+        # Index plug logs by timestamp string (minute level)
+        plug_by_time = {}
+        for pl in plug_logs:
+            t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
+            plug_by_time[t_key] = pl
+
         output = StringIO()
         writer = csv.writer(output)
-        writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Temperature (C)", "Humidity (%)", "Battery (%)"])
+        writer.writerow([
+            "Device ID", 
+            "Timestamp (UTC)", 
+            "Timestamp (IST)", 
+            "Temperature (C)", 
+            "Humidity (%)", 
+            "Battery (%)",
+            "Active Power (W)",
+            "Voltage (V)",
+            "Current (A)",
+            "Today Energy (kWh)"
+        ])
         
         ist_offset = timedelta(hours=5, minutes=30)
         for log in logs:
             utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+            t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
+            pl = plug_by_time.get(t_key)
+            
+            p_watts = str(round(float(pl.apower), 1)) if (pl and pl.apower is not None) else ""
+            v_volts = str(round(float(pl.voltage), 1)) if (pl and pl.voltage is not None) else ""
+            c_amps = str(round(float(pl.current), 3)) if (pl and pl.current is not None) else ""
+            
+            today_wh = float(pl.today_energy) if (pl and pl.today_energy is not None) else 0.0
+            e_kwh = str(round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)) if pl else ""
+
             writer.writerow([
                 log.device_id,
                 utc_str,
                 ist_str,
                 str(log.temperature) if log.temperature is not None else "",
                 str(log.humidity) if log.humidity is not None else "",
-                str(log.battery_level) if log.battery_level is not None else ""
+                str(log.battery_level) if log.battery_level is not None else "",
+                p_watts,
+                v_volts,
+                c_amps,
+                e_kwh
             ])
             
         output.seek(0)
         filename = f"report_{room_name.replace(' ', '_')}_{start_utc.strftime('%Y%m%d')}.csv"
         headers = {"Content-Disposition": f"attachment; filename={filename}"}
         return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
+
 
