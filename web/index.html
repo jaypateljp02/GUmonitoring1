@@ -1025,7 +1025,7 @@
     const hostname = window.location.hostname;
     const resolvedHostname = hostname === 'localhost' ? '127.0.0.1' : hostname;
     const isLocal = resolvedHostname === '127.0.0.1' || resolvedHostname.startsWith('192.168.') || resolvedHostname.startsWith('10.');
-    const port = window.location.port || '8003';
+    const port = window.location.port || '8000';
     const API = isLocal ? `http://${resolvedHostname}:${port}` : window.location.origin;
 
     function formatOfflineTime(tStr) {
@@ -1483,7 +1483,7 @@
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
       
-      const isBillingDay = (new Date().getDate() === 30 || new Date().getDate() === 31);
+      const isBillingDay = (new Date().getDate() >= 28);
       
       // Show/hide the Add button based on whether there are unconfigured rooms
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
@@ -1641,12 +1641,14 @@
                   <div id="plugTodayKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.today_kwh.toFixed(3)} kWh</div>
                   <div id="plugTodayBill-${roomId}" style="color: #10B981; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.today_bill.toFixed(2)}</div>
                 </div>
+                ${isBillingDay ? `
                 <div style="border-left: 1px solid #E2E8F0;"></div>
                 <div style="text-align: center; flex: 1;">
                   <div style="color: #64748B; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Month's Bill</div>
                   <div id="plugMonthKwh-${roomId}" style="color: #0F172A; font-size: 13px; font-weight: 800; margin-top: 2px;">${data.month_kwh.toFixed(3)} kWh</div>
                   <div id="plugMonthBill-${roomId}" style="color: #2563EB; font-size: 11px; font-weight: 700; margin-top: 1px;">₹ ${data.month_bill.toFixed(2)}</div>
                 </div>
+                ` : ''}
               </div>
             `;
             if (tapoToggling[roomId]) {
