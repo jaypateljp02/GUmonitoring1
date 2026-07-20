@@ -175,3 +175,103 @@ class EwelinkClient:
             "humidity": hum_val,
             "battery": bat_val
         }
+
+    @staticmethod
+    def is_power_device(params: Dict[str, Any]) -> bool:
+        """
+        Detect if an eWeLink device is a power monitoring device (like Sonoff POWR320D).
+        Power devices report 'power'/'voltage'/'current' instead of 'temperature'/'humidity'.
+        """
+        return ("power" in params or "voltage" in params or "current" in params)
+
+    @staticmethod
+    def is_temp_hum_device(params: Dict[str, Any]) -> bool:
+        """Detect if an eWeLink device is a temperature/humidity sensor (like SNZB-02)."""
+        return ("temperature" in params or "humidity" in params)
+
+    async def get_power_device_status(self, device_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch power monitoring data for a specific eWeLink power device (e.g. POWR320D).
+        Returns power (W), voltage (V), current (A), switch state, and energy if available.
+        """
+        thing_list = await self.get_all_devices()
+        if not thing_list:
+            return None
+
+        target_device = None
+        for t in thing_list:
+            item_data = t.get("itemData", {})
+            if item_data.get("deviceid") == device_id:
+                target_device = item_data
+                break
+
+        if not target_device:
+            logger.warning(f"Power device {device_id} not found in thingList")
+            return None
+
+        params_obj = target_device.get("params", {})
+
+        # Power in Watts (POWR320D reports in 0.01 W / cW)
+        power = params_obj.get("power")
+        if power is not None:
+            power_val = float(power)
+            if power_val > 1000:
+                power_val = round(power_val / 100.0, 2)
+        else:
+            power_val = 0.0
+
+        # Voltage in Volts (POWR320D reports in 0.01 V / cV)
+        voltage = params_obj.get("voltage")
+        if voltage is not None:
+            voltage_val = float(voltage)
+            if voltage_val > 1000:
+                voltage_val = round(voltage_val / 100.0, 1)
+        else:
+            voltage_val = 0.0
+
+        # Current in Amperes (POWR320D reports in 0.01 A / cA)
+        current = params_obj.get("current")
+        if current is not None:
+            current_val = float(current)
+            if current_val > 100:
+                current_val = round(current_val / 100.0, 2)
+        else:
+            current_val = 0.0
+
+        # Switch state (on/off)
+        switch_state = params_obj.get("switch", "off")
+
+        # Some POW devices also report oneKwh (today's energy in 0.01 kWh units)
+        one_kwh = params_obj.get("oneKwh")
+        today_energy = 0.0
+        if one_kwh is not None:
+            today_energy = float(one_kwh) / 100.0  # Convert to kWh
+
+        # Monthly energy (endAt field or hundredDaysKwh aggregation)
+        month_energy = 0.0
+        hundred_days = params_obj.get("hundredDaysKwh")
+        if hundred_days and isinstance(hundred_days, str):
+            # hundredDaysKwh is a packed string of daily kWh values for last 100 days
+            # Each entry is 6 hex chars = 3 bytes, big-endian integer in 0.01 kWh
+            try:
+                # Sum up first 30 days (current month approx)
+                days_to_sum = min(30, len(hundred_days) // 6)
+                for i in range(days_to_sum):
+                    hex_chunk = hundred_days[i * 6:(i + 1) * 6]
+                    if hex_chunk:
+                        day_kwh = int(hex_chunk, 16) / 100.0
+                        month_energy += day_kwh
+            except Exception:
+                month_energy = 0.0
+
+        is_online = target_device.get("online", False)
+
+        return {
+            "power": power_val,
+            "voltage": voltage_val,
+            "current": current_val,
+            "switch": switch_state,
+            "today_energy": today_energy,
+            "month_energy": month_energy,
+            "online": is_online
+        }

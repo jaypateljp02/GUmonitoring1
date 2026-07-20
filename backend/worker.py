@@ -107,7 +107,7 @@ def update_compressor_stats(db, sensor, target_date):
 async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
     """
     Fetch all devices from eWeLink and sync them to rooms/sensors in the database.
-    Deactivates any mock/unlinked sensors.
+    Supports both temperature/humidity sensors (SNZB-02) and power monitoring devices (POWR320D).
     """
     logger.info("Synchronizing eWeLink devices with database...")
     thing_list = await client.get_all_devices()
@@ -123,9 +123,12 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
         if not device_id:
             continue
         
-        # Filter out devices (like Zigbee Bridges) that do not report temperature or humidity telemetry
         params = item_data.get("params", {})
-        if "temperature" not in params and "humidity" not in params:
+        is_temp_hum = EwelinkClient.is_temp_hum_device(params)
+        is_power = EwelinkClient.is_power_device(params)
+
+        # Skip devices that are neither temp/hum nor power devices (e.g. Zigbee Bridges)
+        if not is_temp_hum and not is_power:
             logger.info(f"Skipping non-telemetry eWeLink device: {item_data.get('name')} (id: {device_id})")
             continue
         
@@ -172,49 +175,70 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
             if existing_sensor:
                 db.query(Sensor).filter(Sensor.device_id == device_id).update({"room_id": room_id}, synchronize_session=False)
 
-        # 2. Find or create Temperature Sensor
-        temp_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "temperature").first()
-        if not temp_sensor:
-            # Check if there's a temp sensor with device_id but null room_id
-            temp_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "temperature").first()
-            if temp_sensor:
-                temp_sensor.room_id = room_id
+        if is_temp_hum:
+            # 2. Find or create Temperature Sensor
+            temp_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "temperature").first()
+            if not temp_sensor:
+                temp_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "temperature").first()
+                if temp_sensor:
+                    temp_sensor.room_id = room_id
+                    temp_sensor.active = True
+                else:
+                    temp_sensor = Sensor(
+                        room_id=room_id,
+                        name=f"{device_name} Temp",
+                        type="temperature",
+                        device_id=device_id,
+                        min_threshold=2.0 if room.type in ["fridge", "freezer"] else 18.0,
+                        max_threshold=6.0 if room.type == "fridge" else (-5.0 if room.type == "freezer" else 28.0),
+                        active=True
+                    )
+                    db.add(temp_sensor)
+            else:
                 temp_sensor.active = True
-            else:
-                temp_sensor = Sensor(
-                    room_id=room_id,
-                    name=f"{device_name} Temp",
-                    type="temperature",
-                    device_id=device_id,
-                    min_threshold=2.0 if room.type in ["fridge", "freezer"] else 18.0,
-                    max_threshold=6.0 if room.type == "fridge" else (-5.0 if room.type == "freezer" else 28.0),
-                    active=True
-                )
-                db.add(temp_sensor)
-        else:
-            temp_sensor.active = True
 
-        # 3. Find or create Humidity Sensor
-        hum_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "humidity").first()
-        if not hum_sensor:
-            # Check if there's a hum sensor with device_id but null room_id
-            hum_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "humidity").first()
-            if hum_sensor:
-                hum_sensor.room_id = room_id
-                hum_sensor.active = True
+            # 3. Find or create Humidity Sensor
+            hum_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "humidity").first()
+            if not hum_sensor:
+                hum_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "humidity").first()
+                if hum_sensor:
+                    hum_sensor.room_id = room_id
+                    hum_sensor.active = True
+                else:
+                    hum_sensor = Sensor(
+                        room_id=room_id,
+                        name=f"{device_name} Hum",
+                        type="humidity",
+                        device_id=device_id,
+                        min_threshold=40.0,
+                        max_threshold=65.0,
+                        active=True
+                    )
+                    db.add(hum_sensor)
             else:
-                hum_sensor = Sensor(
-                    room_id=room_id,
-                    name=f"{device_name} Hum",
-                    type="humidity",
-                    device_id=device_id,
-                    min_threshold=40.0,
-                    max_threshold=65.0,
-                    active=True
-                )
-                db.add(hum_sensor)
-        else:
-            hum_sensor.active = True
+                hum_sensor.active = True
+
+        if is_power:
+            # 4. Find or create Plug (power monitoring) Sensor for POWR320D-type devices
+            plug_sensor = db.query(Sensor).filter(Sensor.room_id == room_id, Sensor.type == "plug").first()
+            if not plug_sensor:
+                plug_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.type == "plug").first()
+                if plug_sensor:
+                    plug_sensor.room_id = room_id
+                    plug_sensor.active = True
+                else:
+                    plug_sensor = Sensor(
+                        room_id=room_id,
+                        name=f"{device_name} Power",
+                        type="plug",
+                        device_id=device_id,
+                        active=True,
+                        mock_mode="normal"
+                    )
+                    db.add(plug_sensor)
+                    logger.info(f"Created new plug sensor for eWeLink power device: {device_name} (id: {device_id})")
+            else:
+                plug_sensor.active = True
 
     # 4. Do not aggressively deactivate sensors/rooms. 
     # If a device is removed from eWeLink, it will naturally appear as "OFFLINE" 
@@ -347,6 +371,14 @@ async def ingestion_loop():
                     bat_val = 100.0
                     timestamp_parsed = datetime.utcnow()
 
+                    # Power device values (for POWR320D-type eWeLink devices)
+                    power_val = None
+                    voltage_val = None
+                    current_val = None
+                    today_energy_val = 0.0
+                    month_energy_val = 0.0
+                    is_power_device = False
+
                     # Find device telemetry in thingList if using live mode
                     device_data = None
                     if use_live and thing_list:
@@ -362,28 +394,72 @@ async def ingestion_loop():
                     elif use_live:
                         if device_data:
                             params = device_data.get("params", {})
-                            raw_temp = params.get("temperature")
-                            raw_hum = params.get("humidity")
-                            raw_bat = params.get("battery")
 
-                            if raw_temp is not None:
-                                temp_val = float(raw_temp)
-                                is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
-                                if is_int or temp_val > 100 or temp_val < -100:
-                                    temp_val = temp_val / 100.0
-                            if raw_hum is not None:
-                                hum_val = float(raw_hum)
-                                is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
-                                if is_int or hum_val > 100:
-                                    hum_val = hum_val / 100.0
-                            if raw_bat is not None:
-                                bat_val = float(raw_bat)
-                            
-                            is_online_in_cloud = device_data.get("online", True)
-                            if is_online_in_cloud or (temp_val is not None or hum_val is not None):
-                                is_device_reporting = True
+                            # Detect if this is a power monitoring device (POWR320D)
+                            if EwelinkClient.is_power_device(params) and not EwelinkClient.is_temp_hum_device(params):
+                                is_power_device = True
+                                raw_power = params.get("power")
+                                raw_voltage = params.get("voltage")
+                                raw_current = params.get("current")
+
+                                if raw_power is not None:
+                                    power_val = float(raw_power)
+                                    if power_val > 1000:
+                                        power_val = round(power_val / 100.0, 2)
+                                if raw_voltage is not None:
+                                    voltage_val = float(raw_voltage)
+                                    if voltage_val > 1000:
+                                        voltage_val = round(voltage_val / 100.0, 1)
+                                if raw_current is not None:
+                                    current_val = float(raw_current)
+                                    if current_val > 100:
+                                        current_val = round(current_val / 100.0, 2)
+
+                                # Energy data
+                                one_kwh = params.get("oneKwh")
+                                if one_kwh is not None:
+                                    today_energy_val = float(one_kwh) / 100.0  # 0.01 kWh units -> kWh
+
+                                hundred_days = params.get("hundredDaysKwh")
+                                if hundred_days and isinstance(hundred_days, str):
+                                    try:
+                                        days_to_sum = min(30, len(hundred_days) // 6)
+                                        for i in range(days_to_sum):
+                                            hex_chunk = hundred_days[i * 6:(i + 1) * 6]
+                                            if hex_chunk:
+                                                month_energy_val += int(hex_chunk, 16) / 100.0
+                                    except Exception:
+                                        pass
+
+                                is_online_in_cloud = device_data.get("online", True)
+                                if is_online_in_cloud or power_val is not None:
+                                    is_device_reporting = True
+                                else:
+                                    logger.warning(f"Power device {target_device} is offline in eWeLink cloud.")
                             else:
-                                logger.warning(f"Device {target_device} is offline in eWeLink cloud (online={device_data.get('online')}).")
+                                # Standard temp/hum sensor (SNZB-02)
+                                raw_temp = params.get("temperature")
+                                raw_hum = params.get("humidity")
+                                raw_bat = params.get("battery")
+
+                                if raw_temp is not None:
+                                    temp_val = float(raw_temp)
+                                    is_int = isinstance(raw_temp, int) or (isinstance(raw_temp, str) and "." not in raw_temp)
+                                    if is_int or temp_val > 100 or temp_val < -100:
+                                        temp_val = temp_val / 100.0
+                                if raw_hum is not None:
+                                    hum_val = float(raw_hum)
+                                    is_int = isinstance(raw_hum, int) or (isinstance(raw_hum, str) and "." not in raw_hum)
+                                    if is_int or hum_val > 100:
+                                        hum_val = hum_val / 100.0
+                                if raw_bat is not None:
+                                    bat_val = float(raw_bat)
+                                
+                                is_online_in_cloud = device_data.get("online", True)
+                                if is_online_in_cloud or (temp_val is not None or hum_val is not None):
+                                    is_device_reporting = True
+                                else:
+                                    logger.warning(f"Device {target_device} is offline in eWeLink cloud (online={device_data.get('online')}).")
                     else:
                         if mode == "ice":
                             temp_val = round(random.uniform(-5.0, -2.0), 2)
@@ -402,13 +478,25 @@ async def ingestion_loop():
                         from decimal import Decimal
                         ist_offset = timedelta(hours=5, minutes=30)
                         
-                        # Find last telemetry timestamp for this device
+                        # Find last telemetry timestamp for this device (check both tables)
                         last_telemetry = db.query(DeviceTelemetry).filter(
                             DeviceTelemetry.device_id == target_device
                         ).order_by(DeviceTelemetry.timestamp.desc()).first()
-                        
+
+                        last_plug_tel = db.query(PlugTelemetry).filter(
+                            PlugTelemetry.device_id == target_device
+                        ).order_by(PlugTelemetry.timestamp.desc()).first()
+
+                        # Use whichever was more recent
+                        last_ts = None
                         if last_telemetry and last_telemetry.timestamp:
-                            last_seen_ist = (last_telemetry.timestamp + ist_offset).strftime("%I:%M %p IST (%b %d)")
+                            last_ts = last_telemetry.timestamp
+                        if last_plug_tel and last_plug_tel.timestamp:
+                            if last_ts is None or last_plug_tel.timestamp > last_ts:
+                                last_ts = last_plug_tel.timestamp
+
+                        if last_ts:
+                            last_seen_ist = (last_ts + ist_offset).strftime("%I:%M %p IST (%b %d)")
                             offline_detail = f"went offline at {last_seen_ist}"
                         else:
                             offline_detail = "is offline (stopped sending telemetry data)"
@@ -436,7 +524,30 @@ async def ingestion_loop():
                                     alert.resolved = True
                                     logger.info(f"Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
 
-                    if temp_val is not None and hum_val is not None:
+                    # === POWER DEVICE TELEMETRY (POWR320D) ===
+                    if is_power_device and power_val is not None:
+                        plug_tel = PlugTelemetry(
+                            device_id=target_device,
+                            apower=power_val,
+                            voltage=voltage_val or 0.0,
+                            current=current_val or 0.0,
+                            today_energy=today_energy_val,
+                            month_energy=month_energy_val,
+                            timestamp=timestamp_parsed
+                        )
+                        db.add(plug_tel)
+
+                        # Update tapo_last_seen and tapo_status on the plug sensor
+                        for s in sensors:
+                            if s.type == "plug":
+                                s.tapo_last_seen = timestamp_parsed
+                                s.tapo_status = "online"
+                                s.tapo_error = None
+
+                        logger.info(f"Queued plug telemetry for eWeLink power device {target_device}: P={power_val}W V={voltage_val}V I={current_val}A")
+
+                    # === TEMPERATURE/HUMIDITY DEVICE TELEMETRY (SNZB-02) ===
+                    elif not is_power_device and temp_val is not None and hum_val is not None:
                         # 1. Raw Telemetry
                         telemetry = DeviceTelemetry(
                             device_id=target_device,
@@ -450,6 +561,10 @@ async def ingestion_loop():
                         # 2. Map to logical sensors
                         for s in sensors:
                             val = temp_val if s.type == "temperature" else hum_val
+                            
+                            # Skip plug sensors in temp/hum processing
+                            if s.type == "plug":
+                                continue
                             
                             # 3. Check thresholds and alert with door open alert suppression
                             sensor_alerts = alerts_by_sensor.get(s.id, [])
@@ -582,7 +697,7 @@ async def ingestion_loop():
             # Recalculate compressor stats for all sensors with plug telemetry
             today = datetime.utcnow().date()
             for s in active_sensors:
-                if s.type == "temperature" and s.device_id:
+                if s.type == "plug" and s.device_id:
                     try:
                         update_compressor_stats(db, s, today)
                     except Exception as ex:

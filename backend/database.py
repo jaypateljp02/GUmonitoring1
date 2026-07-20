@@ -42,10 +42,18 @@ def ensure_db_ready():
             END $$;
         """))
         conn.commit()
+
+    # Add 'plug' to sensor_type enum (must be in its own transaction per PostgreSQL rules)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TYPE sensor_type ADD VALUE IF NOT EXISTS 'plug'"))
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"sensor_type enum migration skipped (may already have 'plug'): {e}")
     
     # Now create all tables
     Base.metadata.create_all(bind=engine)
-    
+
     # Ensure columns exist on sensors and rooms tables for backwards compatibility
     # Each statement is wrapped individually so one failure doesn't abort all migrations
     migrations = [
