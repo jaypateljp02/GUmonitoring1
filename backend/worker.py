@@ -398,22 +398,33 @@ async def ingestion_loop():
                             # Detect if this is a power monitoring device (POWR320D)
                             if EwelinkClient.is_power_device(params) and not EwelinkClient.is_temp_hum_device(params):
                                 is_power_device = True
+                                sw_state = "off"
+                                if "switch" in params and params["switch"] is not None:
+                                    sw_state = str(params["switch"]).lower()
+                                elif "switches" in params and isinstance(params["switches"], list) and len(params["switches"]) > 0:
+                                    sw_state = str(params["switches"][0].get("switch", "off")).lower()
+
                                 raw_power = params.get("power")
                                 raw_voltage = params.get("voltage")
                                 raw_current = params.get("current")
 
-                                if raw_power is not None:
-                                    power_val = float(raw_power)
-                                    if power_val > 1000:
-                                        power_val = round(power_val / 100.0, 2)
                                 if raw_voltage is not None:
                                     voltage_val = float(raw_voltage)
                                     if voltage_val > 1000:
                                         voltage_val = round(voltage_val / 100.0, 1)
-                                if raw_current is not None:
-                                    current_val = float(raw_current)
-                                    if current_val > 100:
-                                        current_val = round(current_val / 100.0, 2)
+
+                                if sw_state == "off":
+                                    power_val = 0.0
+                                    current_val = 0.0
+                                else:
+                                    if raw_power is not None:
+                                        power_val = float(raw_power)
+                                        if power_val > 1000:
+                                            power_val = round(power_val / 100.0, 2)
+                                    if raw_current is not None:
+                                        current_val = float(raw_current)
+                                        if current_val > 100:
+                                            current_val = round(current_val / 100.0, 2)
 
                                 # Energy data
                                 day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else params.get("oneKwh")
