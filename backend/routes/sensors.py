@@ -831,16 +831,21 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
     from backend.models.device_telemetry import DeviceTelemetry
     from collections import defaultdict
     
-    # 1. Get the temperature sensor and running threshold
-    sensor = db.query(Sensor).filter(
-        Sensor.device_id == device_id,
-        Sensor.type == "temperature",
-        Sensor.active == True
-    ).first()
+    # 1. Map target plug sensor ID if current device is a temperature sensor
+    target_plug_id = device_id
+    curr_sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).first()
+    if curr_sensor and curr_sensor.type != "plug" and curr_sensor.room_id:
+        plug_sensor = db.query(Sensor).filter(
+            Sensor.room_id == curr_sensor.room_id,
+            Sensor.type == "plug",
+            Sensor.active == True
+        ).first()
+        if plug_sensor:
+            target_plug_id = plug_sensor.device_id
     
     threshold = 80.0
-    if sensor and sensor.tapo_running_threshold is not None:
-        threshold = float(sensor.tapo_running_threshold)
+    if curr_sensor and curr_sensor.tapo_running_threshold is not None:
+        threshold = float(curr_sensor.tapo_running_threshold)
 
     # 2. Get 24-hour min/max/avg raw stats
     cutoff_24h = datetime.utcnow() - timedelta(hours=24)
@@ -856,15 +861,16 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         func.max(PlugTelemetry.current).label('c_max'),
         func.max(PlugTelemetry.today_energy).label('energy_max'),
     ).filter(
-        PlugTelemetry.device_id == device_id,
+        PlugTelemetry.device_id == target_plug_id,
         PlugTelemetry.timestamp >= cutoff_24h
     ).first()
 
-    energy_kwh = round(float(stats.energy_max) / 1000.0, 3) if (stats and stats.energy_max is not None) else 0.0
+    raw_energy = float(stats.energy_max) if (stats and stats.energy_max is not None) else 0.0
+    energy_kwh = round(raw_energy / 100.0, 3) if raw_energy > 10.0 else round(raw_energy, 3)
 
     # 3. Calculate last 24h Use Time (runtime) and On/Off Cycles
     logs_24h = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id,
+        PlugTelemetry.device_id == target_plug_id,
         PlugTelemetry.timestamp >= cutoff_24h
     ).order_by(PlugTelemetry.timestamp.asc()).all()
 
@@ -888,7 +894,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
     # 4. Calculate 7-Day Baseline Averages (Weekly average daily runtime, starts, and energy)
     cutoff_7d = datetime.utcnow() - timedelta(days=7)
     logs_7d = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id,
+        PlugTelemetry.device_id == target_plug_id,
         PlugTelemetry.timestamp >= cutoff_7d
     ).order_by(PlugTelemetry.timestamp.asc()).all()
 
@@ -922,7 +928,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         daily_starts.append(day_starts_count)
         
         max_energy = max(float(x.today_energy) for x in day_logs) if day_logs else 0.0
-        daily_energies.append(max_energy / 1000.0)
+        daily_energies.append(max_energy / 100.0 if max_energy > 10.0 else max_energy)
 
     num_days = len(daily_logs) if daily_logs else 1
     runtime_hours_avg_7d = round(sum(daily_runtimes) / num_days, 2)
@@ -953,18 +959,18 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         current_temp = float(latest_temp_log.temperature)
 
     temp_high = False
-    if sensor and sensor.max_threshold is not None and current_temp is not None:
-        if current_temp > float(sensor.max_threshold):
+    if curr_sensor and curr_sensor.max_threshold is not None and current_temp is not None:
+        if current_temp > float(curr_sensor.max_threshold):
             temp_high = True
 
     if temp_high:
         if compressor_state == "running":
             diagnosis = "cooling_fail"
-            observation_msg = f"Observation: Temp is high ({current_temp:.1f}°C > {float(sensor.max_threshold):.1f}°C) while the compressor is actively running (average: {round(stats.p_avg, 0) if (stats and stats.p_avg is not None) else 0.0} W)."
+            observation_msg = f"Observation: Temp is high ({current_temp:.1f}°C > {float(curr_sensor.max_threshold):.1f}°C) while the compressor is actively running (average: {round(stats.p_avg, 0) if (stats and stats.p_avg is not None) else 0.0} W)."
             abnormal_flags.append("cooling_failure")
         elif compressor_state == "idle":
             diagnosis = "power_issue"
-            observation_msg = f"Observation: Temp is high ({current_temp:.1f}°C > {float(sensor.max_threshold):.1f}°C) but compressor has been idle/off (average: {round(stats.p_avg, 0) if (stats and stats.p_avg is not None) else 0.0} W)."
+            observation_msg = f"Observation: Temp is high ({current_temp:.1f}°C > {float(curr_sensor.max_threshold):.1f}°C) but compressor has been idle/off (average: {round(stats.p_avg, 0) if (stats and stats.p_avg is not None) else 0.0} W)."
             abnormal_flags.append("power_issue")
     else:
         # Check for Inefficiency (Stable temp but 24h runtime is 25% higher than weekly average)
