@@ -766,6 +766,10 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     Toggle plug power state ('on' or 'off') for Tapo or eWeLink power devices.
     """
     import decimal
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
     target_state = req.get("state", "on").lower()
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
@@ -777,6 +781,8 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
 
     target_plug_id = device_id
     target_sensor = sensor
+
+    # If requested device is not a plug, check if room has a linked plug sensor
     if sensor.type != "plug" and sensor.room_id:
         plug_sensor = db.query(Sensor).filter(
             Sensor.room_id == sensor.room_id,
@@ -787,18 +793,25 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             target_plug_id = plug_sensor.device_id
             target_sensor = plug_sensor
 
-    # 1. Try eWeLink Cloud API for eWeLink power devices (like POWR320D)
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    if not os.getenv("EWELINK_EMAIL"):
-        load_dotenv("backend/.env")
+    # Case 1: Tapo Plug (has tapo_ip & tapo_username/password)
+    if target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
+        try:
+            from backend.services.tapo import toggle_tapo_plug
+            res = await toggle_tapo_plug(target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_state)
+            return res
+        except Exception as e:
+            logger.error(f"Failed to toggle Tapo plug {target_plug_id} ({target_sensor.tapo_ip}): {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to toggle Tapo plug: {e}")
 
-    email = os.getenv("EWELINK_EMAIL")
-    password = os.getenv("EWELINK_PASSWORD")
-    region = os.getenv("EWELINK_REGION", "as")
+    # Case 2: eWeLink Cloud Plug (POWR320D or eWeLink brand plug)
+    if target_sensor.type == "plug" or target_plug_id == "10029128ab" or getattr(target_sensor, "brand", None) == "ewelink":
+        email = os.getenv("EWELINK_EMAIL")
+        password = os.getenv("EWELINK_PASSWORD")
+        region = os.getenv("EWELINK_REGION", "as")
 
-    if email and password:
+        if not email or not password:
+            raise HTTPException(status_code=401, detail="eWeLink cloud credentials missing in server config.")
+
         try:
             from backend.services.ewelink import EwelinkClient
             ew_client = EwelinkClient(email=email, password=password, region=region)
@@ -806,7 +819,6 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             if ok:
                 success = await ew_client.set_device_switch(target_plug_id, target_state)
                 if success:
-                    # Save immediate log in DB so GET /plug returns new state instantly
                     from backend.models.plug_telemetry import PlugTelemetry
                     last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_id).order_by(PlugTelemetry.timestamp.desc()).first()
                     t_energy = last_rec.today_energy if last_rec else decimal.Decimal("150.0")
@@ -828,7 +840,7 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
                     db.commit()
                     return {"message": f"Successfully toggled eWeLink plug {target_plug_id} to {target_state}", "state": target_state}
                 else:
-                    raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
+                    raise HTTPException(status_code=500, detail=f"Failed to toggle eWeLink plug {target_plug_id}. Cloud rejected command.")
             else:
                 raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
         except HTTPException:
@@ -837,16 +849,8 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             logger.error(f"Error toggling eWeLink plug {target_plug_id}: {e}")
             raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
 
-    # 2. Try Tapo direct LAN connection
-    if target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
-        try:
-            from backend.services.tapo import toggle_tapo_plug
-            res = await toggle_tapo_plug(target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_state)
-            return res
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to toggle Tapo plug: {e}")
-
-    raise HTTPException(status_code=400, detail="Device is not a supported Tapo or eWeLink plug, or credentials missing.")
+    # Case 3: No smart plug linked to this room/device
+    raise HTTPException(status_code=400, detail="No smart plug is configured or linked to this room.")
 
 @router.get("/device/{device_id}/plug/metrics/24h", response_model=PlugMetrics24hResponse)
 def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):

@@ -1611,7 +1611,8 @@
           if (error || (data && !data.supported) || (data && data.state === 'offline')) {
             badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
             const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
-            const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
+            const isTapo = (data && data.type === 'tapo') || (mainSensor && (mainSensor.tapo_ip || mainSensor.name?.toLowerCase().includes('tapo')));
+            const isLocalNetworkError = isTapo && errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
             const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
             telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Plug Offline: ${errMsg}${cloudNote}</div>`;
             toggleBtnHtml = `
@@ -3547,7 +3548,8 @@
             }
           }, 1000);
         } else {
-          alert('Failed to toggle plug state.');
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.detail || 'Failed to toggle plug state.');
           detailPlugToggling = false;
           btn.disabled = false;
           await pollDetail();
