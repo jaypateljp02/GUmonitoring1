@@ -80,7 +80,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
         
         has_plug = False
         apower = None
-        if s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0:
+        if s.type == "plug" or (s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0):
             has_plug = True
             if plug_data:
                 is_stale = (now - plug_data["timestamp"]).total_seconds() > 180.0
@@ -90,12 +90,14 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
                 
         if s.device_id == "cold_room_1_plug":
             print(f"COLD_ROOM_DEBUG: latest={latest}, plug_data={plug_data}, has_plug={has_plug}, tapo_ip={s.tapo_ip}, type={s.type}")
-        if latest or has_plug:
+        if latest or has_plug or plug_data or s.type == "plug":
             is_online = False
             if latest:
                 is_online = (now - latest["timestamp"]) < timedelta(minutes=10)
             elif plug_data:
                 is_online = (now - plug_data["timestamp"]) < timedelta(minutes=10)
+            else:
+                is_online = True
                 
             timestamp_val = None
             if latest:
