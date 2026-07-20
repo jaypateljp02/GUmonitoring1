@@ -182,16 +182,28 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
             PlugTelemetry.timestamp >= start_time,
             PlugTelemetry.timestamp <= end_time
         ).order_by(PlugTelemetry.timestamp.desc()).all()
-        return [{
-            "id": str(log.id),
-            "device_id": log.device_id,
-            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "apower": float(log.apower),
-            "voltage": float(log.voltage),
-            "current": float(log.current),
-            "today_energy": float(log.today_energy),
-            "month_energy": float(log.month_energy)
-        } for log in logs]
+        res_list = []
+        for log in logs:
+            p_val = float(log.apower)
+            if p_val > 1000.0:
+                p_val = round(p_val / 100.0, 1)
+            t_val = float(log.today_energy)
+            if t_val > 10.0:
+                t_val = round(t_val / 100.0, 3)
+            m_val = float(log.month_energy)
+            if m_val > 10.0:
+                m_val = round(m_val / 100.0, 3)
+            res_list.append({
+                "id": str(log.id),
+                "device_id": log.device_id,
+                "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "apower": p_val,
+                "voltage": float(log.voltage),
+                "current": float(log.current),
+                "today_energy": t_val,
+                "month_energy": m_val
+            })
+        return res_list
         
     interval_seconds = interval_minutes * 60
     agg_query = text('''
@@ -209,15 +221,27 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
     ''')
     agg_results = db.execute(agg_query, {"device_id": device_id, "start_time": start_time, "end_time": end_time, "interval": interval_seconds}).fetchall()
     
-    return [{
-        "device_id": device_id,
-        "timestamp": row.bucket.strftime("%Y-%m-%d %H:%M:%S"),
-        "apower": round(row.apower, 1) if row.apower else 0.0,
-        "voltage": round(row.voltage, 1) if row.voltage else 0.0,
-        "current": round(row.current, 3) if row.current else 0.0,
-        "today_energy": round(row.today_energy, 3) if row.today_energy else 0.0,
-        "month_energy": round(row.month_energy, 3) if row.month_energy else 0.0
-    } for row in agg_results]
+    res_list = []
+    for row in agg_results:
+        p_val = round(row.apower, 1) if row.apower else 0.0
+        if p_val > 1000.0:
+            p_val = round(p_val / 100.0, 1)
+        t_val = round(row.today_energy, 3) if row.today_energy else 0.0
+        if t_val > 10.0:
+            t_val = round(t_val / 100.0, 3)
+        m_val = round(row.month_energy, 3) if row.month_energy else 0.0
+        if m_val > 10.0:
+            m_val = round(m_val / 100.0, 3)
+        res_list.append({
+            "device_id": device_id,
+            "timestamp": row.bucket.strftime("%Y-%m-%d %H:%M:%S"),
+            "apower": p_val,
+            "voltage": round(row.voltage, 1) if row.voltage else 0.0,
+            "current": round(row.current, 3) if row.current else 0.0,
+            "today_energy": t_val,
+            "month_energy": m_val
+        })
+    return res_list
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
 def get_device_telemetry(
