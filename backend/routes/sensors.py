@@ -866,7 +866,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
     ).first()
 
     raw_energy = float(stats.energy_max) if (stats and stats.energy_max is not None) else 0.0
-    energy_kwh = round(raw_energy / 100.0, 3) if raw_energy > 10.0 else round(raw_energy, 3)
+    energy_kwh = round(raw_energy, 3)
 
     # 3. Calculate last 24h Use Time (runtime) and On/Off Cycles
     logs_24h = db.query(PlugTelemetry).filter(
@@ -928,7 +928,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         daily_starts.append(day_starts_count)
         
         max_energy = max(float(x.today_energy) for x in day_logs) if day_logs else 0.0
-        daily_energies.append(max_energy / 100.0 if max_energy > 10.0 else max_energy)
+        daily_energies.append(max_energy)
 
     num_days = len(daily_logs) if daily_logs else 1
     runtime_hours_avg_7d = round(sum(daily_runtimes) / num_days, 2)
@@ -1102,9 +1102,8 @@ def export_plug_telemetry(
         today_wh = float(log.get("today_energy") or 0.0)
         month_wh = float(log.get("month_energy") or 0.0)
         
-        # Convert Wh to kWh if value > 500
-        today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
-        month_kwh = round(month_wh / 1000.0 if month_wh > 500.0 else month_wh, 3)
+        today_kwh = round(today_wh, 3)
+        month_kwh = round(month_wh, 3)
 
         writer.writerow([
             log.get("device_id", device_id),
