@@ -289,53 +289,68 @@ class EwelinkClient:
 
     async def set_device_switch(self, device_id: str, state: str) -> bool:
         """
-        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API.
+        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API with frame filtering and automatic retry.
         """
         import websockets
+        import asyncio
         if not self.access_token:
             await self.login()
 
         ws_url = f"wss://{self.region}-pconnect7.coolkit.cc/api/ws"
-        auth_payload = {
-            "action": "userOnline",
-            "at": self.access_token,
-            "apikey": self.apikey,
-            "appid": self.appid,
-            "nonce": self._get_nonce(),
-            "ts": int(time.time()),
-            "userAgent": "app",
-            "sequence": str(int(time.time() * 1000)),
-            "version": 8
-        }
-
-        try:
-            async with websockets.connect(ws_url, open_timeout=8.0, close_timeout=2.0) as ws:
-                await ws.send(json.dumps(auth_payload))
-                auth_raw = await ws.recv()
-                auth_resp = json.loads(auth_raw)
-                user_apikey = auth_resp.get("apikey") or self.apikey
-
-                toggle_payload = {
-                    "action": "update",
-                    "deviceid": device_id,
-                    "apikey": user_apikey,
-                    "selfApikey": user_apikey,
+        
+        for attempt in range(2):
+            try:
+                auth_payload = {
+                    "action": "userOnline",
+                    "at": self.access_token,
+                    "apikey": self.apikey,
+                    "appid": self.appid,
+                    "nonce": self._get_nonce(),
+                    "ts": int(time.time()),
                     "userAgent": "app",
                     "sequence": str(int(time.time() * 1000)),
-                    "params": {
-                        "switches": [{"outlet": 0, "switch": state.lower()}],
-                        "switch": state.lower()
-                    }
+                    "version": 8
                 }
-                await ws.send(json.dumps(toggle_payload))
-                resp_raw = await ws.recv()
-                resp_data = json.loads(resp_raw)
-                if resp_data.get("error") == 0:
-                    logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
-                    return True
-                else:
-                    logger.error(f"Failed to toggle eWeLink device {device_id}: {resp_data}")
-                    return False
+                async with websockets.connect(ws_url, open_timeout=5.0, close_timeout=2.0) as ws:
+                    await ws.send(json.dumps(auth_payload))
+                    
+                    user_apikey = self.apikey
+                    for _ in range(3):
+                        auth_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
+                        auth_resp = json.loads(auth_raw)
+                        if auth_resp.get("error") == 0:
+                            user_apikey = auth_resp.get("apikey") or self.apikey
+                            break
+
+                    seq_id = str(int(time.time() * 1000))
+                    toggle_payload = {
+                        "action": "update",
+                        "deviceid": device_id,
+                        "apikey": user_apikey,
+                        "selfApikey": user_apikey,
+                        "userAgent": "app",
+                        "sequence": seq_id,
+                        "params": {
+                            "switches": [{"outlet": 0, "switch": state.lower()}],
+                            "switch": state.lower()
+                        }
+                    }
+                    await ws.send(json.dumps(toggle_payload))
+                    
+                    for _ in range(5):
+                        resp_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
+                        resp_data = json.loads(resp_raw)
+                        if resp_data.get("error") == 0 or resp_data.get("sequence") == seq_id:
+                            logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
+                            return True
+                        if "error" in resp_data and resp_data.get("error") != 0:
+                            logger.error(f"WebSocket toggle error for {device_id}: {resp_data}")
+                            break
+            except Exception as e:
+                logger.warning(f"WebSocket toggle attempt {attempt + 1} failed for {device_id}: {e}")
+                await asyncio.sleep(0.5)
+
+        return False
         except Exception as e:
             logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
             return False
