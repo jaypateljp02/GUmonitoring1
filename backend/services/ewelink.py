@@ -351,9 +351,6 @@ class EwelinkClient:
                 await asyncio.sleep(0.5)
 
         return False
-        except Exception as e:
-            logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
-            return False
 
 
 _GLOBAL_EWELINK_CLIENT = None
