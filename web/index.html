@@ -2200,18 +2200,20 @@
         });
         if (res.ok) {
           let attempts = 0;
-          const maxAttempts = 8;
+          const maxAttempts = 5;
           const pollInterval = setInterval(async () => {
             attempts++;
             await pollTapoPlugs();
             const currentItem = tapoPlugsData[roomId];
-            const success = currentItem && currentItem.data && currentItem.data.state === nextState;
-            if (success || attempts >= maxAttempts) {
+            const currState = currentItem?.data?.state?.toLowerCase();
+            const isMatch = (nextState === 'on' && (currState === 'on' || currState === 'online')) ||
+                            (nextState === 'off' && (currState === 'off' || currState === 'offline'));
+            if (isMatch || attempts >= maxAttempts) {
               clearInterval(pollInterval);
               tapoToggling[roomId] = false;
               await pollTapoPlugs(true);
             }
-          }, 1000);
+          }, 800);
         } else {
           const errData = await res.json().catch(() => ({}));
           alert(errData.detail || 'Failed to toggle plug.');
