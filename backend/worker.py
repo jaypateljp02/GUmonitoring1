@@ -23,6 +23,10 @@ from backend.services.ewelink import EwelinkClient
 from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
 
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv("C:/GroundUp/ground-up-monitoring/.env")
+load_dotenv("C:/GroundUp/ground-up-monitoring/backend/.env")
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -245,9 +249,9 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
     return synced_device_ids
 
 async def ingestion_loop():
-    email = os.getenv("EWELINK_EMAIL")
-    password = os.getenv("EWELINK_PASSWORD")
-    region = os.getenv("EWELINK_REGION", "as")
+    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+    region = os.getenv("EWELINK_REGION") or "as"
 
     client = None
     use_live = False

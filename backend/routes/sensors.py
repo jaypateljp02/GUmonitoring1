@@ -610,9 +610,9 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     if not os.getenv("EWELINK_EMAIL"):
         load_dotenv("backend/.env")
 
-    email = os.getenv("EWELINK_EMAIL")
-    password = os.getenv("EWELINK_PASSWORD")
-    region = os.getenv("EWELINK_REGION", "as")
+    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+    region = os.getenv("EWELINK_REGION") or "as"
 
     if email and password:
         try:
@@ -771,9 +771,9 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     if not os.getenv("EWELINK_EMAIL"):
         load_dotenv("backend/.env")
 
-    email = os.getenv("EWELINK_EMAIL")
-    password = os.getenv("EWELINK_PASSWORD")
-    region = os.getenv("EWELINK_REGION", "as")
+    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+    region = os.getenv("EWELINK_REGION") or "as"
 
     if email and password:
         try:
