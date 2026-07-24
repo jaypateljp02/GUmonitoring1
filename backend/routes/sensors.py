@@ -516,62 +516,51 @@ def list_device_sensors(device_id: str, db: Session = Depends(get_db)):
 
 @router.put("/device/{device_id}/thresholds")
 def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(get_db)):
-    """Public endpoint: update thresholds, webhooks, and Tapo settings for a device's sensors."""
+    """Public endpoint: update thresholds, webhooks, and plug settings for a device's sensors."""
     sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
     if not sensors:
         raise HTTPException(status_code=404, detail="Device not found")
+    
+    # Extract universal billing rate & threshold values if present
+    generic_billing_rate = req.get("billing_rate") or req.get("tapo_billing_rate") or req.get("temp_tapo_billing_rate") or req.get("hum_tapo_billing_rate")
+    generic_running_thresh = req.get("running_threshold") or req.get("tapo_running_threshold") or req.get("temp_tapo_running_threshold") or req.get("hum_tapo_running_threshold")
+
     for s in sensors:
+        # Update billing rate & running threshold across all associated sensors for this device
+        if generic_billing_rate is not None:
+            s.tapo_billing_rate = generic_billing_rate
+        if generic_running_thresh is not None:
+            s.tapo_running_threshold = generic_running_thresh
+
         if s.type == "temperature":
-            if "temp_min" in req:
-                s.min_threshold = req["temp_min"]
-            if "temp_max" in req:
-                s.max_threshold = req["temp_max"]
-            if "temp_alert_webhook_url" in req:
-                s.alert_webhook_url = req["temp_alert_webhook_url"]
-            if "temp_recovery_webhook_url" in req:
-                s.recovery_webhook_url = req["temp_recovery_webhook_url"]
-            if "temp_tapo_ip" in req:
-                s.tapo_ip = req["temp_tapo_ip"]
-            if "temp_tapo_username" in req:
-                s.tapo_username = req["temp_tapo_username"]
-            if "temp_tapo_password" in req:
-                s.tapo_password = req["temp_tapo_password"]
-            if "temp_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
-            if "temp_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
+            if "temp_min" in req: s.min_threshold = req["temp_min"]
+            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
+            
+            if "temp_max" in req: s.max_threshold = req["temp_max"]
+            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
+
+            if "temp_alert_webhook_url" in req: s.alert_webhook_url = req["temp_alert_webhook_url"]
+            if "temp_recovery_webhook_url" in req: s.recovery_webhook_url = req["temp_recovery_webhook_url"]
+
         elif s.type == "humidity":
-            if "hum_min" in req:
-                s.min_threshold = req["hum_min"]
-            if "hum_max" in req:
-                s.max_threshold = req["hum_max"]
-            if "hum_alert_webhook_url" in req:
-                s.alert_webhook_url = req["hum_alert_webhook_url"]
-            if "hum_recovery_webhook_url" in req:
-                s.recovery_webhook_url = req["hum_recovery_webhook_url"]
-            if "hum_tapo_ip" in req:
-                s.tapo_ip = req["hum_tapo_ip"]
-            if "hum_tapo_username" in req:
-                s.tapo_username = req["hum_tapo_username"]
-            if "hum_tapo_password" in req:
-                s.tapo_password = req["hum_tapo_password"]
-            if "hum_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["hum_tapo_billing_rate"]
-            if "hum_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["hum_tapo_running_threshold"]
+            if "hum_min" in req: s.min_threshold = req["hum_min"]
+            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
+
+            if "hum_max" in req: s.max_threshold = req["hum_max"]
+            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
+
+            if "hum_alert_webhook_url" in req: s.alert_webhook_url = req["hum_alert_webhook_url"]
+            if "hum_recovery_webhook_url" in req: s.recovery_webhook_url = req["hum_recovery_webhook_url"]
+
         elif s.type == "plug":
-            if "temp_tapo_ip" in req:
-                s.tapo_ip = req["temp_tapo_ip"]
-            if "temp_tapo_username" in req:
-                s.tapo_username = req["temp_tapo_username"]
-            if "temp_tapo_password" in req:
-                s.tapo_password = req["temp_tapo_password"]
-            if "temp_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
-            if "temp_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
+            if "temp_min" in req: s.min_threshold = req["temp_min"]
+            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
+
+            if "temp_max" in req: s.max_threshold = req["temp_max"]
+            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
+
     db.commit()
-    return {"message": "Thresholds, webhooks, and plug configurations updated"}
+    return {"message": "Thresholds, webhooks, and plug configurations updated successfully"}
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
