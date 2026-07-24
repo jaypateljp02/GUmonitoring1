@@ -752,6 +752,16 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     if not sensor:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    target_plug_device_id = device_id
+    if sensor.type != "plug" and sensor.room_id:
+        plug_sensor = db.query(Sensor).filter(
+            Sensor.room_id == sensor.room_id,
+            Sensor.type == "plug",
+            Sensor.active == True
+        ).first()
+        if plug_sensor and plug_sensor.device_id:
+            target_plug_device_id = plug_sensor.device_id
+
     # 1. Try eWeLink Cloud API for eWeLink power devices (like POWR320D)
     import os
     from dotenv import load_dotenv
@@ -769,19 +779,19 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             ew_client = EwelinkClient(email=email, password=password, region=region)
             ok = await ew_client.login()
             if ok:
-                success = await ew_client.set_device_switch(device_id, target_state)
+                success = await ew_client.set_device_switch(target_plug_device_id, target_state)
                 if success:
                     # Save immediate log in DB so GET /plug returns new state instantly
                     from backend.models.plug_telemetry import PlugTelemetry
-                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == device_id).order_by(PlugTelemetry.timestamp.desc()).first()
-                    t_energy = last_rec.today_energy if last_rec else decimal.Decimal("150.0")
-                    m_energy = last_rec.month_energy if last_rec else decimal.Decimal("150.0")
-                    p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("126.9")
-                    c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("1.04")
-                    v_val = decimal.Decimal("239.0") if target_state == "off" else decimal.Decimal("240.0")
+                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_device_id).order_by(PlugTelemetry.timestamp.desc()).first()
+                    t_energy = last_rec.today_energy if last_rec else decimal.Decimal("0.0")
+                    m_energy = last_rec.month_energy if last_rec else decimal.Decimal("0.0")
+                    p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("120.0")
+                    c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("0.5")
+                    v_val = decimal.Decimal("235.0")
 
                     new_log = PlugTelemetry(
-                        device_id=device_id,
+                        device_id=target_plug_device_id,
                         timestamp=datetime.utcnow(),
                         apower=p_val,
                         voltage=v_val,
@@ -791,7 +801,7 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
                     )
                     db.add(new_log)
                     db.commit()
-                    return {"message": f"Successfully toggled eWeLink plug {device_id} to {target_state}", "state": target_state}
+                    return {"message": f"Successfully toggled eWeLink plug {target_plug_device_id} to {target_state}", "state": target_state}
                 else:
                     raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
             else:
