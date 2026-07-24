@@ -85,7 +85,7 @@ class EwelinkClient:
             logger.error(f"Exception during eWeLink login: {str(e)}")
             return False
 
-    async def get_all_devices(self) -> Optional[List[Dict[str, Any]]]:
+    async def get_all_devices(self, retry: bool = True) -> Optional[List[Dict[str, Any]]]:
         """
         Fetch all devices/things registered under the eWeLink account.
         """
@@ -102,7 +102,7 @@ class EwelinkClient:
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, timeout=15)
+                response = await client.get(url, headers=headers, timeout=10.0)
                 if response.status_code != 200:
                     logger.error(f"Failed to fetch devices: {response.status_code} - {response.text}")
                     return None
@@ -110,10 +110,13 @@ class EwelinkClient:
                 resp_json = response.json()
                 error_code = resp_json.get("error", 0)
                 if error_code != 0:
-                    if error_code in (401, 402):
-                        logger.warning(f"eWeLink token expired or invalidated (error {error_code} - {resp_json.get('msg')}). Logging in again to refresh...")
+                    if error_code in (401, 402) and retry:
+                        logger.warning(f"eWeLink token expired or invalidated (error {error_code}). Re-logging in...")
                         self.access_token = None
-                        return await self.get_all_devices()
+                        login_ok = await self.login()
+                        if login_ok:
+                            return await self.get_all_devices(retry=False)
+                        return None
                     else:
                         logger.error(f"Device list API error: {error_code} - {resp_json.get('msg')}")
                         return None
