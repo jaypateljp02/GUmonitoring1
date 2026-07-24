@@ -703,7 +703,12 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 "error": f"Plug is disconnected (offline since {last_log.timestamp.strftime('%Y-%m-%d %H:%M UTC')})"
             }
         
-        switch_state = sensor.tapo_status if (sensor and sensor.tapo_status) else ("on" if float(last_log.apower) > 0.5 else "on")
+        if sensor and sensor.tapo_status:
+            t_stat = str(sensor.tapo_status).lower()
+            switch_state = "off" if t_stat in ["off", "offline"] else "on"
+        else:
+            switch_state = "on" if (last_log and float(last_log.apower) > 0.5) else "on"
+
         return {
             "state": switch_state,
             "voltage": float(last_log.voltage),
@@ -722,8 +727,12 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
             "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
         }
 
+    fallback_state = "on"
+    if sensor and sensor.tapo_status:
+        fallback_state = "off" if str(sensor.tapo_status).lower() in ["off", "offline"] else "on"
+
     return {
-        "state": sensor.tapo_status if (sensor and sensor.tapo_status) else "on",
+        "state": fallback_state,
         "voltage": 0.0,
         "current": 0.0,
         "apower": 0.0,
