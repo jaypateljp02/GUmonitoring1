@@ -102,10 +102,9 @@ export default function FloorPlanScreen() {
 
         {(() => {
           let unplacedCount = 0;
-          // Filter out standalone plug-only rooms from the facility map
+          // Filter facility map rooms to strictly display physical temperature storage rooms
           const mapRooms = rooms.filter(room => {
-            const hasTemp = room.sensors?.some(s => s.type === 'temperature');
-            return hasTemp || (room.map_x && room.map_y);
+            return room.sensors?.some(s => s.type === 'temperature');
           });
 
           return mapRooms.map(room => {
