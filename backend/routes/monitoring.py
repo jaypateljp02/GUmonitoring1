@@ -71,31 +71,46 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
     device_data = []
     now = datetime.utcnow()
     
+    # Build room to plug_sensor mapping
+    room_plug_map = {}
+    for s in sensors:
+        if s.type == "plug" and s.room_id and s.device_id:
+            room_plug_map[str(s.room_id)] = s
+
     for s in sensors:
         if not s.device_id: 
             continue
         
         latest = telemetry_map.get(s.device_id)
-        plug_data = plug_map.get(s.device_id)
+        
+        room_plug = room_plug_map.get(str(s.room_id)) if s.room_id else None
+        plug_target_device_id = room_plug.device_id if room_plug else s.device_id
+        plug_data = plug_map.get(plug_target_device_id) if plug_target_device_id else None
         
         has_plug = False
         apower = None
-        if s.type == "temperature" and s.tapo_ip and len(str(s.tapo_ip).strip()) > 0:
+        if s.type == "temperature":
+            if room_plug or plug_data:
+                has_plug = True
+                if plug_data:
+                    is_stale = (now - plug_data["timestamp"]).total_seconds() > 300.0
+                    apower = plug_data["apower"] if not is_stale else 0.0
+                else:
+                    apower = 0.0
+        elif s.type == "plug":
             has_plug = True
             if plug_data:
-                is_stale = (now - plug_data["timestamp"]).total_seconds() > 180.0
+                is_stale = (now - plug_data["timestamp"]).total_seconds() > 300.0
                 apower = plug_data["apower"] if not is_stale else 0.0
             else:
                 apower = 0.0
-                
-        if s.device_id == "cold_room_1_plug":
-            print(f"COLD_ROOM_DEBUG: latest={latest}, plug_data={plug_data}, has_plug={has_plug}, tapo_ip={s.tapo_ip}, type={s.type}")
-        if latest or has_plug:
+
+        if latest or has_plug or s.type == "plug":
             is_online = False
             if latest:
-                is_online = (now - latest["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - latest["timestamp"]) < timedelta(minutes=5)
             elif plug_data:
-                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=3)
+                is_online = (now - plug_data["timestamp"]) < timedelta(minutes=5)
                 
             timestamp_val = None
             if latest:
@@ -120,20 +135,6 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
                 "apower": apower
             })
 
-    # Calculate overall tapo agent status
-    tapo_sensors = [s for s in sensors if s.tapo_ip and len(str(s.tapo_ip).strip()) > 0]
-    agent_status = "offline"
-    agent_last_seen = None
-    
-    if not tapo_sensors:
-        agent_status = "unconfigured"
-    else:
-        last_seen_times = [s.tapo_last_seen for s in tapo_sensors if s.tapo_last_seen is not None]
-        if last_seen_times:
-            agent_last_seen = max(last_seen_times)
-            if (now - agent_last_seen) < timedelta(minutes=3):
-                agent_status = "running"
-
     return {
         "summary": {
             "total_rooms": total_rooms,
@@ -144,10 +145,7 @@ def get_monitoring_dashboard(db: Session = Depends(get_db)):
             "last_updated": last_updated.isoformat() if last_updated else None
         },
         "live_devices": device_data,
-        "tapo_agent": {
-            "status": agent_status,
-            "last_seen": agent_last_seen.isoformat() if agent_last_seen else None
-        }
+        "agent_status": "running"
     }
 
 

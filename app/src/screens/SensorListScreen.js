@@ -17,17 +17,20 @@ const parseDate = (timestampStr) => {
 };
 
 function RoomCard({ room, telemetry, onPress }) {
-  // Find temperature and humidity sensors
   const tempSensor = room.sensors?.find(s => s.type === 'temperature');
   const humSensor = room.sensors?.find(s => s.type === 'humidity');
+  const plugSensor = room.sensors?.find(s => s.type === 'plug');
 
   const hasTemp = tempSensor && telemetry[tempSensor.id];
   const hasHum = humSensor && telemetry[humSensor.id];
+  const hasPlugData = plugSensor && telemetry[plugSensor.id];
 
   const temp = hasTemp ? parseFloat(telemetry[tempSensor.id].temperature) : null;
   const hum = hasHum ? parseFloat(telemetry[humSensor.id].humidity) : null;
-  const hasPlug = hasTemp ? telemetry[tempSensor.id].has_plug : false;
-  const apower = hasTemp ? telemetry[tempSensor.id].apower : null;
+  const hasPlug = (hasTemp && telemetry[tempSensor.id].has_plug) || hasPlugData;
+  const apower = hasTemp && telemetry[tempSensor.id].apower !== null 
+    ? telemetry[tempSensor.id].apower 
+    : (hasPlugData ? telemetry[plugSensor.id].apower : null);
 
   const latestTimeStr = hasTemp ? telemetry[tempSensor.id].timestamp : null;
   const latestTime = latestTimeStr ? parseDate(latestTimeStr) : null;

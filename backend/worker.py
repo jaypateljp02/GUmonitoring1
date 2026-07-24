@@ -142,7 +142,8 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
             room = db.query(Room).filter(Room.id == existing_sensor.room_id).first()
 
         if room:
-            if room.name != device_name:
+            # Do not overwrite room name if it is a power/plug sensor attached to a temperature room
+            if is_temp_hum and room.name != device_name:
                 room.name = device_name
             room.active = True
             room_id = room.id
@@ -408,23 +409,26 @@ async def ingestion_loop():
                                 raw_voltage = params.get("voltage")
                                 raw_current = params.get("current")
 
+                                if raw_power is not None:
+                                    power_val = float(raw_power)
+                                    if power_val > 1000:
+                                        power_val = round(power_val / 100.0, 2)
+
                                 if raw_voltage is not None:
                                     voltage_val = float(raw_voltage)
                                     if voltage_val > 1000:
                                         voltage_val = round(voltage_val / 100.0, 1)
 
-                                if sw_state == "off":
+                                if raw_current is not None:
+                                    current_val = float(raw_current)
+                                    if current_val > 100:
+                                        current_val = round(current_val / 100.0, 2)
+
+                                if power_val is not None and power_val > 1.0:
+                                    sw_state = "on"
+                                elif sw_state == "off":
                                     power_val = 0.0
                                     current_val = 0.0
-                                else:
-                                    if raw_power is not None:
-                                        power_val = float(raw_power)
-                                        if power_val > 1000:
-                                            power_val = round(power_val / 100.0, 2)
-                                    if raw_current is not None:
-                                        current_val = float(raw_current)
-                                        if current_val > 100:
-                                            current_val = round(current_val / 100.0, 2)
 
                                 # Energy data
                                 day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else params.get("oneKwh")
