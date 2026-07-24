@@ -614,38 +614,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     password = os.getenv("EWELINK_PASSWORD") or "Groundup"
     region = os.getenv("EWELINK_REGION") or "as"
 
-    try:
-        from backend.services.ewelink import get_cached_ewelink_client
-        ew_client = await get_cached_ewelink_client()
-        if ew_client and ew_client.access_token:
-            status = await asyncio.wait_for(ew_client.get_power_device_status(device_id), timeout=3.0)
-            if status:
-                today_kwh = status.get("today_energy", 0.0)
-                month_kwh = status.get("month_energy", 0.0)
-                sw_state = status.get("switch", "off").lower()
-                p_val = status.get("power", 0.0) if sw_state == "on" else 0.0
-                c_val = status.get("current", 0.0) if sw_state == "on" else 0.0
-                state_val = "on" if (sw_state in ["on", "online"] or p_val > 0.5) else "off"
-                return {
-                    "state": state_val,
-                    "voltage": status.get("voltage", 0.0),
-                    "current": c_val,
-                    "apower": p_val,
-                    "today_energy": today_kwh,
-                    "month_energy": month_kwh,
-                    "today_kwh": round(today_kwh, 3),
-                    "month_kwh": round(month_kwh, 3),
-                    "today_bill": round(today_kwh * rate, 2),
-                    "month_bill": round(month_kwh * rate, 2),
-                    "billing_rate": rate,
-                    "supported": True,
-                    "type": "plug",
-                    "last_known": False
-                }
-    except Exception as e:
-        logger.error(f"Live eWeLink status check failed for {device_id}: {e}")
-
-    # Fallback / DB log path: serve the most recent PlugTelemetry record stored by worker
+    # Serve the most recent PlugTelemetry record stored by worker (instant 1ms DB response)
     from backend.models.plug_telemetry import PlugTelemetry
     last_log = db.query(PlugTelemetry).filter(
         PlugTelemetry.device_id == device_id
