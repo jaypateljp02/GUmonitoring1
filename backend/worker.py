@@ -259,13 +259,9 @@ async def ingestion_loop():
 
     if has_credentials:
         logger.info(f"Initializing official eWeLink client for {email}...")
-        client = EwelinkClient(email=email, password=password, region=region)
-        
-        login_success = False
-        try:
-            login_success = await asyncio.wait_for(client.login(), timeout=10.0)
-        except Exception as e:
-            logger.error(f"eWeLink login timed out or failed: {e}")
+        from backend.services.ewelink import get_cached_ewelink_client
+        client = await get_cached_ewelink_client()
+        login_success = bool(client and client.access_token)
             
         if login_success:
             use_live = True

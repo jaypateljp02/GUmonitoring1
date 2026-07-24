@@ -614,14 +614,12 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     password = os.getenv("EWELINK_PASSWORD") or "Groundup"
     region = os.getenv("EWELINK_REGION") or "as"
 
-    if email and password:
-        try:
-            from backend.services.ewelink import EwelinkClient
-            ew_client = EwelinkClient(email=email, password=password, region=region)
-            login_ok = await asyncio.wait_for(ew_client.login(), timeout=3.0)
-            if login_ok:
-                status = await asyncio.wait_for(ew_client.get_power_device_status(device_id), timeout=3.0)
-                if status:
+    try:
+        from backend.services.ewelink import get_cached_ewelink_client
+        ew_client = await get_cached_ewelink_client()
+        if ew_client and ew_client.access_token:
+            status = await asyncio.wait_for(ew_client.get_power_device_status(device_id), timeout=3.0)
+            if status:
                     today_kwh = status.get("today_energy", 0.0)
                     month_kwh = status.get("month_energy", 0.0)
                     sw_state = status.get("switch", "off").lower()
@@ -785,14 +783,12 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     password = os.getenv("EWELINK_PASSWORD") or "Groundup"
     region = os.getenv("EWELINK_REGION") or "as"
 
-    if email and password:
-        try:
-            from backend.services.ewelink import EwelinkClient
-            ew_client = EwelinkClient(email=email, password=password, region=region)
-            ok = await ew_client.login()
-            if ok:
-                success = await ew_client.set_device_switch(target_plug_device_id, target_state)
-                if success:
+    try:
+        from backend.services.ewelink import get_cached_ewelink_client
+        ew_client = await get_cached_ewelink_client()
+        if ew_client and ew_client.access_token:
+            success = await ew_client.set_device_switch(target_plug_device_id, target_state)
+            if success:
                     # Update sensor.tapo_status in DB for all sensors in this room
                     room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all() if sensor.room_id else [sensor]
                     for s in room_sensors:

@@ -336,3 +336,35 @@ class EwelinkClient:
         except Exception as e:
             logger.error(f"Error toggling eWeLink device {device_id} via WebSocket: {e}")
             return False
+
+
+_GLOBAL_EWELINK_CLIENT = None
+_GLOBAL_EWELINK_LOCK = None
+
+async def get_cached_ewelink_client() -> EwelinkClient:
+    """
+    Returns a singleton EwelinkClient instance with a cached login token.
+    Prevents HTTP 429 'invoke too fast' rate limit errors from eWeLink Cloud API.
+    """
+    global _GLOBAL_EWELINK_CLIENT, _GLOBAL_EWELINK_LOCK
+    import os
+    import asyncio
+    from dotenv import load_dotenv
+
+    if _GLOBAL_EWELINK_LOCK is None:
+        _GLOBAL_EWELINK_LOCK = asyncio.Lock()
+
+    async with _GLOBAL_EWELINK_LOCK:
+        email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+        password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+        region = os.getenv("EWELINK_REGION") or "as"
+
+        if _GLOBAL_EWELINK_CLIENT is None:
+            _GLOBAL_EWELINK_CLIENT = EwelinkClient(email, password, region)
+
+        if not _GLOBAL_EWELINK_CLIENT.access_token:
+            login_ok = await _GLOBAL_EWELINK_CLIENT.login()
+            if not login_ok:
+                logger.error("Failed to acquire cached eWeLink login token.")
+
+        return _GLOBAL_EWELINK_CLIENT
