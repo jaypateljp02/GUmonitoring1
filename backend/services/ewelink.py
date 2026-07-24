@@ -229,12 +229,16 @@ class EwelinkClient:
         else:
             voltage_val = 0.0
 
-        # Current in Amperes (POWR320D reports in 0.01 A / cA)
+        # Current in Amperes (POWR320D reports in mA: 1A = 1000 mA)
         current = params_obj.get("current")
         if current is not None:
-            current_val = float(current)
-            if current_val > 100:
-                current_val = round(current_val / 100.0, 2)
+            c_float = float(current)
+            if c_float > 1000:
+                current_val = round(c_float / 1000.0, 2)
+            elif c_float > 25:
+                current_val = round(c_float / 100.0, 2)
+            else:
+                current_val = round(c_float, 2)
         else:
             current_val = 0.0
 

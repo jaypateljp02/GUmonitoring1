@@ -1663,7 +1663,7 @@
             `;
           } else {
             // Live connected state
-            const isOn = data.state === 'on';
+            const isOn = (data.state === 'on' || data.state === 'online' || data.apower > 0.5);
             badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
             telemetryHtml = `
               <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">

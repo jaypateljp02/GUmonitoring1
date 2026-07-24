@@ -627,8 +627,9 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                     sw_state = status.get("switch", "off").lower()
                     p_val = status.get("power", 0.0) if sw_state == "on" else 0.0
                     c_val = status.get("current", 0.0) if sw_state == "on" else 0.0
+                    state_val = "on" if (sw_state in ["on", "online"] or p_val > 0.5) else "off"
                     return {
-                        "state": sw_state,
+                        "state": state_val,
                         "voltage": status.get("voltage", 0.0),
                         "current": c_val,
                         "apower": p_val,
@@ -1004,9 +1005,9 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         voltage_avg=round(stats.v_avg, 1) if (stats and stats.v_avg is not None) else None,
         voltage_min=round(stats.v_min, 1) if (stats and stats.v_min is not None) else None,
         voltage_max=round(stats.v_max, 1) if (stats and stats.v_max is not None) else None,
-        current_avg=round(stats.c_avg, 3) if (stats and stats.c_avg is not None) else None,
-        current_min=round(stats.c_min, 3) if (stats and stats.c_min is not None) else None,
-        current_max=round(stats.c_max, 3) if (stats and stats.c_max is not None) else None,
+        current_avg=round(float(stats.c_avg) / 10.0 if float(stats.c_avg) > 25.0 else float(stats.c_avg), 3) if (stats and stats.c_avg is not None) else None,
+        current_min=round(float(stats.c_min) / 10.0 if float(stats.c_min) > 25.0 else float(stats.c_min), 3) if (stats and stats.c_min is not None) else None,
+        current_max=round(float(stats.c_max) / 10.0 if float(stats.c_max) > 25.0 else float(stats.c_max), 3) if (stats and stats.c_max is not None) else None,
         energy_total_kwh=energy_kwh,
         runtime_hours_24h=round(runtime_hours_24h, 2),
         duty_cycle_pct_24h=duty_cycle_pct_24h,

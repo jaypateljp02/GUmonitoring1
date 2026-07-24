@@ -418,9 +418,13 @@ async def ingestion_loop():
                                         voltage_val = round(voltage_val / 100.0, 1)
 
                                 if raw_current is not None:
-                                    current_val = float(raw_current)
-                                    if current_val > 100:
-                                        current_val = round(current_val / 100.0, 2)
+                                    c_float = float(raw_current)
+                                    if c_float > 1000:
+                                        current_val = round(c_float / 1000.0, 2)
+                                    elif c_float > 25:
+                                        current_val = round(c_float / 100.0, 2)
+                                    else:
+                                        current_val = round(c_float, 2)
 
                                 if power_val is not None and power_val > 1.0:
                                     sw_state = "on"
