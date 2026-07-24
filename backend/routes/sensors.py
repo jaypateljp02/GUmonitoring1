@@ -702,8 +702,9 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 "error": f"Plug is disconnected (offline since {last_log.timestamp.strftime('%Y-%m-%d %H:%M UTC')})"
             }
         
+        switch_state = sensor.tapo_status if (sensor and sensor.tapo_status) else ("on" if float(last_log.apower) > 0.5 else "on")
         return {
-            "state": "on" if float(last_log.apower) > 0.5 else "off",
+            "state": switch_state,
             "voltage": float(last_log.voltage),
             "current": float(last_log.current),
             "apower": float(last_log.apower),
@@ -721,7 +722,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         }
 
     return {
-        "state": "pending",
+        "state": sensor.tapo_status if (sensor and sensor.tapo_status) else "on",
         "voltage": 0.0,
         "current": 0.0,
         "apower": 0.0,
@@ -736,6 +737,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         "type": "plug",
         "pending": True
     }
+
 
 @router.post("/device/{device_id}/plug/toggle")
 async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(get_db)):
@@ -781,6 +783,11 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
             if ok:
                 success = await ew_client.set_device_switch(target_plug_device_id, target_state)
                 if success:
+                    # Update sensor.tapo_status in DB for all sensors in this room
+                    room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all() if sensor.room_id else [sensor]
+                    for s in room_sensors:
+                        s.tapo_status = target_state
+
                     # Save immediate log in DB so GET /plug returns new state instantly
                     from backend.models.plug_telemetry import PlugTelemetry
                     last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_device_id).order_by(PlugTelemetry.timestamp.desc()).first()
