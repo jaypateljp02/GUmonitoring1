@@ -245,13 +245,16 @@ class EwelinkClient:
         elif "switch" in params_obj and params_obj["switch"] is not None:
             switch_state = str(params_obj["switch"]).lower()
 
-        # POWR320D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
-        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else params_obj.get("oneKwh")
-        today_energy = float(day_kwh_raw) / 100.0 if day_kwh_raw is not None else 0.0
+        # POWR320D/POW30D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
+        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else (params_obj.get("oneKwh") if params_obj.get("oneKwh") is not None else params_obj.get("todayKwh"))
+        if day_kwh_raw is not None:
+            today_energy = round(float(day_kwh_raw) / 100.0, 3)
+        else:
+            today_energy = 0.0
 
         month_kwh_raw = params_obj.get("monthKwh")
         if month_kwh_raw is not None:
-            month_energy = float(month_kwh_raw) / 100.0
+            month_energy = round(float(month_kwh_raw) / 100.0, 3)
         else:
             month_energy = 0.0
             hundred_days = params_obj.get("hundredDaysKwh")

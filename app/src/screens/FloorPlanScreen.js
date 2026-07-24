@@ -102,7 +102,13 @@ export default function FloorPlanScreen() {
 
         {(() => {
           let unplacedCount = 0;
-          return rooms.map(room => {
+          // Filter out standalone plug-only rooms from the facility map
+          const mapRooms = rooms.filter(room => {
+            const hasTemp = room.sensors?.some(s => s.type === 'temperature');
+            return hasTemp || (room.map_x && room.map_y);
+          });
+
+          return mapRooms.map(room => {
             const isPlaced = room.map_x && room.map_y;
             let left, top;
             if (isPlaced) {

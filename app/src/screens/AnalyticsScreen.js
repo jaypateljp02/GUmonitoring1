@@ -446,17 +446,15 @@ export default function AnalyticsScreen({ route }) {
   const latestCompEntry = compressorData.length > 0
     ? compressorData[compressorData.length - 1]
     : null;
-  const latestMonthEnergy = latestCompEntry
-    ? parseFloat(latestCompEntry.monthly_energy_kwh || 0)
-    : 0;
-  const latestEstimatedCost = latestMonthEnergy * 17; // ₹17/kWh
+  const totalEnergyKwh = compressorData.reduce((sum, d) => sum + parseFloat(d.daily_energy_kwh || 0), 0);
+  const avgDailyEnergyKwh = compressorData.length > 0 ? (totalEnergyKwh / compressorData.length) : 0;
+
+  const billingRate = 17; // ₹17/kWh
+  const latestEstimatedCost = totalEnergyKwh * billingRate;
 
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const dayOfMonth = today.getDate() || 1;
-  const projectedMonthlyCost = latestEstimatedCost > 0
-    ? ((latestEstimatedCost / dayOfMonth) * daysInMonth).toFixed(0)
-    : '0';
+  const projectedMonthlyCost = (avgDailyEnergyKwh * daysInMonth * billingRate).toFixed(0);
 
   // ─── Energy trend chart data ──────────────────────────────────────────────
   const safeEnergyData = compressorData.length > 0

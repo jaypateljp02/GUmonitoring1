@@ -70,7 +70,7 @@ function RoomCard({ room, telemetry, onPress }) {
         <View>
           <Text style={styles.sensorName}>{room.name}</Text>
           <Text style={styles.sensorIdText}>
-            {tempSensor?.device_id || 'No Device Linked'}
+            {tempSensor?.device_id || plugSensor?.device_id || 'No Device Linked'}
           </Text>
         </View>
       </View>
@@ -85,7 +85,7 @@ function RoomCard({ room, telemetry, onPress }) {
             ]}>
               {isOffline ? '--' : `${temp.toFixed(1)}°C`}
             </Text>
-            {hasPlug && (
+            {hasPlug && apower !== null && (
               <Text style={{
                 color: isOffline ? '#6B7280' : '#10B981',
                 fontSize: 11,
@@ -103,7 +103,18 @@ function RoomCard({ room, telemetry, onPress }) {
             </Text>
           </View>
         ) : (
-          <Text style={styles.sensorTemp}>--</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            {apower !== null ? (
+              <Text style={[styles.sensorTemp, { color: '#10B981', fontSize: 18 }]}>
+                🔌 {parseFloat(apower).toFixed(0)}W
+              </Text>
+            ) : (
+              <Text style={styles.sensorTemp}>--</Text>
+            )}
+            <Text style={[styles.sensorBadge, isOffline ? styles.badgeOffline : styles.badgeOk]}>
+              {isOffline ? '⚠️ OFFLINE' : '✅ OK'}
+            </Text>
+          </View>
         )}
       </View>
     </TouchableOpacity>

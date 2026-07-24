@@ -75,13 +75,7 @@ def update_compressor_stats(db, sensor, target_date):
     daily_energy = float(latest_record.today_energy) if latest_record.today_energy is not None else 0.0
     monthly_energy = float(latest_record.month_energy) if latest_record.month_energy is not None else 0.0
     
-    # Standardize to kWh
-    if daily_energy > 500.0:
-        daily_energy = daily_energy / 1000.0
-    if monthly_energy > 500.0:
-        monthly_energy = monthly_energy / 1000.0
-
-    estimated_cost = monthly_energy * billing_rate
+    daily_cost = daily_energy * billing_rate
     avg_runtime = total_runtime_minutes / cycle_count if cycle_count > 0 else 0.0
 
     stats = db.query(CompressorStats).filter(
@@ -101,7 +95,7 @@ def update_compressor_stats(db, sensor, target_date):
     stats.avg_runtime_per_cycle_minutes = decimal.Decimal(str(round(avg_runtime, 2)))
     stats.daily_energy_kwh = decimal.Decimal(str(round(daily_energy, 3)))
     stats.monthly_energy_kwh = decimal.Decimal(str(round(monthly_energy, 3)))
-    stats.estimated_cost = decimal.Decimal(str(round(estimated_cost, 2)))
+    stats.estimated_cost = decimal.Decimal(str(round(daily_cost, 2)))
 
 
 async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
@@ -431,13 +425,13 @@ async def ingestion_loop():
                                     current_val = 0.0
 
                                 # Energy data
-                                day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else params.get("oneKwh")
+                                day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else (params.get("oneKwh") if params.get("oneKwh") is not None else params.get("todayKwh"))
                                 if day_kwh_raw is not None:
-                                    today_energy_val = float(day_kwh_raw) / 100.0  # 0.01 kWh units -> kWh
+                                    today_energy_val = round(float(day_kwh_raw) / 100.0, 3)
 
                                 month_kwh_raw = params.get("monthKwh")
                                 if month_kwh_raw is not None:
-                                    month_energy_val = float(month_kwh_raw) / 100.0
+                                    month_energy_val = round(float(month_kwh_raw) / 100.0, 3)
                                 else:
                                     hundred_days = params.get("hundredDaysKwh")
                                     if hundred_days and isinstance(hundred_days, str):
