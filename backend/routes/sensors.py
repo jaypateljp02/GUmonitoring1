@@ -758,41 +758,41 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
         if ew_client and ew_client.access_token:
             success = await ew_client.set_device_switch(target_plug_device_id, target_state)
             if success:
-                    # Update sensor.tapo_status in DB for all sensors in this room
-                    room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all() if sensor.room_id else [sensor]
-                    for s in room_sensors:
-                        s.tapo_status = target_state
+                # Update sensor.tapo_status in DB for all sensors in this room
+                room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all() if sensor.room_id else [sensor]
+                for s in room_sensors:
+                    s.tapo_status = target_state
 
-                    # Save immediate log in DB so GET /plug returns new state instantly
-                    from backend.models.plug_telemetry import PlugTelemetry
-                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_device_id).order_by(PlugTelemetry.timestamp.desc()).first()
-                    t_energy = last_rec.today_energy if last_rec else decimal.Decimal("0.0")
-                    m_energy = last_rec.month_energy if last_rec else decimal.Decimal("0.0")
-                    p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("120.0")
-                    c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("0.5")
-                    v_val = decimal.Decimal("235.0")
+                # Save immediate log in DB so GET /plug returns new state instantly
+                from backend.models.plug_telemetry import PlugTelemetry
+                last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_device_id).order_by(PlugTelemetry.timestamp.desc()).first()
+                t_energy = last_rec.today_energy if last_rec else decimal.Decimal("0.0")
+                m_energy = last_rec.month_energy if last_rec else decimal.Decimal("0.0")
+                p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("120.0")
+                c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("0.5")
+                v_val = decimal.Decimal("235.0")
 
-                    new_log = PlugTelemetry(
-                        device_id=target_plug_device_id,
-                        timestamp=datetime.utcnow(),
-                        apower=p_val,
-                        voltage=v_val,
-                        current=c_val,
-                        today_energy=t_energy,
-                        month_energy=m_energy
-                    )
-                    db.add(new_log)
-                    db.commit()
-                    return {"message": f"Successfully toggled eWeLink plug {target_plug_device_id} to {target_state}", "state": target_state}
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
+                new_log = PlugTelemetry(
+                    device_id=target_plug_device_id,
+                    timestamp=datetime.utcnow(),
+                    apower=p_val,
+                    voltage=v_val,
+                    current=c_val,
+                    today_energy=t_energy,
+                    month_energy=m_energy
+                )
+                db.add(new_log)
+                db.commit()
+                return {"message": f"Successfully toggled eWeLink plug {target_plug_device_id} to {target_state}", "state": target_state}
             else:
-                raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
+                raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
+        else:
+            raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
 
     # 2. Try Tapo direct LAN connection
     if sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
