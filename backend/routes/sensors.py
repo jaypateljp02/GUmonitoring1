@@ -1676,6 +1676,8 @@ async def get_device_ai_summary(
     db: Session = Depends(get_db)
 ):
     """Fetch Gemini AI maintenance summary & diagnostic recommendations for a device or room."""
+    from backend.models.room import Room
+
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
         Sensor.active == True
