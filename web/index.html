@@ -3065,13 +3065,15 @@
               }
 
               // Update power draw from ANY plug sensor in room
+              let plugData = null;
+              let plugIsOnline = false;
+              const plugSensor = room.sensors?.find(s => s.type === 'plug' || (s.device_id && liveData[s.device_id]?.has_plug));
+              const plugDevId = plugSensor?.device_id || room.sensors?.find(s => s.device_id && liveData[s.device_id]?.has_plug)?.device_id;
+              plugData = plugDevId ? liveData[plugDevId] : (data?.has_plug ? data : null);
+              plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
+
               const powerEl = document.getElementById(`sp-${room.id}`);
               if (powerEl) {
-                const plugSensor = room.sensors?.find(s => s.type === 'plug' || (s.device_id && liveData[s.device_id]?.has_plug));
-                const plugDevId = plugSensor?.device_id || room.sensors?.find(s => s.device_id && liveData[s.device_id]?.has_plug)?.device_id;
-                const plugData = plugDevId ? liveData[plugDevId] : (data?.has_plug ? data : null);
-
-                const plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
                 if (plugData) {
                   const pwr = parseFloat(plugData.apower || 0);
                   powerEl.textContent = plugIsOnline ? `🔌 ${pwr.toFixed(0)}W` : `🔌 Offline`;
@@ -3083,7 +3085,6 @@
               }
 
               const tempIsOnline = Boolean((fridgeSensor && liveData[fridgeSensor.device_id]?.is_online !== false) || (freezerSensor && liveData[freezerSensor.device_id]?.is_online !== false));
-              const plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
               const roomIsOnline = tempIsOnline || plugIsOnline;
 
               let isAlert = false;
