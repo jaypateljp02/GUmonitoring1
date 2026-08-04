@@ -4126,34 +4126,85 @@
         if (res.ok) {
           const data = await res.json();
           let statusText = (data.status || 'healthy').toUpperCase();
+          
+          let cardBg = 'linear-gradient(135deg, rgba(236, 253, 245, 0.95) 0%, rgba(240, 253, 250, 0.95) 100%)';
+          let borderColor = 'rgba(16, 185, 129, 0.35)';
           let badgeBg = 'rgba(16, 185, 129, 0.15)';
           let badgeColor = '#059669';
           let badgeBorder = '#10b981';
+          let statusIcon = '✅';
           
           if (data.status === 'warning' || data.status === 'inefficient') {
-            badgeBg = 'rgba(245, 158, 11, 0.15)';
-            badgeColor = '#d97706';
+            cardBg = 'linear-gradient(135deg, rgba(255, 251, 235, 0.95) 0%, rgba(254, 243, 199, 0.95) 100%)';
+            borderColor = 'rgba(245, 158, 11, 0.4)';
+            badgeBg = 'rgba(245, 158, 11, 0.18)';
+            badgeColor = '#b45309';
             badgeBorder = '#f59e0b';
+            statusIcon = '⚠️';
           } else if (data.status === 'critical' || data.status === 'cooling_fail') {
-            badgeBg = 'rgba(239, 68, 68, 0.15)';
-            badgeColor = '#dc2626';
+            cardBg = 'linear-gradient(135deg, rgba(254, 242, 242, 0.95) 0%, rgba(254, 226, 226, 0.95) 100%)';
+            borderColor = 'rgba(239, 68, 68, 0.4)';
+            badgeBg = 'rgba(239, 68, 68, 0.18)';
+            badgeColor = '#b91c1c';
             badgeBorder = '#ef4444';
+            statusIcon = '🚨';
           }
           
+          const box = document.getElementById('timeframeAiInsightBox');
+          if (box) {
+            box.style.background = cardBg;
+            box.style.borderColor = borderColor;
+            box.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.04)';
+          }
+
           if (badgeEl) {
-            badgeEl.textContent = statusText;
+            badgeEl.innerHTML = `${statusIcon} ${statusText}`;
             badgeEl.style.background = badgeBg;
             badgeEl.style.color = badgeColor;
             badgeEl.style.borderColor = badgeBorder;
           }
-          
-          textEl.innerHTML = `<strong>${data.room_name || currentDevice.name}:</strong> ${data.analysis || 'Thermal telemetry operating within expected limits.'}`;
-          
+
+          const rawAnalysis = data.analysis || 'Thermal telemetry operating within expected limits.';
+          const formattedAnalysis = rawAnalysis.replace(/(\. )/g, '.<br style="content: \'\'; display: block; margin-bottom: 6px;">');
+
+          textEl.innerHTML = `
+            <div style="margin-bottom: 8px;">
+              <span style="font-size: 13px; font-weight: 800; color: #1e293b;">${data.room_name || currentDevice.name} Diagnostic Summary</span>
+            </div>
+            <div style="font-size: 12px; color: #334155; line-height: 1.6; font-weight: 500; background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.06); padding: 10px 12px; border-radius: 10px;">
+              ${formattedAnalysis}
+            </div>
+          `;
+
           if (actionsEl && data.action_items && data.action_items.length > 0) {
             actionsEl.style.display = 'block';
-            actionsEl.innerHTML = `<strong>Recommendations:</strong> ` + data.action_items.join(' • ');
+            actionsEl.innerHTML = `
+              <div style="margin-top: 10px; font-size: 11.5px; font-weight: 800; color: #1e293b; letter-spacing: 0.3px; text-transform: uppercase;">
+                🛠️ Actionable AI Recommendations:
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+                ${data.action_items.map(item => `
+                  <div style="display: flex; align-items: flex-start; gap: 8px; background: rgba(255, 255, 255, 0.85); border: 1px solid ${borderColor}; padding: 8px 12px; border-radius: 8px; font-size: 11.5px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                    <span style="font-size: 12px;">📌</span>
+                    <span>${item}</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div style="margin-top: 10px; text-align: right;">
+                <button onclick="askChatAboutChartTimeframe()" class="action-btn blue" style="padding: 5px 12px; font-size: 11px; margin: 0; border-radius: 6px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                  💬 Discuss Diagnostics with AI Assistant
+                </button>
+              </div>
+            `;
           } else if (actionsEl) {
-            actionsEl.style.display = 'none';
+            actionsEl.innerHTML = `
+              <div style="margin-top: 10px; text-align: right;">
+                <button onclick="askChatAboutChartTimeframe()" class="action-btn blue" style="padding: 5px 12px; font-size: 11px; margin: 0; border-radius: 6px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                  💬 Discuss Diagnostics with AI Assistant
+                </button>
+              </div>
+            `;
+            actionsEl.style.display = 'block';
           }
         } else {
           textEl.innerHTML = `<span style="color: #64748b;">AI insight unavailable for this timeframe.</span>`;
