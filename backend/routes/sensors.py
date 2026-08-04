@@ -245,7 +245,7 @@ def aggregate_plug_telemetry(db: Session, device_id: str, start_time: datetime, 
 
 @router.get("/device/{device_id}/telemetry", response_model=DeviceTelemetryHistoryResponse)
 def get_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     if start_date and end_date:
         try:
@@ -258,7 +258,11 @@ def get_device_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
     
     offline_periods = calculate_offline_periods(db, "device_telemetry", device_id, cutoff)
@@ -386,7 +390,7 @@ def get_rolling_analytics(
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     if start_date and end_date:
         try:
@@ -400,7 +404,11 @@ def export_device_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         filename = f"telemetry_{device_id}_{days}d.csv"
         
@@ -516,51 +524,62 @@ def list_device_sensors(device_id: str, db: Session = Depends(get_db)):
 
 @router.put("/device/{device_id}/thresholds")
 def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(get_db)):
-    """Public endpoint: update thresholds, webhooks, and plug settings for a device's sensors."""
+    """Public endpoint: update thresholds, webhooks, and Tapo settings for a device's sensors."""
     sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
     if not sensors:
         raise HTTPException(status_code=404, detail="Device not found")
-    
-    # Extract universal billing rate & threshold values if present
-    generic_billing_rate = req.get("billing_rate") or req.get("tapo_billing_rate") or req.get("temp_tapo_billing_rate") or req.get("hum_tapo_billing_rate")
-    generic_running_thresh = req.get("running_threshold") or req.get("tapo_running_threshold") or req.get("temp_tapo_running_threshold") or req.get("hum_tapo_running_threshold")
-
     for s in sensors:
-        # Update billing rate & running threshold across all associated sensors for this device
-        if generic_billing_rate is not None:
-            s.tapo_billing_rate = generic_billing_rate
-        if generic_running_thresh is not None:
-            s.tapo_running_threshold = generic_running_thresh
-
         if s.type == "temperature":
-            if "temp_min" in req: s.min_threshold = req["temp_min"]
-            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
-            
-            if "temp_max" in req: s.max_threshold = req["temp_max"]
-            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
-
-            if "temp_alert_webhook_url" in req: s.alert_webhook_url = req["temp_alert_webhook_url"]
-            if "temp_recovery_webhook_url" in req: s.recovery_webhook_url = req["temp_recovery_webhook_url"]
-
+            if "temp_min" in req:
+                s.min_threshold = req["temp_min"]
+            if "temp_max" in req:
+                s.max_threshold = req["temp_max"]
+            if "temp_alert_webhook_url" in req:
+                s.alert_webhook_url = req["temp_alert_webhook_url"]
+            if "temp_recovery_webhook_url" in req:
+                s.recovery_webhook_url = req["temp_recovery_webhook_url"]
+            if "temp_tapo_ip" in req:
+                s.tapo_ip = req["temp_tapo_ip"]
+            if "temp_tapo_username" in req:
+                s.tapo_username = req["temp_tapo_username"]
+            if "temp_tapo_password" in req:
+                s.tapo_password = req["temp_tapo_password"]
+            if "temp_tapo_billing_rate" in req:
+                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
+            if "temp_tapo_running_threshold" in req:
+                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
         elif s.type == "humidity":
-            if "hum_min" in req: s.min_threshold = req["hum_min"]
-            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
-
-            if "hum_max" in req: s.max_threshold = req["hum_max"]
-            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
-
-            if "hum_alert_webhook_url" in req: s.alert_webhook_url = req["hum_alert_webhook_url"]
-            if "hum_recovery_webhook_url" in req: s.recovery_webhook_url = req["hum_recovery_webhook_url"]
-
+            if "hum_min" in req:
+                s.min_threshold = req["hum_min"]
+            if "hum_max" in req:
+                s.max_threshold = req["hum_max"]
+            if "hum_alert_webhook_url" in req:
+                s.alert_webhook_url = req["hum_alert_webhook_url"]
+            if "hum_recovery_webhook_url" in req:
+                s.recovery_webhook_url = req["hum_recovery_webhook_url"]
+            if "hum_tapo_ip" in req:
+                s.tapo_ip = req["hum_tapo_ip"]
+            if "hum_tapo_username" in req:
+                s.tapo_username = req["hum_tapo_username"]
+            if "hum_tapo_password" in req:
+                s.tapo_password = req["hum_tapo_password"]
+            if "hum_tapo_billing_rate" in req:
+                s.tapo_billing_rate = req["hum_tapo_billing_rate"]
+            if "hum_tapo_running_threshold" in req:
+                s.tapo_running_threshold = req["hum_tapo_running_threshold"]
         elif s.type == "plug":
-            if "temp_min" in req: s.min_threshold = req["temp_min"]
-            elif "min_threshold" in req: s.min_threshold = req["min_threshold"]
-
-            if "temp_max" in req: s.max_threshold = req["temp_max"]
-            elif "max_threshold" in req: s.max_threshold = req["max_threshold"]
-
+            if "temp_tapo_ip" in req:
+                s.tapo_ip = req["temp_tapo_ip"]
+            if "temp_tapo_username" in req:
+                s.tapo_username = req["temp_tapo_username"]
+            if "temp_tapo_password" in req:
+                s.tapo_password = req["temp_tapo_password"]
+            if "temp_tapo_billing_rate" in req:
+                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
+            if "temp_tapo_running_threshold" in req:
+                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
     db.commit()
-    return {"message": "Thresholds, webhooks, and plug configurations updated successfully"}
+    return {"message": "Thresholds, webhooks, and plug configurations updated"}
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
@@ -572,18 +591,70 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         Sensor.active == True
     ).first()
 
-    rate = 10.0
-    if sensor and sensor.tapo_billing_rate is not None:
-        rate = float(sensor.tapo_billing_rate)
+    target_plug_id = device_id
+    target_sensor = sensor
+    if sensor and sensor.type != "plug" and sensor.room_id:
+        plug_sensor = db.query(Sensor).filter(
+            Sensor.room_id == sensor.room_id,
+            Sensor.type == "plug",
+            Sensor.active == True
+        ).first()
+        if plug_sensor:
+            target_plug_id = plug_sensor.device_id
+            target_sensor = plug_sensor
 
-    # If Tapo config exists, try to query it directly (works on local LAN)
-    if sensor and sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+    rate = 10.0
+    if target_sensor and target_sensor.tapo_billing_rate is not None:
+        rate = float(target_sensor.tapo_billing_rate)
+
+    # 1. Fast path: return PlugTelemetry database records ingested by edge agent or eWeLink worker
+    from backend.models.plug_telemetry import PlugTelemetry
+    last_log = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id == target_plug_id
+    ).order_by(PlugTelemetry.timestamp.desc()).first()
+
+    now = datetime.utcnow()
+    if last_log:
+        age_seconds = (now - last_log.timestamp).total_seconds()
+        is_stale = age_seconds > 600.0  # Mark last_known if older than 10 mins
+        raw_t_energy = float(last_log.today_energy or 0.0)
+        raw_m_energy = float(last_log.month_energy or 0.0)
+        today_kwh = (raw_t_energy / 1000.0) if raw_t_energy > 10.0 else raw_t_energy
+        month_kwh = (raw_m_energy / 1000.0) if raw_m_energy > 10.0 else raw_m_energy
+        p_val = float(last_log.apower or 0.0) if not is_stale else 0.0
+        v_val = float(last_log.voltage or 230.0) if float(last_log.voltage or 0.0) > 0 else 230.0
+        c_val = float(last_log.current or 0.0) if not is_stale else 0.0
+        sw_state = "on" if p_val > 0.5 else "off"
+
+        is_ewelink = (target_sensor and target_sensor.name and "ewelink" in target_sensor.name.lower()) or target_plug_id == "10029128ab"
+        plug_type = "ewelink" if is_ewelink else "tapo"
+
+        return {
+            "state": sw_state,
+            "voltage": round(v_val, 1),
+            "current": round(c_val, 3),
+            "apower": round(p_val, 1),
+            "today_energy": raw_t_energy,
+            "month_energy": raw_m_energy,
+            "today_kwh": round(today_kwh, 3),
+            "month_kwh": round(month_kwh, 3),
+            "today_bill": round(today_kwh * rate, 2),
+            "month_bill": round(month_kwh * rate, 2),
+            "billing_rate": rate,
+            "supported": True,
+            "type": plug_type,
+            "last_known": is_stale,
+            "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if is_stale else None
+        }
+
+    # 2. Slow fallback: Try direct LAN query if on local network
+    if target_sensor and target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
         try:
             from backend.services.tapo import get_tapo_telemetry_cached
             import asyncio
             telemetry = await asyncio.wait_for(get_tapo_telemetry_cached(
-                sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, device_id
-            ), timeout=1.5)
+                target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_plug_id
+            ), timeout=0.4)
             today_kwh = telemetry.get("today_energy", 0.0) / 1000.0
             month_kwh = telemetry.get("month_energy", 0.0) / 1000.0
             
@@ -600,7 +671,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         except Exception as e:
             import logging
             log = logging.getLogger(__name__)
-            log.error(f"Direct Tapo connection failed for {device_id} ({sensor.tapo_ip}): {e}")
+            log.error(f"Direct Tapo connection failed for {target_plug_id} ({target_sensor.tapo_ip}): {e}")
 
     # Try live eWeLink cloud status for eWeLink power devices (POWR320D)
     import os
@@ -610,14 +681,46 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
     if not os.getenv("EWELINK_EMAIL"):
         load_dotenv("backend/.env")
 
-    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
-    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
-    region = os.getenv("EWELINK_REGION") or "as"
+    email = os.getenv("EWELINK_EMAIL")
+    password = os.getenv("EWELINK_PASSWORD")
+    region = os.getenv("EWELINK_REGION", "as")
 
-    # Serve the most recent PlugTelemetry record stored by worker (instant 1ms DB response)
+    if email and password:
+        try:
+            from backend.services.ewelink import EwelinkClient
+            ew_client = EwelinkClient(email=email, password=password, region=region)
+            login_ok = await asyncio.wait_for(ew_client.login(), timeout=4.0)
+            if login_ok:
+                status = await asyncio.wait_for(ew_client.get_power_device_status(target_plug_id), timeout=4.0)
+                if status:
+                    today_kwh = status.get("today_energy", 0.0)
+                    month_kwh = status.get("month_energy", 0.0)
+                    sw_state = status.get("switch", "off").lower()
+                    p_val = status.get("power", 0.0) if sw_state == "on" else 0.0
+                    c_val = status.get("current", 0.0) if sw_state == "on" else 0.0
+                    return {
+                        "state": sw_state,
+                        "voltage": status.get("voltage", 0.0),
+                        "current": c_val,
+                        "apower": p_val,
+                        "today_energy": today_kwh,
+                        "month_energy": month_kwh,
+                        "today_kwh": round(today_kwh, 3),
+                        "month_kwh": round(month_kwh, 3),
+                        "today_bill": round(today_kwh * rate, 2),
+                        "month_bill": round(month_kwh * rate, 2),
+                        "billing_rate": rate,
+                        "supported": True,
+                        "type": "plug",
+                        "last_known": False
+                    }
+        except Exception as e:
+            logger.error(f"Live eWeLink status check failed for {target_plug_id}: {e}")
+
+    # Fallback / DB log path: serve the most recent PlugTelemetry record stored by worker
     from backend.models.plug_telemetry import PlugTelemetry
     last_log = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id
+        PlugTelemetry.device_id == target_plug_id
     ).order_by(PlugTelemetry.timestamp.desc()).first()
 
     if last_log:
@@ -628,7 +731,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         if today_kwh == 0.0:
             today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
             today_recs = db.query(PlugTelemetry).filter(
-                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.device_id == target_plug_id,
                 PlugTelemetry.timestamp >= today_start
             ).order_by(PlugTelemetry.timestamp.asc()).all()
             if today_recs:
@@ -641,7 +744,7 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         if month_kwh == 0.0:
             month_start = datetime.combine(datetime.utcnow().date().replace(day=1), datetime.min.time())
             month_recs = db.query(PlugTelemetry).filter(
-                PlugTelemetry.device_id == device_id,
+                PlugTelemetry.device_id == target_plug_id,
                 PlugTelemetry.timestamp >= month_start
             ).order_by(PlugTelemetry.timestamp.asc()).all()
             if month_recs:
@@ -650,9 +753,10 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 hrs_m = max(0.083, (datetime.utcnow() - first_ts_m).total_seconds() / 3600.0)
                 month_kwh = (avg_power_m * hrs_m) / 1000.0
 
-        # Check if telemetry is older than 10 minutes (600 seconds)
-        is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 600.0
+        # Check if telemetry is older than 3 minutes (180 seconds)
+        is_stale = (datetime.utcnow() - last_log.timestamp).total_seconds() > 180.0
         if is_stale:
+            logger.warning(f"Plug telemetry for {target_plug_id} is stale (last seen {last_log.timestamp}). Marking offline.")
             return {
                 "state": "offline",
                 "voltage": 0.0,
@@ -670,14 +774,8 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
                 "error": f"Plug is disconnected (offline since {last_log.timestamp.strftime('%Y-%m-%d %H:%M UTC')})"
             }
         
-        if sensor and sensor.tapo_status:
-            t_stat = str(sensor.tapo_status).lower()
-            switch_state = "off" if t_stat in ["off", "offline"] else "on"
-        else:
-            switch_state = "on" if (last_log and float(last_log.apower) > 0.5) else "on"
-
         return {
-            "state": switch_state,
+            "state": "on" if float(last_log.apower) > 0.5 else "off",
             "voltage": float(last_log.voltage),
             "current": float(last_log.current),
             "apower": float(last_log.apower),
@@ -694,27 +792,13 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
             "last_known_at": last_log.timestamp.strftime("%Y-%m-%d %H:%M UTC")
         }
 
-    fallback_state = "on"
-    if sensor and sensor.tapo_status:
-        fallback_state = "off" if str(sensor.tapo_status).lower() in ["off", "offline"] else "on"
-
     return {
-        "state": fallback_state,
+        "state": "off",
         "voltage": 0.0,
         "current": 0.0,
         "apower": 0.0,
-        "today_energy": 0.0,
-        "month_energy": 0.0,
-        "today_kwh": 0.0,
-        "month_kwh": 0.0,
-        "today_bill": 0.0,
-        "month_bill": 0.0,
-        "billing_rate": rate,
-        "supported": True,
-        "type": "plug",
-        "pending": True
+        "supported": False
     }
-
 
 @router.post("/device/{device_id}/plug/toggle")
 async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(get_db)):
@@ -722,6 +806,10 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     Toggle plug power state ('on' or 'off') for Tapo or eWeLink power devices.
     """
     import decimal
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
     target_state = req.get("state", "on").lower()
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
@@ -731,79 +819,78 @@ async def toggle_device_plug(device_id: str, req: dict, db: Session = Depends(ge
     if not sensor:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    target_plug_device_id = device_id
+    target_plug_id = device_id
+    target_sensor = sensor
+
+    # If requested device is not a plug, check if room has a linked plug sensor
     if sensor.type != "plug" and sensor.room_id:
         plug_sensor = db.query(Sensor).filter(
             Sensor.room_id == sensor.room_id,
             Sensor.type == "plug",
             Sensor.active == True
         ).first()
-        if plug_sensor and plug_sensor.device_id:
-            target_plug_device_id = plug_sensor.device_id
+        if plug_sensor:
+            target_plug_id = plug_sensor.device_id
+            target_sensor = plug_sensor
 
-    # 1. Try eWeLink Cloud API for eWeLink power devices (like POWR320D)
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    if not os.getenv("EWELINK_EMAIL"):
-        load_dotenv("backend/.env")
-
-    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
-    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
-    region = os.getenv("EWELINK_REGION") or "as"
-
-    try:
-        from backend.services.ewelink import get_cached_ewelink_client
-        ew_client = await get_cached_ewelink_client()
-        if ew_client and ew_client.access_token:
-            success = await ew_client.set_device_switch(target_plug_device_id, target_state)
-            if success:
-                # Update sensor.tapo_status in DB for all sensors in this room
-                room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all() if sensor.room_id else [sensor]
-                for s in room_sensors:
-                    s.tapo_status = target_state
-
-                # Save immediate log in DB so GET /plug returns new state instantly
-                from backend.models.plug_telemetry import PlugTelemetry
-                last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_device_id).order_by(PlugTelemetry.timestamp.desc()).first()
-                t_energy = last_rec.today_energy if last_rec else decimal.Decimal("0.0")
-                m_energy = last_rec.month_energy if last_rec else decimal.Decimal("0.0")
-                p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("120.0")
-                c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("0.5")
-                v_val = decimal.Decimal("235.0")
-
-                new_log = PlugTelemetry(
-                    device_id=target_plug_device_id,
-                    timestamp=datetime.utcnow(),
-                    apower=p_val,
-                    voltage=v_val,
-                    current=c_val,
-                    today_energy=t_energy,
-                    month_energy=m_energy
-                )
-                db.add(new_log)
-                db.commit()
-                return {"message": f"Successfully toggled eWeLink plug {target_plug_device_id} to {target_state}", "state": target_state}
-            else:
-                raise HTTPException(status_code=500, detail="Failed to send toggle command to eWeLink cloud.")
-        else:
-            raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error toggling eWeLink plug {device_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
-
-    # 2. Try Tapo direct LAN connection
-    if sensor.tapo_ip and sensor.tapo_username and sensor.tapo_password:
+    # Case 1: Tapo Plug (has tapo_ip & tapo_username/password)
+    if target_sensor.tapo_ip and target_sensor.tapo_username and target_sensor.tapo_password:
         try:
             from backend.services.tapo import toggle_tapo_plug
-            res = await toggle_tapo_plug(sensor.tapo_ip, sensor.tapo_username, sensor.tapo_password, target_state)
+            res = await toggle_tapo_plug(target_sensor.tapo_ip, target_sensor.tapo_username, target_sensor.tapo_password, target_state)
             return res
         except Exception as e:
+            logger.error(f"Failed to toggle Tapo plug {target_plug_id} ({target_sensor.tapo_ip}): {e}")
             raise HTTPException(status_code=500, detail=f"Failed to toggle Tapo plug: {e}")
 
-    raise HTTPException(status_code=400, detail="Device is not a supported Tapo or eWeLink plug, or credentials missing.")
+    # Case 2: eWeLink Cloud Plug (POWR320D or eWeLink brand plug)
+    if target_sensor.type == "plug" or target_plug_id == "10029128ab" or getattr(target_sensor, "brand", None) == "ewelink":
+        email = os.getenv("EWELINK_EMAIL")
+        password = os.getenv("EWELINK_PASSWORD")
+        region = os.getenv("EWELINK_REGION", "as")
+
+        if not email or not password:
+            raise HTTPException(status_code=401, detail="eWeLink cloud credentials missing in server config.")
+
+        try:
+            from backend.services.ewelink import EwelinkClient
+            ew_client = EwelinkClient(email=email, password=password, region=region)
+            ok = await ew_client.login()
+            if ok:
+                success = await ew_client.set_device_switch(target_plug_id, target_state)
+                if success:
+                    from backend.models.plug_telemetry import PlugTelemetry
+                    last_rec = db.query(PlugTelemetry).filter(PlugTelemetry.device_id == target_plug_id).order_by(PlugTelemetry.timestamp.desc()).first()
+                    t_energy = last_rec.today_energy if last_rec else decimal.Decimal("150.0")
+                    m_energy = last_rec.month_energy if last_rec else decimal.Decimal("150.0")
+                    p_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("126.9")
+                    c_val = decimal.Decimal("0.0") if target_state == "off" else decimal.Decimal("1.04")
+                    v_val = decimal.Decimal("239.0") if target_state == "off" else decimal.Decimal("240.0")
+
+                    new_log = PlugTelemetry(
+                        device_id=target_plug_id,
+                        timestamp=datetime.utcnow(),
+                        apower=p_val,
+                        voltage=v_val,
+                        current=c_val,
+                        today_energy=t_energy,
+                        month_energy=m_energy
+                    )
+                    db.add(new_log)
+                    db.commit()
+                    return {"message": f"Successfully toggled eWeLink plug {target_plug_id} to {target_state}", "state": target_state}
+                else:
+                    raise HTTPException(status_code=500, detail=f"Failed to toggle eWeLink plug {target_plug_id}. Cloud rejected command.")
+            else:
+                raise HTTPException(status_code=401, detail="Failed to authenticate with eWeLink cloud.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error toggling eWeLink plug {target_plug_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"eWeLink toggle error: {e}")
+
+    # Case 3: No smart plug linked to this room/device
+    raise HTTPException(status_code=400, detail="No smart plug is configured or linked to this room.")
 
 @router.get("/device/{device_id}/plug/metrics/24h", response_model=PlugMetrics24hResponse)
 def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
@@ -847,7 +934,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
     ).first()
 
     raw_energy = float(stats.energy_max) if (stats and stats.energy_max is not None) else 0.0
-    energy_kwh = round(raw_energy, 3)
+    energy_kwh = round(raw_energy / 100.0, 3) if raw_energy > 10.0 else round(raw_energy, 3)
 
     # 3. Calculate last 24h Use Time (runtime) and On/Off Cycles
     logs_24h = db.query(PlugTelemetry).filter(
@@ -909,7 +996,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         daily_starts.append(day_starts_count)
         
         max_energy = max(float(x.today_energy) for x in day_logs) if day_logs else 0.0
-        daily_energies.append(max_energy)
+        daily_energies.append(max_energy / 100.0 if max_energy > 10.0 else max_energy)
 
     num_days = len(daily_logs) if daily_logs else 1
     runtime_hours_avg_7d = round(sum(daily_runtimes) / num_days, 2)
@@ -979,9 +1066,9 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
         voltage_avg=round(stats.v_avg, 1) if (stats and stats.v_avg is not None) else None,
         voltage_min=round(stats.v_min, 1) if (stats and stats.v_min is not None) else None,
         voltage_max=round(stats.v_max, 1) if (stats and stats.v_max is not None) else None,
-        current_avg=round(float(stats.c_avg) / 10.0 if float(stats.c_avg) > 25.0 else float(stats.c_avg), 3) if (stats and stats.c_avg is not None) else None,
-        current_min=round(float(stats.c_min) / 10.0 if float(stats.c_min) > 25.0 else float(stats.c_min), 3) if (stats and stats.c_min is not None) else None,
-        current_max=round(float(stats.c_max) / 10.0 if float(stats.c_max) > 25.0 else float(stats.c_max), 3) if (stats and stats.c_max is not None) else None,
+        current_avg=round(stats.c_avg, 3) if (stats and stats.c_avg is not None) else None,
+        current_min=round(stats.c_min, 3) if (stats and stats.c_min is not None) else None,
+        current_max=round(stats.c_max, 3) if (stats and stats.c_max is not None) else None,
         energy_total_kwh=energy_kwh,
         runtime_hours_24h=round(runtime_hours_24h, 2),
         duty_cycle_pct_24h=duty_cycle_pct_24h,
@@ -997,7 +1084,7 @@ def get_plug_24h_metrics(device_id: str, db: Session = Depends(get_db)):
 
 @router.get("/device/{device_id}/plug/history")
 def get_plug_telemetry_history(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Fetch plug telemetry history for charts."""
     from backend.models.plug_telemetry import PlugTelemetry
@@ -1012,7 +1099,11 @@ def get_plug_telemetry_history(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         
     logs = db.query(PlugTelemetry).filter(
@@ -1034,7 +1125,7 @@ def get_plug_telemetry_history(
 
 @router.get("/device/{device_id}/plug/export")
 def export_plug_telemetry(
-    device_id: str, days: int = 1, interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
 ):
     """Export plug telemetry logs as a CSV file with formatted energy (kWh) and power readings."""
     if start_date and end_date:
@@ -1049,7 +1140,11 @@ def export_plug_telemetry(
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        try:
+            days_count = int(days)
+        except (ValueError, TypeError):
+            days_count = 1
+        cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
         filename = f"plug_telemetry_{device_id}_{days}d.csv"
         
@@ -1083,8 +1178,9 @@ def export_plug_telemetry(
         today_wh = float(log.get("today_energy") or 0.0)
         month_wh = float(log.get("month_energy") or 0.0)
         
-        today_kwh = round(today_wh, 3)
-        month_kwh = round(month_wh, 3)
+        # Convert Wh to kWh if value > 500
+        today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
+        month_kwh = round(month_wh / 1000.0 if month_wh > 500.0 else month_wh, 3)
 
         writer.writerow([
             log.get("device_id", device_id),
@@ -1699,10 +1795,20 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     ).order_by(DeviceTelemetry.timestamp.desc()).all()
 
     from backend.models.plug_telemetry import PlugTelemetry
+    
+    msg_lower = req.message.lower()
+    is_plug_query = any(k in msg_lower for k in ["plug", "tapo", "power", "watt", "energy", "voltage", "current", "apower", "kwh", "amp"])
+
     plug_logs = db.query(PlugTelemetry).filter(
         PlugTelemetry.device_id == device_id,
         PlugTelemetry.timestamp >= cutoff_utc
     ).order_by(PlugTelemetry.timestamp.desc()).all()
+
+    # Fallback if specific room has no plug but user asks for plug data
+    if is_plug_query and not plug_logs:
+        plug_logs = db.query(PlugTelemetry).filter(
+            PlugTelemetry.timestamp >= cutoff_utc
+        ).order_by(PlugTelemetry.timestamp.desc()).all()
 
     # Summarize stats
     temps = [float(l.temperature) for l in logs if l.temperature is not None]
@@ -1717,6 +1823,7 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
         "total_readings": len(logs)
     }
 
+    plug_context_list = []
     if plug_logs:
         powers = [float(l.apower) for l in plug_logs if l.apower is not None]
         voltages = [float(l.voltage) for l in plug_logs if l.voltage is not None]
@@ -1732,20 +1839,21 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
             "today_energy_kwh": energy_kwh,
             "plug_readings_count": len(plug_logs)
         }
-
-    # Build plug lookup map by timestamp string (minute precision)
-    plug_map = {}
-    for pl in plug_logs:
-        t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
-        if t_key not in plug_map:
-            plug_map[t_key] = pl
+        
+        for pl in plug_logs[:60]:
+            local_time = pl.timestamp + ist_offset
+            plug_context_list.append({
+                "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
+                "active_power_w": float(pl.apower) if pl.apower is not None else 0.0,
+                "voltage_v": float(pl.voltage) if pl.voltage is not None else 0.0,
+                "current_a": float(pl.current) if pl.current is not None else 0.0,
+                "today_energy_kwh": float(pl.today_energy) if pl.today_energy is not None else 0.0
+            })
 
     # Format recent sample data (last 80 rows)
     data_context = []
     for log in logs[:80]:
         local_time = log.timestamp + ist_offset
-        t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
-        pl_data = plug_map.get(t_key)
         
         row_dict = {
             "time_ist": local_time.strftime('%Y-%m-%d %I:%M:%S %p'),
@@ -1753,10 +1861,6 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
             "humidity": float(log.humidity) if log.humidity is not None else None,
             "battery": float(log.battery_level) if log.battery_level is not None else None
         }
-        if pl_data:
-            row_dict["active_power_w"] = float(pl_data.apower) if pl_data.apower is not None else None
-            row_dict["voltage_v"] = float(pl_data.voltage) if pl_data.voltage is not None else None
-            row_dict["current_a"] = float(pl_data.current) if pl_data.current is not None else None
             
         data_context.append(row_dict)
 
@@ -1776,13 +1880,17 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     Target Device ID: {device_id}
     User Query: "{req.message}"
     
-    Telemetry Context (Last 48 Hours, including Temperature, Humidity, and Tapo Smart Plug metrics):
-    - Summary: {json.dumps(summary_stats, indent=2)}
-    - Detailed Logs: {json.dumps(data_context[::-1], indent=2)}
+    Telemetry Summary: {json.dumps(summary_stats, indent=2)}
+    
+    Tapo Smart Plug Telemetry Logs (Power W, Voltage V, Current A, Energy kWh):
+    {json.dumps(plug_context_list[::-1], indent=2)}
+    
+    Temperature & Humidity Logs:
+    {json.dumps(data_context[::-1], indent=2)}
     
     Formulate a clear response answering their query directly.
-    - If they ask about Tapo plug data, compressor power draw (Watts), energy (kWh), cycle count, or voltage, use the tapo_plug_telemetry summary and active_power_w fields.
-    - If they ask for a specific time (e.g. "at 10 AM today"), search the Detailed Logs for the reading closest to that time.
+    - CRITICAL RULE FOR TAPO PLUG / POWER QUERIES: If the user is asking about Tapo plug data, power draw (Watts), energy consumption (kWh), voltage (V), or current (A), answer strictly using the Tapo Smart Plug Telemetry metrics (active_power_w, voltage_v, today_energy_kwh, current_a). Do NOT present temperature or humidity numbers unless explicitly requested alongside power data.
+    - If they ask for a specific time (e.g. "at 10 AM today"), search the logs for the reading closest to that time.
     - If no logs exist, state that politely.
     - If they ask for a download, export, PDF, Excel, or CSV report, set "is_report_requested" to true, and calculate "report_start_time" and "report_end_time" in local factory time (IST) formatted strictly as "YYYY-MM-DDTHH:MM:SS" (ISO 8601 format).
     - CRITICAL RULE FOR 24 HOURS REQUESTS: If the user requests data for "24 hours", "last 24 hours", "yesterday to today", or similar relative 24h ranges, calculate report_start_time as exactly 24 hours before the current local IST time ({local_now_str}), and report_end_time as exactly the current local IST time ({local_now_str}).
