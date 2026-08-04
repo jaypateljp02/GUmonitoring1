@@ -4051,6 +4051,9 @@
         generateTimeframeAnalytics();
       }
       pollDetail();
+      if (currentRoomObj) {
+        history.pushState({ tab: currentTab, roomId: currentRoomObj.id, deviceId }, '', `#detail/${currentRoomObj.id}/${deviceId}`);
+      }
     }
 
     async function generateTimeframeAnalytics() {
@@ -4160,42 +4163,31 @@
       }
     }
 
-    // SPA back navigation popstate support
-    window.addEventListener('popstate', (event) => {
-      if (event.state) {
-        if (event.state.roomId) {
-          showDetail(event.state.roomId, false);
-        } else if (event.state.tab) {
-          switchTab(event.state.tab, false);
-        } else {
-          switchTab('map', false);
-        }
-      } else {
-        const hash = window.location.hash.replace('#', '');
-        if (hash.startsWith('detail/')) {
-          const roomId = hash.replace('detail/', '');
+    // SPA back navigation & URL hash synchronization support
+    function syncFromHash() {
+      const hash = window.location.hash.replace('#', '');
+      if (hash.startsWith('detail/')) {
+        const parts = hash.replace('detail/', '').split('/');
+        const roomId = parts[0];
+        const deviceId = parts[1];
+        if (roomId) {
           showDetail(roomId, false);
-        } else if (hash) {
-          switchTab(hash, false);
-        } else {
-          switchTab('map', false);
+          if (deviceId && currentDevice && currentDevice.id !== deviceId) {
+            switchDetailSensor(deviceId);
+          }
         }
-      }
-    });
-
-    // Check hash on initial load
-    setTimeout(() => {
-      const initialHash = window.location.hash.replace('#', '');
-      if (initialHash.startsWith('detail/')) {
-        const roomId = initialHash.replace('detail/', '');
-        switchTab('list', false);
-        showDetail(roomId, false);
-      } else if (initialHash) {
-        switchTab(initialHash, false);
-      } else {
+      } else if (hash === 'list' || hash === 'map' || hash === 'plugs') {
+        switchTab(hash, false);
+      } else if (!hash) {
         switchTab('map', false);
       }
-    }, 500);
+    }
+
+    window.addEventListener('popstate', syncFromHash);
+    window.addEventListener('hashchange', syncFromHash);
+
+    // Initial hash check on page load
+    setTimeout(syncFromHash, 300);
 
     async function pollDetail() {
       if (!currentDevice) return;
