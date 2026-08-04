@@ -437,9 +437,9 @@ async def call_gemini_diagnose(telemetry_data: list) -> dict:
         {{
           "room_name": "Name of the room",
           "status": "healthy" | "warning" | "critical",
-          "analysis": "A detailed engineering observation correlating temperature behavior with compressor runtime, cycle count, and energy draw. Reference both temperature and power data together.",
+          "analysis": "A comprehensive, 3-paragraph engineering evaluation correlating temperature metrics (avg, min, max, breach hours) with smart plug power telemetry (active W, voltage V, current A, runtime hours, kWh energy, and cycle count). Compare performance against 7-day baselines and comment on thermal stability, compressor health, and energy efficiency.",
           "action_items": [
-            "Specific recommendations (e.g. check gaskets, clean condenser coils, inspect thermostat settings, check power connection)"
+            "3 to 5 clear, actionable maintenance steps and preventative operational guidelines for factory engineers."
           ]
         }}
       ]

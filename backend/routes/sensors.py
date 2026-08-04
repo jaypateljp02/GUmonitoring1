@@ -1677,6 +1677,7 @@ async def get_device_ai_summary(
 ):
     """Fetch Gemini AI maintenance summary & diagnostic recommendations for a device or room."""
     from backend.models.room import Room
+    from backend.models.plug_telemetry import PlugTelemetry
 
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
@@ -1695,37 +1696,233 @@ async def get_device_ai_summary(
 
     if not room:
         raise HTTPException(status_code=404, detail="Device or Room not found")
-        
-    try:
-        days_int = int(days) if days and days != "custom" else 1
-    except (ValueError, TypeError):
-        days_int = 1
-        
-    cutoff_time = datetime.utcnow() - timedelta(days=days_int)
-    sensors_list = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.active == True).all() if room.id else [sensor] if sensor else []
     
-    from backend.services.insights import query_24h_room_metrics, fetch_7d_baselines, call_gemini_diagnose
+    # Resolve time range
+    ist_offset = timedelta(hours=5, minutes=30)
     
-    last_24h = query_24h_room_metrics(db, room, cutoff_time, sensors_list)
-    baselines = fetch_7d_baselines(db, room, sensors_list)
+    if start_date and end_date and days == "custom":
+        try:
+            start_utc = datetime.fromisoformat(start_date) - ist_offset
+            end_utc = datetime.fromisoformat(end_date) - ist_offset
+        except Exception:
+            start_utc = datetime.utcnow() - timedelta(days=1)
+            end_utc = datetime.utcnow()
+    else:
+        try:
+            days_int = int(days) if days and days != "custom" else 1
+        except (ValueError, TypeError):
+            days_int = 1
+        start_utc = datetime.utcnow() - timedelta(days=days_int)
+        end_utc = datetime.utcnow()
+
+    # Gather all device_ids for this room
+    sensors_list = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.active == True).all() if room.id else ([sensor] if sensor else [])
+    all_device_ids = list(set([device_id] + [s.device_id for s in sensors_list if s.device_id]))
     
-    telemetry_data = [{
+    # Query telemetry
+    logs = db.query(DeviceTelemetry).filter(
+        DeviceTelemetry.device_id.in_(all_device_ids),
+        DeviceTelemetry.timestamp >= start_utc,
+        DeviceTelemetry.timestamp <= end_utc
+    ).order_by(DeviceTelemetry.timestamp.asc()).all()
+    
+    plug_logs = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id.in_(all_device_ids),
+        PlugTelemetry.timestamp >= start_utc,
+        PlugTelemetry.timestamp <= end_utc
+    ).order_by(PlugTelemetry.timestamp.asc()).all()
+
+    # Compute stats
+    temps = [float(l.temperature) for l in logs if l.temperature is not None]
+    hums = [float(l.humidity) for l in logs if l.humidity is not None]
+    
+    temp_sensor = next((s for s in sensors_list if s.type == "temperature"), sensor)
+    temp_min_th = float(temp_sensor.temp_min_threshold) if temp_sensor and temp_sensor.temp_min_threshold is not None else None
+    temp_max_th = float(temp_sensor.temp_max_threshold) if temp_sensor and temp_sensor.temp_max_threshold is not None else None
+    has_plug = temp_sensor is not None and temp_sensor.tapo_ip is not None and len(str(getattr(temp_sensor, 'tapo_ip', '') or '').strip()) > 0
+    
+    stats = {
         "room_name": room.name,
-        "room_type": room.type,
-        "last_24h": last_24h,
-        "baseline_7d": baselines
-    }]
+        "room_type": room.type or "room",
+        "readings_count": len(logs),
+        "temp_avg": round(sum(temps) / len(temps), 2) if temps else None,
+        "temp_min": round(min(temps), 2) if temps else None,
+        "temp_max": round(max(temps), 2) if temps else None,
+        "temp_min_threshold": temp_min_th,
+        "temp_max_threshold": temp_max_th,
+        "hum_avg": round(sum(hums) / len(hums), 1) if hums else None,
+        "hum_min": round(min(hums), 1) if hums else None,
+        "hum_max": round(max(hums), 1) if hums else None,
+    }
     
-    insights = await call_gemini_diagnose(telemetry_data)
-    diagnoses = insights.get("diagnoses", [])
-    if diagnoses:
-        return diagnoses[0]
+    # Breach hours
+    above_hours = 0.0
+    below_hours = 0.0
+    if temps and len(logs) > 1:
+        for i in range(1, len(logs)):
+            t = float(logs[i].temperature) if logs[i].temperature is not None else None
+            if t is None:
+                continue
+            delta_h = (logs[i].timestamp - logs[i-1].timestamp).total_seconds() / 3600.0
+            if delta_h > 1.0:
+                continue
+            if temp_max_th is not None and t > temp_max_th:
+                above_hours += delta_h
+            if temp_min_th is not None and t < temp_min_th:
+                below_hours += delta_h
+    
+    stats["above_max_hours"] = round(above_hours, 2)
+    stats["below_min_hours"] = round(below_hours, 2)
+
+    # Plug stats
+    if plug_logs:
+        powers = [float(l.apower) for l in plug_logs if l.apower is not None]
+        voltages = [float(l.voltage) for l in plug_logs if l.voltage is not None]
+        currents = [float(l.current) for l in plug_logs if l.current is not None]
+        energies = [float(l.today_energy) for l in plug_logs if l.today_energy is not None]
         
+        threshold = float(temp_sensor.tapo_running_threshold) if (temp_sensor and temp_sensor.tapo_running_threshold is not None) else 80.0
+        runtime_hours = 0.0
+        starts_count = 0
+        was_running = False
+        for i in range(1, len(plug_logs)):
+            p = float(plug_logs[i].apower) if plug_logs[i].apower is not None else 0.0
+            running = p >= threshold
+            if running and not was_running:
+                starts_count += 1
+            if running:
+                delta = (plug_logs[i].timestamp - plug_logs[i-1].timestamp).total_seconds() / 3600.0
+                if delta < 0.25:
+                    runtime_hours += delta
+            was_running = running
+        
+        stats["has_plug"] = True
+        stats["power_avg_w"] = round(sum(powers) / len(powers), 1) if powers else 0.0
+        stats["power_max_w"] = round(max(powers), 1) if powers else 0.0
+        stats["voltage_avg_v"] = round(sum(voltages) / len(voltages), 1) if voltages else 0.0
+        stats["current_avg_a"] = round(sum(currents) / len(currents), 3) if currents else 0.0
+        stats["runtime_hours"] = round(runtime_hours, 2)
+        stats["compressor_starts"] = starts_count
+        stats["energy_kwh"] = round(max(energies) / 1000.0, 3) if energies else 0.0
+        stats["plug_readings_count"] = len(plug_logs)
+    else:
+        stats["has_plug"] = has_plug
+
+    # 7-day baselines
+    baseline_cutoff = datetime.utcnow() - timedelta(days=7)
+    baseline_temps = db.query(func.avg(DeviceTelemetry.temperature)).filter(
+        DeviceTelemetry.device_id.in_(all_device_ids),
+        DeviceTelemetry.timestamp >= baseline_cutoff
+    ).scalar()
+    stats["baseline_7d_temp_avg"] = round(float(baseline_temps), 2) if baseline_temps else None
+
+    # Determine timeframe label
+    delta_days = (end_utc - start_utc).total_seconds() / 86400.0
+    tf_label = f"{round(delta_days)}-Day" if delta_days >= 1 else f"{round(delta_days * 24)}h"
+
+    # Build dedicated Gemini prompt for rich per-device diagnostics
+    import json as json_mod
+    
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {
+            "room_name": room.name,
+            "status": "healthy",
+            "analysis": f"AI service not configured. {room.name} had avg temp {stats.get('temp_avg', 'N/A')}°C over {tf_label}.",
+            "action_items": []
+        }
+
+    prompt = f"""You are the AI Diagnostics Engine for the Ground Up Cold Storage factory in Pune, India.
+    
+    Analyze the following telemetry data for "{room.name}" ({room.type or 'room'}) over the {tf_label} timeframe.
+    
+    Telemetry Summary:
+    {json_mod.dumps(stats, indent=2)}
+    
+    INSTRUCTIONS:
+    1. Write a comprehensive, detailed multi-sentence engineering analysis (at least 3-4 sentences) that:
+       - States the average, minimum, and maximum temperatures with their values
+       - Compares them against the configured thresholds ({temp_min_th}°C to {temp_max_th}°C)
+       - Reports breach hours (time above max or below min) if any
+       - If smart plug data is available, correlates power draw (watts), compressor runtime (hours), cycle count (starts), and energy consumption (kWh)
+       - Compares against the 7-day baseline average temperature of {stats.get('baseline_7d_temp_avg', 'N/A')}°C
+       - Comments on thermal stability, compressor health, and energy efficiency
+       - Mentions humidity trends if data is available
+    2. Provide 3-5 specific, actionable recommendations for the factory maintenance team.
+    3. Set status to "healthy" if within thresholds, "warning" if marginal, "critical" if breaching.
+
+    Format your output strictly as a JSON object:
+    {{
+      "room_name": "{room.name}",
+      "status": "healthy" | "warning" | "critical",
+      "analysis": "Your comprehensive multi-sentence engineering analysis here.",
+      "action_items": [
+        "Specific recommendation 1",
+        "Specific recommendation 2",
+        "Specific recommendation 3"
+      ]
+    }}
+    """
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json"
+        }
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(url, json=payload, timeout=30.0)
+            if res.status_code == 200:
+                text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                cleaned = text.strip()
+                if cleaned.startswith("```json"):
+                    cleaned = cleaned[7:]
+                elif cleaned.startswith("```"):
+                    cleaned = cleaned[3:]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
+                
+                result = json_mod.loads(cleaned)
+                if "room_name" not in result:
+                    result["room_name"] = room.name
+                return result
+            else:
+                logger.error(f"Gemini AI-summary returned {res.status_code}: {res.text[:300]}")
+    except Exception as e:
+        logger.error(f"AI-summary Gemini call failed: {e}", exc_info=True)
+    
+    # Fallback: generate rule-based response with actual stats
+    fb_status = "healthy"
+    fb_parts = []
+    if stats.get("temp_avg") is not None:
+        fb_parts.append(f"The {room.name} maintained an average temperature of {stats['temp_avg']}°C (min {stats['temp_min']}°C, max {stats['temp_max']}°C) over the {tf_label} period.")
+    if temp_min_th is not None and temp_max_th is not None:
+        if above_hours > 0.25:
+            fb_status = "warning" if above_hours < 2 else "critical"
+            fb_parts.append(f"Temperature exceeded the upper threshold of {temp_max_th}°C for {above_hours:.1f} hours.")
+        elif below_hours > 0.25:
+            fb_status = "warning" if below_hours < 2 else "critical"
+            fb_parts.append(f"Temperature dropped below the lower threshold of {temp_min_th}°C for {below_hours:.1f} hours.")
+        else:
+            fb_parts.append(f"All readings remained within the target range of {temp_min_th}°C to {temp_max_th}°C with zero breach hours.")
+    if stats.get("has_plug") and stats.get("power_avg_w") is not None:
+        fb_parts.append(f"Smart plug reported average power draw of {stats['power_avg_w']}W, compressor runtime of {stats.get('runtime_hours', 0)}h with {stats.get('compressor_starts', 0)} start cycles, consuming {stats.get('energy_kwh', 0)} kWh.")
+    if stats.get("baseline_7d_temp_avg") is not None:
+        fb_parts.append(f"The 7-day baseline average is {stats['baseline_7d_temp_avg']}°C.")
+    
     return {
         "room_name": room.name,
-        "status": "healthy",
-        "analysis": "Thermal telemetry operating within expected limits. No anomalies detected.",
-        "action_items": ["Verify sensor connections and threshold calibrations."]
+        "status": fb_status,
+        "analysis": " ".join(fb_parts) if fb_parts else "Thermal telemetry operating within expected limits.",
+        "action_items": [
+            "Continue monitoring temperature trends for any drift from baseline.",
+            "Verify sensor battery levels and connectivity status.",
+            "Inspect door seals and gaskets for wear during next maintenance cycle."
+        ]
     }
 
 
@@ -1820,7 +2017,22 @@ async def _call_gemini_json(prompt: str) -> dict:
                 text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
                 cleaned_text = _clean_json_text(text)
                 try:
-                    return json.loads(cleaned_text)
+                    data = json.loads(cleaned_text)
+                    if isinstance(data, dict) and "answer" not in data:
+                        if "analysis" in data:
+                            data["answer"] = str(data["analysis"])
+                        elif "summary" in data:
+                            data["answer"] = str(data["summary"])
+                        elif "device_analysis" in data:
+                            da = data["device_analysis"]
+                            if isinstance(da, dict):
+                                summary = da.get("assessment", {}).get("summary", "") or da.get("summary", "")
+                                findings = "\n• " + "\n• ".join(da.get("assessment", {}).get("key_findings", [])) if da.get("assessment", {}).get("key_findings") else ""
+                                recs = "\n\nRecommendations:\n• " + "\n• ".join(da.get("recommendations", [])) if da.get("recommendations") else ""
+                                data["answer"] = f"{summary}{findings}{recs}".strip()
+                            else:
+                                data["answer"] = str(da)
+                    return data
                 except Exception as json_err:
                     logger.warning(f"Standard JSON parsing failed: {json_err}. Attempting regex fallback parsing on: {cleaned_text}")
                     parsed = _regex_parse_json(cleaned_text)
@@ -2052,32 +2264,41 @@ def download_chat_report(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid ISO timestamps.")
         
-    logs = db.query(DeviceTelemetry).filter(
-        DeviceTelemetry.device_id == device_id,
-        DeviceTelemetry.timestamp >= start_utc,
-        DeviceTelemetry.timestamp <= end_utc
-    ).order_by(DeviceTelemetry.timestamp.asc()).all()
-    
-    from backend.models.plug_telemetry import PlugTelemetry
-    plug_logs = db.query(PlugTelemetry).filter(
-        PlugTelemetry.device_id == device_id,
-        PlugTelemetry.timestamp >= start_utc,
-        PlugTelemetry.timestamp <= end_utc
-    ).order_by(PlugTelemetry.timestamp.asc()).all()
-
-    if not logs and not plug_logs:
-        raise HTTPException(status_code=404, detail="No telemetry logs found for the requested timeframe.")
-        
-    # Resolve Room name
     sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
     room_name = "Unknown Room"
     sensor_type = "both"
+    device_ids_to_query = [device_id]
+    
     if sensor:
         sensor_type = sensor.type
         from backend.models.room import Room
         room = db.query(Room).filter(Room.id == sensor.room_id).first()
         if room:
             room_name = room.name
+            room_sensors = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.active == True).all()
+            device_ids_to_query = list(set([device_id] + [s.device_id for s in room_sensors if s.device_id]))
+
+    logs = db.query(DeviceTelemetry).filter(
+        DeviceTelemetry.device_id.in_(device_ids_to_query),
+        DeviceTelemetry.timestamp >= start_utc,
+        DeviceTelemetry.timestamp <= end_utc
+    ).order_by(DeviceTelemetry.timestamp.asc()).all()
+    
+    from backend.models.plug_telemetry import PlugTelemetry
+    plug_logs = db.query(PlugTelemetry).filter(
+        PlugTelemetry.device_id.in_(device_ids_to_query),
+        PlugTelemetry.timestamp >= start_utc,
+        PlugTelemetry.timestamp <= end_utc
+    ).order_by(PlugTelemetry.timestamp.asc()).all()
+
+    if not logs and not plug_logs:
+        logs = db.query(DeviceTelemetry).filter(
+            DeviceTelemetry.device_id.in_(device_ids_to_query)
+        ).order_by(DeviceTelemetry.timestamp.desc()).limit(100).all()
+        logs = list(reversed(logs))
+
+    if not logs and not plug_logs:
+        raise HTTPException(status_code=404, detail="No telemetry logs found for the requested timeframe.")
             
     if format == "pdf":
         from backend.services.pdf_generator import generate_telemetry_pdf
