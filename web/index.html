@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Ground Up Monitor</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -31,7 +34,17 @@
       --accent-pink-bg: #fdf2f8;
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    button, select, input, .sensor-card, .action-btn, .map-pin, .nav-tab, .tapo-card, .toggle-btn {
+      touch-action: manipulation;
+      cursor: pointer;
+    }
     
     body {
       font-family: 'Inter', -apple-system, sans-serif;
@@ -154,6 +167,12 @@
       align-items: center;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .sensor-card * {
+      pointer-events: none;
     }
     .sensor-card:hover {
       background: var(--card-hover-bg);
@@ -191,6 +210,8 @@
     .badge-ok { background: rgba(16, 185, 129, 0.08); color: #059669; border: 1px solid rgba(16, 185, 129, 0.15); }
     .badge-alert { background: rgba(239, 68, 68, 0.08); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.15); }
     .badge-offline { background: rgba(107, 114, 128, 0.08); color: #4b5563; border: 1px solid rgba(107, 114, 128, 0.15); }
+    .badge-maintenance { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.2); }
+    .maintenance-border { border-left: 4px solid #8b5cf6 !important; }
     .footer-text { text-align: center; color: var(--text-secondary); font-size: 11px; margin-top: 16px; }
 
     /* ─── Detail View ─── */
@@ -412,7 +433,6 @@
     }
     
     .chat-trigger-btn {
-      pointer-events: auto;
       width: 56px;
       height: 56px;
       border-radius: 50%;
@@ -426,6 +446,7 @@
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       border: 1px solid rgba(255, 255, 255, 0.15);
       position: relative;
+      pointer-events: auto;
     }
     .chat-trigger-btn:hover {
       transform: scale(1.08) translateY(-2px);
@@ -685,7 +706,10 @@
     <div class="subheader" style="margin-bottom: 8px;">Cold Room Monitoring</div>
 
     <!-- Action Buttons Row -->
-    <div style="margin-bottom: 14px; display: flex; gap: 8px;">
+    <div style="margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button onclick="openWhatsappGroupsModal()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #0284c7; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); padding: 7px 12px; border-radius: 10px; text-decoration: none; cursor: pointer; font-family: 'Inter', sans-serif;">
+        <span class="material-icons" style="font-size: 15px;">group_add</span> WhatsApp Groups
+      </button>
       <a href="/app.apk" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.15); padding: 7px 12px; border-radius: 10px; text-decoration: none; font-family: 'Inter', sans-serif;" download>
         <span class="material-icons" style="font-size: 15px;">phone_android</span> Download App
       </a>
@@ -698,7 +722,7 @@
     <div class="tabs">
       <div class="tab" id="tabList" onclick="switchTab('list')">List View</div>
       <div class="tab active" id="tabMap" onclick="switchTab('map')">Floor Plan</div>
-      <div class="tab" id="tabPlugs" onclick="switchTab('plugs')">Tapo Plugs</div>
+      <div class="tab" id="tabPlugs" onclick="switchTab('plugs')">Plugs</div>
     </div>
 
     <!-- MAP VIEW CONTAINER -->
@@ -713,32 +737,33 @@
       <div id="sensorList"></div>
     </div>
 
-    <!-- Dedicated Tapo Plugs Section -->
+    <!-- Plugs Section -->
     <div id="tapoPlugsWrapper" style="display: none; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div class="section-title" style="margin-bottom: 0;">Tapo Plugs Dashboard</div>
-        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Tapo Plug</button>
+        <div class="section-title" style="margin-bottom: 0;">Plugs Dashboard</div>
+        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Plug</button>
       </div>
       <div id="tapoPlugsList"></div>
     </div>
 
-    <!-- Tapo Settings Modal -->
+    <!-- Appliance & Device Settings Modal -->
     <div id="tapoSettingsModal" class="modal-overlay">
       <div class="modal-content">
-        <div class="modal-header">Tapo Plug Settings</div>
-        <div class="modal-subheader">Configure connection details for this room's smart plug:</div>
+        <div class="modal-header" id="applianceModalHeader">⚙️ Appliance & Room Settings</div>
+        <div class="modal-subheader" id="applianceModalSubheader">Assign this sensor to an appliance / room or configure settings:</div>
         
         <input type="hidden" id="modalTapoDeviceId" />
         <input type="hidden" id="modalTapoMode" value="edit" />
         
-        <div id="modalTapoRoomSelectWrapper" style="margin-bottom: 12px;">
-          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Select Room</span>
-          <select id="modalTapoRoomSelect" class="input-field" style="margin-top: 0; padding: 10px; cursor: pointer;">
-            <option value="" disabled selected>Choose a room...</option>
+        <div id="modalTapoRoomSelectWrapper" style="margin-bottom: 14px;">
+          <span style="font-size: 11px; font-weight: 800; color: #1E293B; display: block; margin-bottom: 6px; text-transform: uppercase;">Assign to Appliance / Room</span>
+          <select id="modalTapoRoomSelect" class="input-field" style="margin-top: 0; padding: 10px; cursor: pointer; font-size: 13px; font-weight: 600;" onchange="handleRoomSelectChange()">
+            <option value="" disabled selected>Choose an appliance / room...</option>
           </select>
+          <input type="text" id="newRoomNameInput" class="input-field" style="margin-top: 8px; padding: 10px; display: none; font-size: 13px;" placeholder="Type new appliance name e.g. White Fridge" />
         </div>
         
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 12px; display: none;">
           <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase; display: flex; justify-content: space-between;">
             <span>Tapo IP Address</span>
             <span id="discoveryStatus" style="color: #10b981; font-size: 9px; cursor: pointer;" onclick="fetchDiscoveredPlugs()">🔄 Scan Network</span>
@@ -749,12 +774,12 @@
           <input type="text" id="modalTapoIp" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="e.g. 192.168.1.100" />
         </div>
         
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 12px; display: none;">
           <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo Username (Email)</span>
           <input type="text" id="modalTapoUsername" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="Tapo account email" />
         </div>
         
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 12px; display: none;">
           <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Tapo Password</span>
           <input type="password" id="modalTapoPassword" class="input-field" style="margin-top: 0; padding: 10px;" placeholder="Tapo account password" />
         </div>
@@ -772,9 +797,54 @@
         <div class="modal-buttons" style="flex-direction: column; gap: 8px;">
           <div style="display: flex; gap: 8px;">
             <button class="action-btn" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; margin-bottom: 0; flex: 1;" onclick="closeTapoSettingsModal()">Cancel</button>
-            <button class="action-btn blue" style="margin-bottom: 0; flex: 1;" onclick="saveTapoSettings()">Save Connection</button>
+            <button class="action-btn blue" style="margin-bottom: 0; flex: 1;" onclick="saveTapoSettings()">Save Settings</button>
           </div>
           <button id="clearTapoConfigBtn" class="action-btn" style="display: none; width: 100%; margin-bottom: 0; padding: 10px; font-size: 12px; font-weight: 800; background: rgba(239, 68, 68, 0.06); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px;" onclick="clearTapoConfig()">🗑️ Clear Configuration</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WhatsApp Alert Groups & Recipients Modal -->
+    <div id="whatsappGroupsModal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);">
+      <div class="modal-card" style="max-width: 480px; width: 92%; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div style="font-weight: 800; font-size: 16px; color: #0F172A; display: flex; align-items: center; gap: 8px;">
+            📢 WhatsApp Alert Groups & Recipients
+          </div>
+          <button onclick="closeWhatsappGroupsModal()" style="background: none; border: none; font-size: 20px; color: #64748B; cursor: pointer;">&times;</button>
+        </div>
+
+        <div style="font-size: 12px; color: #475569; margin-bottom: 16px; line-height: 1.5;">
+          Configure target WhatsApp phone numbers for Group 1 (All Messages) and Group 2 (Daily Reports & High-High Critical Alerts).
+        </div>
+
+        <!-- GROUP 1 -->
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px; margin-bottom: 14px;">
+          <div style="font-size: 13px; font-weight: 800; color: #1E293B; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            📱 Group 1: All Messages & Alerts
+          </div>
+          <div style="font-size: 11px; color: #64748B; margin-bottom: 8px;">
+            Receives <strong>EVERY</strong> notification (Critical, High, Medium, Low, Offline warnings, & Daily summary reports).
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #64748B; display: block; margin-bottom: 4px; text-transform: uppercase;">Phone Numbers (comma separated)</span>
+          <input type="text" id="group1NumbersInput" class="input-field" style="margin-top: 0; padding: 10px; font-size: 12px;" placeholder="e.g. 919421187857, 919876543210" />
+        </div>
+
+        <!-- GROUP 2 -->
+        <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px; margin-bottom: 18px;">
+          <div style="font-size: 13px; font-weight: 800; color: #166534; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+            📊 Group 2: Daily Reports & Critical Spikes (&gt;10°C)
+          </div>
+          <div style="font-size: 11px; color: #15803D; margin-bottom: 8px;">
+            Receives <strong>ONLY</strong> Daily Telemetry Reports and High-High Critical alerts (temperature straying by ≥ 10°C).
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #166534; display: block; margin-bottom: 4px; text-transform: uppercase;">Phone Numbers (comma separated)</span>
+          <input type="text" id="group2NumbersInput" class="input-field" style="margin-top: 0; padding: 10px; font-size: 12px;" placeholder="e.g. 919876543210, 919123456789" />
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="action-btn" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; margin-bottom: 0; flex: 1;" onclick="closeWhatsappGroupsModal()">Cancel</button>
+          <button class="action-btn green" style="margin-bottom: 0; flex: 1.5; background: #059669; color: white;" onclick="saveWhatsappGroups()">Save Alert Groups</button>
         </div>
       </div>
     </div>
@@ -791,6 +861,7 @@
       <div style="display: flex; gap: 8px; align-items: center;">
         <span class="sensor-badge badge-ok" style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px;" id="dTopBat">🔋 --</span>
         <span class="sensor-badge badge-ok" style="font-size: 11px; margin-top: 0; padding: 4px 10px; border-radius: 8px; background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.2);" id="dTopTime">🕒 --</span>
+        <button class="action-btn" onclick="openCurrentDeviceSettingsModal()" style="font-size: 11px; margin: 0; padding: 4px 10px; border-radius: 8px; background: #f8fafc; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">⚙️ Appliance Settings</button>
       </div>
     </div>
     <div class="detail-header" id="detailHeader" style="margin-top: 10px; display: flex; align-items: center; gap: 10px;"></div>
@@ -897,9 +968,10 @@
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Time Frame</div>
             <select id="daysSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="handleTimeframeChange()">
+              <option value="" disabled selected>-- Select Timeframe --</option>
               <option value="1">1 Day</option>
               <option value="3">3 Days</option>
-              <option value="7" selected>7 Days</option>
+              <option value="7">7 Days</option>
               <option value="30">30 Days</option>
               <option value="Monthly">Monthly</option>
               <option value="custom">Custom Range</option>
@@ -907,7 +979,7 @@
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9px; margin-bottom: 2px;">Data Interval</div>
-            <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()">
+            <select id="intervalSelect" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="generateTimeframeAnalytics()">
               <option value="1" selected>Raw (1 min)</option>
               <option value="15">15 Minutes</option>
               <option value="30">30 Minutes</option>
@@ -923,16 +995,19 @@
         <div id="customDateRangeRow" style="display: none; margin-top: 10px;" class="row">
           <div class="metric-box" style="margin-right: 8px;">
             <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">Start Date</div>
-            <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+            <input type="date" id="startDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="generateTimeframeAnalytics()" />
           </div>
           <div class="metric-box">
             <div class="metric-label" style="font-size: 9.5px; margin-bottom: 2px; font-weight: 700; color: var(--text-secondary);">End Date</div>
-            <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="updateAnalyticsOptions()" />
+            <input type="date" id="endDateInput" class="input-field" style="padding: 6px 10px; font-size: 13px;" onchange="generateTimeframeAnalytics()" />
           </div>
         </div>
 
-        <div style="margin-top: 10px;">
-          <a class="action-btn green" id="dCsvLink" target="_blank" style="width: 100%; margin-bottom: 0; padding: 10px; font-size: 13px; text-decoration: none; display: block;">Export CSV Log</a>
+        <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="action-btn green" id="dCsvLink" onclick="downloadCsvFile('all')" style="flex: 1; min-width: 140px; margin-bottom: 0; padding: 9px 6px; font-size: 11.5px; text-align: center; border-radius: 6px; cursor: pointer;">📥 Full Combo + Power CSV</button>
+          <button class="action-btn green" id="dCsvFridgePowerLink" onclick="downloadCsvFile('fridge')" style="flex: 1; min-width: 140px; margin-bottom: 0; padding: 9px 6px; font-size: 11.5px; display: none; text-align: center; background: #059669; border-color: #047857; border-radius: 6px; cursor: pointer;">📥 Fridge + Power</button>
+          <button class="action-btn green" id="dCsvFreezerPowerLink" onclick="downloadCsvFile('freezer')" style="flex: 1; min-width: 140px; margin-bottom: 0; padding: 9px 6px; font-size: 11.5px; display: none; text-align: center; background: #2563EB; border-color: #1D4ED8; border-radius: 6px; cursor: pointer;">📥 Freezer + Power</button>
+          <button class="action-btn green" id="dCsvSensorOnlyLink" onclick="downloadCsvFile('sensor_only')" style="flex: 1; min-width: 140px; margin-bottom: 0; padding: 9px 6px; font-size: 11.5px; text-align: center; background: #0284C7; border-color: #0369A1; border-radius: 6px; cursor: pointer;">📥 Sensor Only CSV</button>
         </div>
       </div>
     </div>
@@ -946,6 +1021,21 @@
           <button class="toggle-btn" id="btn-vert-trend" onclick="setChartOrientation('trend', 'vertical')" style="border: none; background: transparent; padding: 2px 6px; font-size: 10px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">Vertical</button>
         </div>
       </div>
+
+      <!-- AI Insight Box for Selected Timeframe (Above Chart) -->
+      <div id="timeframeAiInsightBox" style="margin-bottom: 12px; background: linear-gradient(135deg, rgba(240, 253, 244, 0.8) 0%, rgba(238, 242, 255, 0.8) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 10px 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(16, 185, 129, 0.15);">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px;">🤖 AI Timeframe Diagnostics</span>
+            <span id="aiInsightBadge" style="font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid #10b981; text-transform: uppercase;">HEALTHY</span>
+          </div>
+        </div>
+        <div id="aiInsightText" style="font-size: 12px; color: #334155; line-height: 1.45; font-weight: 500;">
+          Select a time frame or custom date range above to load the AI telemetry summary...
+        </div>
+        <div id="aiInsightActions" style="margin-top: 6px; font-size: 11px; color: #475569; display: none;"></div>
+      </div>
+
       <div id="trendChartWrapper" style="position: relative; height: 150px; width: 100%;">
         <canvas id="telemetryChart"></canvas>
       </div>
@@ -1022,7 +1112,13 @@
   </div>
 
   <script>
-    Chart.register(ChartDataLabels);
+    if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
+      try {
+        Chart.register(ChartDataLabels);
+      } catch (e) {
+        console.warn('ChartDataLabels registration warning:', e);
+      }
+    }
     // Determine API endpoint: use localhost/LAN IP if on local network, else use cloud API
     const hostname = window.location.hostname;
     const resolvedHostname = hostname === 'localhost' ? '127.0.0.1' : hostname;
@@ -1334,19 +1430,19 @@
       plugSelectedDays[roomId] = days;
       plugSelectedInterval[roomId] = interval;
 
-      let queryStr = `days=${days}&interval_minutes=${interval}`;
+      let queryStr = '';
       if (days === 'custom') {
         const startVal = document.getElementById(`plugStartDate-${roomId}`).value;
         const endVal = document.getElementById(`plugEndDate-${roomId}`).value;
         if (startVal && endVal) {
-          queryStr += `&start_date=${startVal}&end_date=${endVal}`;
+          queryStr = `interval_minutes=${interval}&start_date=${startVal}&end_date=${endVal}`;
         } else {
           // If custom is selected but dates are not set yet, default to last 7 days range
           const now = new Date();
           const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
           const startStr = sevenDaysAgo.toISOString().split('T')[0];
           const endStr = now.toISOString().split('T')[0];
-          queryStr += `&start_date=${startStr}&end_date=${endStr}`;
+          queryStr = `interval_minutes=${interval}&start_date=${startStr}&end_date=${endStr}`;
           
           // Set inputs to match defaults
           const startInput = document.getElementById(`plugStartDate-${roomId}`);
@@ -1354,6 +1450,8 @@
           if (startInput) startInput.value = startStr;
           if (endInput) endInput.value = endStr;
         }
+      } else {
+        queryStr = `days=${days}&interval_minutes=${interval}`;
       }
 
       // Update export CSV link
@@ -1378,134 +1476,218 @@
             }
           });
           const valuesPower = historyData.map(log => log.apower);
-          const valuesEnergy = historyData.map(log => parseFloat(log.today_energy || 0)); // kWh directly
+          const valuesVoltage = historyData.map(log => parseFloat(log.voltage || 0));
+          const valuesCurrent = historyData.map(log => parseFloat(log.current || 0));
           
-          // Compute dynamic flexible scale bounds
+          const pOrient = (plugChartOrientations[roomId] && plugChartOrientations[roomId].power) || 'horizontal';
+          const eOrient = (plugChartOrientations[roomId] && plugChartOrientations[roomId].energy) || 'horizontal';
+
           const maxPowerVal = valuesPower.length ? Math.max(...valuesPower) : 10;
           const maxPowerScale = maxPowerVal > 0 ? Math.ceil(maxPowerVal * 1.15) : 10;
 
-          const maxEnergyVal = valuesEnergy.length ? Math.max(...valuesEnergy) : 0.1;
-          const maxEnergyScale = maxEnergyVal > 0 ? parseFloat((maxEnergyVal * 1.25).toFixed(3)) : 0.1;
+          const minVoltageVal = valuesVoltage.length ? Math.min(...valuesVoltage.filter(v => v > 0)) : 200;
+          const maxVoltageVal = valuesVoltage.length ? Math.max(...valuesVoltage) : 250;
+
+          // Set canvas height & container for vertical scroll (matching sensor vertical chart dynamic height)
+          const dataCount = historyData.length;
+          const powerCanvas = document.getElementById(`plugPowerChart-${roomId}`);
+          const voltCanvas = document.getElementById(`plugEnergyChart-${roomId}`);
+          
+          if (powerCanvas && powerCanvas.parentElement) {
+            if (pOrient === 'vertical') {
+              const calcHeight = Math.min(1200, Math.max(300, dataCount * 20));
+              powerCanvas.parentElement.style.height = `${calcHeight}px`;
+            } else {
+              powerCanvas.parentElement.style.height = '140px';
+            }
+          }
+          
+          if (voltCanvas && voltCanvas.parentElement) {
+            if (eOrient === 'vertical') {
+              const calcHeight = Math.min(1200, Math.max(300, dataCount * 20));
+              voltCanvas.parentElement.style.height = `${calcHeight}px`;
+            } else {
+              voltCanvas.parentElement.style.height = '160px';
+            }
+          }
 
           // Get billing rate for tooltip cost computation
           const item = tapoPlugsData[roomId];
           const billingRate = (item && item.data && item.data.billing_rate) ? item.data.billing_rate : 17.0;
 
           // Render Power Chart
-          const ctxPower = document.getElementById(`plugPowerChart-${roomId}`).getContext('2d');
-          if (plugChartInstances[`power-${roomId}`]) {
-            plugChartInstances[`power-${roomId}`].destroy();
-          }
-          plugChartInstances[`power-${roomId}`] = new Chart(ctxPower, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [{
-                label: 'Power (Watts)',
-                data: valuesPower,
-                borderColor: '#2563EB',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                borderWidth: 2.5,
-                pointRadius: historyData.length > 50 ? 0 : 3,
-                pointHoverRadius: 5,
-                fill: true,
-                tension: 0.35
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                datalabels: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: function(ctx) {
-                      const idx = ctx.dataIndex;
-                      const log = historyData[idx];
-                      const v = log ? log.voltage : '--';
-                      const c = log ? log.current : '--';
-                      return `Power: ${ctx.parsed.y.toFixed(1)} W (${v}V, ${c}A)`;
+          const ctxPower = powerCanvas ? powerCanvas.getContext('2d') : null;
+          if (ctxPower) {
+            if (plugChartInstances[`power-${roomId}`]) {
+              plugChartInstances[`power-${roomId}`].destroy();
+            }
+            plugChartInstances[`power-${roomId}`] = new Chart(ctxPower, {
+              type: pOrient === 'vertical' ? 'bar' : 'line',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Power (Watts)',
+                  data: valuesPower,
+                  borderColor: '#2563EB',
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  borderWidth: 2.5,
+                  pointRadius: historyData.length > 50 ? 0 : 3,
+                  pointHoverRadius: 5,
+                  fill: true,
+                  tension: 0.35
+                }]
+              },
+              options: {
+                indexAxis: pOrient === 'vertical' ? 'y' : 'x',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                  datalabels: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: function(ctx) {
+                        const idx = ctx.dataIndex;
+                        const log = historyData[idx];
+                        const v = log ? log.voltage : '--';
+                        const c = log ? log.current : '--';
+                        const val = pOrient === 'vertical' ? ctx.parsed.x : ctx.parsed.y;
+                        return `Power: ${val.toFixed(1)} W (${v}V, ${c}A)`;
+                      }
                     }
                   }
-                }
-              },
-              scales: {
-                x: {
-                  grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
                 },
-                y: {
-                  grid: { color: '#F1F5F9' },
-                  beginAtZero: true,
-                  suggestedMax: maxPowerScale,
-                  ticks: {
-                    font: { size: 9, weight: '600' },
-                    callback: function(value) {
-                      return (value >= 1000) ? (value / 1000).toFixed(1) + ' kW' : Math.round(value) + ' W';
+                scales: {
+                  x: {
+                    grid: { display: pOrient === 'vertical' },
+                    beginAtZero: pOrient === 'vertical',
+                    ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: pOrient === 'vertical' ? 5 : 6, font: { size: 9, weight: '600' } }
+                  },
+                  y: {
+                    grid: { color: '#F1F5F9' },
+                    beginAtZero: true,
+                    suggestedMax: pOrient === 'vertical' ? undefined : maxPowerScale,
+                    ticks: {
+                      font: { size: 9, weight: '600' },
+                      callback: function(value) {
+                        return (value >= 1000) ? (value / 1000).toFixed(1) + ' kW' : Math.round(value) + ' W';
+                      }
                     }
                   }
                 }
               }
-            }
-          });
+            });
+          }
 
-          // Render Energy Chart
-          const ctxEnergy = document.getElementById(`plugEnergyChart-${roomId}`).getContext('2d');
-          if (plugChartInstances[`energy-${roomId}`]) {
-            plugChartInstances[`energy-${roomId}`].destroy();
-          }
-          plugChartInstances[`energy-${roomId}`] = new Chart(ctxEnergy, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [{
-                label: 'Energy (kWh)',
-                data: valuesEnergy,
-                borderColor: '#10B981',
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                borderWidth: 2.5,
-                pointRadius: historyData.length > 50 ? 0 : 3,
-                pointHoverRadius: 5,
-                fill: true,
-                tension: 0.35
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                datalabels: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: function(ctx) {
-                      const kwh = ctx.parsed.y;
-                      const bill = (kwh * billingRate).toFixed(2);
-                      return `Energy: ${kwh.toFixed(3)} kWh (₹ ${bill})`;
-                    }
-                  }
+          // Render Voltage & Current Chart
+          const ctxVolt = voltCanvas ? voltCanvas.getContext('2d') : null;
+          if (ctxVolt) {
+            if (plugChartInstances[`energy-${roomId}`]) {
+              plugChartInstances[`energy-${roomId}`].destroy();
+            }
+            
+            const voltDataset = {
+              label: 'Voltage (V)',
+              data: valuesVoltage,
+              borderColor: '#F59E0B',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              borderWidth: 2,
+              pointRadius: historyData.length > 50 ? 0 : 2,
+              pointHoverRadius: 4,
+              fill: true,
+              tension: 0.35
+            };
+
+            const currDataset = {
+              label: 'Current (A)',
+              data: valuesCurrent,
+              borderColor: '#8B5CF6',
+              backgroundColor: 'rgba(139, 92, 246, 0.12)',
+              borderWidth: 2,
+              pointRadius: historyData.length > 50 ? 0 : 2,
+              pointHoverRadius: 4,
+              fill: false,
+              tension: 0.35
+            };
+
+            const voltScales = eOrient === 'vertical' ? {
+              x: {
+                grid: { display: true },
+                suggestedMin: Math.max(minVoltageVal - 10, 180),
+                suggestedMax: maxVoltageVal + 10,
+                ticks: {
+                  font: { size: 9, weight: '600' },
+                  color: '#F59E0B',
+                  callback: function(value) { return Math.round(value) + ' V'; }
                 }
               },
-              scales: {
-                x: {
-                  grid: { display: false },
-                  ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
-                },
-                y: {
-                  grid: { color: '#F1F5F9' },
-                  beginAtZero: true,
-                  suggestedMax: maxEnergyScale,
-                  ticks: {
-                    font: { size: 9, weight: '600' },
-                    callback: function(value) {
-                      return (maxEnergyVal < 1.0) ? value.toFixed(3) + ' kWh' : value.toFixed(2) + ' kWh';
-                    }
-                  }
+              y: {
+                ticks: { font: { size: 9, weight: '600' }, autoSkip: true }
+              }
+            } : {
+              x: {
+                ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6, font: { size: 9, weight: '600' } }
+              },
+              yVoltage: {
+                type: 'linear',
+                position: 'left',
+                grid: { color: '#F1F5F9' },
+                suggestedMin: Math.max(minVoltageVal - 10, 180),
+                suggestedMax: maxVoltageVal + 10,
+                ticks: {
+                  font: { size: 9, weight: '600' },
+                  color: '#F59E0B',
+                  callback: function(value) { return Math.round(value) + ' V'; }
+                }
+              },
+              yCurrent: {
+                type: 'linear',
+                position: 'right',
+                grid: { display: false },
+                beginAtZero: true,
+                ticks: {
+                  font: { size: 9, weight: '600' },
+                  color: '#8B5CF6',
+                  callback: function(value) { return value.toFixed(1) + ' A'; }
                 }
               }
+            };
+
+            if (eOrient === 'horizontal') {
+              voltDataset.yAxisID = 'yVoltage';
+              currDataset.yAxisID = 'yCurrent';
             }
-          });
+
+            plugChartInstances[`energy-${roomId}`] = new Chart(ctxVolt, {
+              type: eOrient === 'vertical' ? 'bar' : 'line',
+              data: {
+                labels: labels,
+                datasets: [voltDataset, currDataset]
+              },
+              options: {
+                indexAxis: eOrient === 'vertical' ? 'y' : 'x',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: true, position: 'top', labels: { font: { size: 9, weight: '600' }, boxWidth: 12 } },
+                  datalabels: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: function(ctx) {
+                        const val = eOrient === 'vertical' ? ctx.parsed.x : ctx.parsed.y;
+                        if (ctx.dataset.label.includes('Voltage')) {
+                          return `Voltage: ${val.toFixed(1)} V`;
+                        } else {
+                          return `Current: ${val.toFixed(3)} A`;
+                        }
+                      }
+                    }
+                  }
+                },
+                scales: voltScales
+              }
+            });
+          }
 
           // Render Offline Logs
           const offlineCard = document.getElementById(`plugOfflineCard-${roomId}`);
@@ -1576,8 +1758,8 @@
       if (configuredRooms.length === 0 && unconfiguredRooms.length > 0) {
         html = `
           <div style="text-align: center; color: #6B7280; font-size: 13px; margin: 30px 0; padding: 30px; border: 1px dashed #E5E7EB; border-radius: 16px; background: #FFFFFF;">
-            🔌 <strong>No Tapo Plugs configured yet.</strong><br>
-            <span style="font-size: 11px; color: #94A3B8;">Click "+ Add Tapo Plug" above to configure your first smart plug.</span>
+            🔌 <strong>No Plugs configured yet.</strong><br>
+            <span style="font-size: 11px; color: #94A3B8;">Click "+ Add Plug" above to configure your first smart plug.</span>
           </div>
         `;
         container.innerHTML = html;
@@ -1611,8 +1793,7 @@
           if (error || (data && !data.supported) || (data && data.state === 'offline')) {
             badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge badge-offline" style="margin: 0; padding: 2px 8px; border-radius: 6px;">OFFLINE</span>`;
             const errMsg = error || (data && data.error) || 'Credentials missing (Username/Password)';
-            const isTapo = (data && data.type === 'tapo') || (mainSensor && (mainSensor.tapo_ip || mainSensor.name?.toLowerCase().includes('tapo')));
-            const isLocalNetworkError = isTapo && errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
+            const isLocalNetworkError = errMsg && (errMsg.includes('192.168') || errMsg.includes('10.') || errMsg.includes('connect') || errMsg.includes('timed out') || errMsg.includes('refused') || errMsg.includes('Network') || errMsg.includes('route') || errMsg.includes('LAN'));
             const cloudNote = isLocalNetworkError ? '<br><span style="font-size: 10px; color: #f59e0b;">⚠️ Tapo plugs require direct LAN access — not reachable from cloud. Historical charts still available below.</span>' : '';
             telemetryHtml = `<div style="text-align: center; color: #94a3b8; font-size: 12px; font-weight: bold; margin: 15px 0;">🔌 Plug Offline: ${errMsg}${cloudNote}</div>`;
             toggleBtnHtml = `
@@ -1666,7 +1847,7 @@
             `;
           } else {
             // Live connected state
-            const isOn = data.state === 'on';
+            const isOn = (data.state === 'on' || data.state === 'online' || data.apower > 0.5);
             badgeHtml = `<span id="plugBadge-${roomId}" class="sensor-badge" style="margin: 0; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isOn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)'}; color: ${isOn ? '#10b981' : '#6b7280'}; border: 1px solid ${isOn ? 'rgba(16, 185, 129, 0.2)' : 'rgba(107, 114, 128, 0.2)'};">${data.state.toUpperCase()}</span>`;
             telemetryHtml = `
               <div style="display: flex; align-items: center; margin-bottom: 16px; margin-top: 10px;">
@@ -1828,17 +2009,27 @@
                     <input type="date" id="plugEndDate-${roomId}" class="input-field" style="padding: 4px 8px; font-size: 11.5px; margin-top: 0;" onchange="loadPlugChartsData('${roomId}', '${mainSensor.device_id}')" />
                   </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 6px;">
                   <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">POWER LOAD TREND (WATTS)</span>
-                  <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${mainSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 4px 10px; font-size: 10px; text-decoration: none; text-align: center;" target="_blank">📥 Export CSV</a>
+                  <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 2px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                      <button id="btn-horiz-plug-power-${roomId}" onclick="setPlugChartOrientation('${roomId}', 'power', 'horizontal')" style="border: none; background: #fff; padding: 2px 5px; font-size: 8.5px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">━</button>
+                      <button id="btn-vert-plug-power-${roomId}" onclick="setPlugChartOrientation('${roomId}', 'power', 'vertical')" style="border: none; background: transparent; padding: 2px 5px; font-size: 8.5px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">┃</button>
+                    </div>
+                    <a id="plugCsvExport-${roomId}" href="${API}/sensors/device/${mainSensor.device_id}/plug/export?days=1&interval_minutes=1" class="action-btn green" style="margin-bottom: 0; padding: 2px 6px; font-size: 8.5px; text-decoration: none; text-align: center; white-space: nowrap;" target="_blank">📥 CSV</a>
+                  </div>
                 </div>
-                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
+                <div id="plugPowerWrapper-${roomId}" style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugPowerChart-${roomId}"></canvas>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">ENERGY ACCUMULATION (KWH)</span>
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 6px;">
+                  <span style="font-size: 9px; font-weight: 800; color: #64748B; letter-spacing: 0.5px;">VOLTAGE & CURRENT TREND</span>
+                  <div style="display: flex; gap: 2px; background: rgba(0,0,0,0.03); padding: 2px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                    <button id="btn-horiz-plug-energy-${roomId}" onclick="setPlugChartOrientation('${roomId}', 'energy', 'horizontal')" style="border: none; background: #fff; padding: 2px 5px; font-size: 8.5px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">━</button>
+                    <button id="btn-vert-plug-energy-${roomId}" onclick="setPlugChartOrientation('${roomId}', 'energy', 'vertical')" style="border: none; background: transparent; padding: 2px 5px; font-size: 8.5px; font-weight: 700; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-family: inherit;">┃</button>
+                  </div>
                 </div>
-                <div style="position: relative; height: 140px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
+                <div id="plugEnergyWrapper-${roomId}" style="position: relative; height: 160px; width: 100%; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 8px; margin-bottom: 12px;">
                   <canvas id="plugEnergyChart-${roomId}"></canvas>
                 </div>
                 <div id="plugOfflineCard-${roomId}" style="display: none; padding: 10px; background: #FFF; border: 1px solid #FCA5A5; border-radius: 12px; margin-top: 10px;">
@@ -1854,7 +2045,7 @@
           <div class="card" style="margin-bottom: 14px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
               <div style="display: flex; flex-direction: column;">
-                <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${room.name}</span>
+                <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${plugSensor ? plugSensor.name : room.name}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
                   ID: ${mainSensor.device_id || 'N/A'} ${mainSensor.tapo_ip ? '| IP: ' + mainSensor.tapo_ip : ''} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
                   <span onclick="openTapoSettingsModal('${mainSensor.device_id}', '${mainSensor.tapo_ip || ''}', '${mainSensor.tapo_username || ''}', '${mainSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${mainSensor.tapo_running_threshold !== null && mainSensor.tapo_running_threshold !== undefined ? mainSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Plug & Energy Billing Settings">⚙️</span>
@@ -2016,11 +2207,40 @@
       }
     }
 
-    function openTapoSettingsModal(deviceId, ip, username, password, rate, threshold) {
-      fetchDiscoveredPlugs();
-      document.getElementById('modalTapoIpSelect').value = 'manual';
-      handleTapoIpSelection();
-      
+    function handleRoomSelectChange() {
+      const roomSelect = document.getElementById('modalTapoRoomSelect');
+      const newInput = document.getElementById('newRoomNameInput');
+      if (roomSelect && newInput) {
+        if (roomSelect.value === 'new') {
+          newInput.style.display = 'block';
+          newInput.focus();
+        } else {
+          newInput.style.display = 'none';
+        }
+      }
+    }
+
+    async function openCurrentDeviceSettingsModal() {
+      try {
+        let devId = (currentDevice && currentDevice.id) ? currentDevice.id : null;
+        if (!devId && rooms && rooms.length > 0) {
+          const firstRoom = rooms[0];
+          const firstSensor = firstRoom.sensors?.find(s => s.device_id);
+          if (firstSensor) devId = firstSensor.device_id;
+        }
+        if (!devId) {
+          alert('No active device selected.');
+          return;
+        }
+        await openTapoSettingsModal(devId, '', '', '', 10.0, 80);
+      } catch (err) {
+        console.error("Error opening settings modal:", err);
+        const modal = document.getElementById('tapoSettingsModal');
+        if (modal) modal.style.display = 'flex';
+      }
+    }
+
+    async function openTapoSettingsModal(deviceId, ip, username, password, rate, threshold) {
       document.getElementById('modalTapoDeviceId').value = deviceId;
       document.getElementById('modalTapoMode').value = 'edit';
       document.getElementById('modalTapoIp').value = ip || '';
@@ -2029,38 +2249,99 @@
       document.getElementById('modalTapoBillingRate').value = rate !== null && rate !== undefined ? rate : '10.0';
       document.getElementById('modalTapoRunningThreshold').value = threshold !== null && threshold !== undefined ? threshold : '80';
       
-      // Room selector: disabled, pre-selected for editing
       const roomSelect = document.getElementById('modalTapoRoomSelect');
       const roomWrapper = document.getElementById('modalTapoRoomSelectWrapper');
-      roomSelect.innerHTML = '';
-      // Find the room name for this device
-      let roomName = 'Unknown Room';
-      Object.values(tapoPlugsData).forEach(item => {
-        if (item && item.room && item.room.sensors) {
-          const match = item.room.sensors.find(s => s.device_id === deviceId);
-          if (match) {
-            roomName = item.room.name;
-          }
+      roomSelect.innerHTML = '<option value="" disabled>Select an appliance / room...</option>';
+      
+      try {
+        if (!rooms || rooms.length === 0) {
+          const res = await fetch(`${API}/rooms`);
+          if (res.ok) rooms = await res.json();
         }
-      });
-      if (roomName === 'Unknown Room' && Array.isArray(rooms)) {
-        const r = rooms.find(rm => rm.sensors && rm.sensors.some(s => s.device_id === deviceId));
-        if (r) roomName = r.name;
+      } catch (e) {
+        console.error("Error loading rooms for modal:", e);
       }
-      const opt = document.createElement('option');
-      opt.value = deviceId;
-      opt.textContent = roomName;
-      opt.selected = true;
-      roomSelect.appendChild(opt);
-      roomSelect.disabled = true;
-      roomSelect.style.opacity = '0.6';
+
+      (rooms || []).forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name;
+        if (r.sensors?.some(s => s.device_id === deviceId)) {
+          opt.selected = true;
+        }
+        roomSelect.appendChild(opt);
+      });
+
+      const newOpt = document.createElement('option');
+      newOpt.value = 'new';
+      newOpt.textContent = '➕ Create New Appliance...';
+      newOpt.style.fontWeight = 'bold';
+      newOpt.style.color = '#2563eb';
+      roomSelect.appendChild(newOpt);
+
+      const unmergeOpt = document.createElement('option');
+      unmergeOpt.value = 'unmerge';
+      unmergeOpt.textContent = '🔓 Un-merge (Separate to Standalone Room)...';
+      unmergeOpt.style.fontWeight = 'bold';
+      unmergeOpt.style.color = '#dc2626';
+      roomSelect.appendChild(unmergeOpt);
+
+      const newInput = document.getElementById('newRoomNameInput');
+      if (newInput) {
+        newInput.style.display = 'none';
+        newInput.value = '';
+      }
+
+      roomSelect.disabled = false;
+      roomSelect.style.opacity = '1';
       roomWrapper.style.display = 'block';
       
-      // Show clear config button for configured plugs
       const clearBtn = document.getElementById('clearTapoConfigBtn');
-      if (clearBtn) clearBtn.style.display = 'block';
+      if (clearBtn) clearBtn.style.display = 'none';
       
-      document.getElementById('tapoSettingsModal').style.display = 'flex';
+      const modal = document.getElementById('tapoSettingsModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+
+    async function openWhatsappGroupsModal() {
+      try {
+        const res = await fetch('/monitoring/settings');
+        if (res.ok) {
+          const settings = await res.json();
+          document.getElementById('group1NumbersInput').value = settings.whatsapp_recipients_all?.value || '919421187857';
+          document.getElementById('group2NumbersInput').value = settings.whatsapp_recipients_critical?.value || '';
+        }
+      } catch(e) {
+        console.error('Failed to load settings:', e);
+      }
+      document.getElementById('whatsappGroupsModal').style.display = 'flex';
+    }
+
+    function closeWhatsappGroupsModal() {
+      document.getElementById('whatsappGroupsModal').style.display = 'none';
+    }
+
+    async function saveWhatsappGroups() {
+      const g1 = document.getElementById('group1NumbersInput').value.trim();
+      const g2 = document.getElementById('group2NumbersInput').value.trim();
+      try {
+        await fetch('/monitoring/settings/whatsapp_recipients_all', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: g1, description: 'Group 1: Receives all alerts and messages (comma-separated phone numbers)' })
+        });
+        await fetch('/monitoring/settings/whatsapp_recipients_critical', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: g2, description: 'Group 2: Receives daily report & high-high critical alerts > 10°C (comma-separated phone numbers)' })
+        });
+        alert('WhatsApp Alert Groups updated successfully!');
+        closeWhatsappGroupsModal();
+      } catch(e) {
+        alert('Failed to save WhatsApp alert groups: ' + e.message);
+      }
     }
     
     function openAddTapoModal() {
@@ -2081,11 +2362,11 @@
       roomSelect.innerHTML = '<option value="" disabled selected>Choose a room...</option>';
       
       Object.values(tapoPlugsData).forEach(item => {
-        if (item && item.error === 'Unconfigured' && item.room && item.room.sensors) {
-          const targetSensor = item.room.sensors.find(s => s.type === 'plug') || item.room.sensors.find(s => s.type === 'temperature') || item.room.sensors[0];
-          if (targetSensor) {
+        if (item && item.room) {
+          const ts = item.room.sensors.find(s => s.type === 'temperature');
+          if (ts) {
             const opt = document.createElement('option');
-            opt.value = targetSensor.device_id;
+            opt.value = item.room.id;
             opt.textContent = item.room.name;
             roomSelect.appendChild(opt);
           }
@@ -2096,11 +2377,6 @@
       roomSelect.style.opacity = '1';
       roomWrapper.style.display = 'block';
       document.getElementById('modalTapoDeviceId').value = '';
-      
-      // Update device ID when room selection changes
-      roomSelect.onchange = function() {
-        document.getElementById('modalTapoDeviceId').value = this.value;
-      };
       
       // Hide clear config button for new plugs
       const clearBtn = document.getElementById('clearTapoConfigBtn');
@@ -2145,40 +2421,73 @@
 
     async function saveTapoSettings() {
       const deviceId = document.getElementById('modalTapoDeviceId').value;
-      const ip = document.getElementById('modalTapoIp').value.trim();
-      const username = document.getElementById('modalTapoUsername').value.trim();
-      const password = document.getElementById('modalTapoPassword').value.trim();
       const rate = document.getElementById('modalTapoBillingRate').value.trim();
       const threshold = document.getElementById('modalTapoRunningThreshold').value.trim();
+      const roomSelect = document.getElementById('modalTapoRoomSelect');
+      let targetRoomId = roomSelect ? roomSelect.value : null;
       
       if (!deviceId) {
-        alert('Please select a room first.');
+        alert('Please select a valid device first.');
         return;
+      }
+
+      if (targetRoomId === 'new') {
+        const newName = document.getElementById('newRoomNameInput').value.trim();
+        if (!newName) {
+          alert('Please enter a name for the new appliance.');
+          return;
+        }
+        try {
+          const createRes = await fetch(`${API}/rooms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName, type: 'storage' })
+          });
+          if (createRes.ok) {
+            const newRoomObj = await createRes.json();
+            targetRoomId = newRoomObj.id;
+          } else {
+            alert('Failed to create new appliance.');
+            return;
+          }
+        } catch (e) {
+          alert('Connection error while creating new appliance.');
+          return;
+        }
       }
       
       const rateVal = rate !== '' ? parseFloat(rate) : 10.0;
       const thresholdVal = threshold !== '' ? parseFloat(threshold) : 80.0;
       
       try {
-        const res = await fetch(`${API}/sensors/device/${deviceId}/thresholds`, {
+        // 1. Update Thresholds
+        const res1 = await fetch(`${API}/sensors/device/${deviceId}/thresholds`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            temp_tapo_ip: ip || null,
-            temp_tapo_username: username || null,
-            temp_tapo_password: password || null,
-            temp_tapo_billing_rate: rateVal,
-            temp_tapo_running_threshold: thresholdVal
+            tapo_billing_rate: rateVal,
+            tapo_running_threshold: thresholdVal
           })
         });
-        if (res.ok) {
+
+        // 2. Update Room (if selected)
+        let res2 = { ok: true };
+        if (targetRoomId) {
+          res2 = await fetch(`${API}/sensors/device/${deviceId}/room`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room_id: targetRoomId })
+          });
+        }
+        
+        if (res1.ok && res2.ok) {
           closeTapoSettingsModal();
-          await pollTapoPlugs(true);
+          await pollList();
         } else {
-          alert('Failed to update Tapo settings.');
+          alert('Failed to save appliance settings.');
         }
       } catch (err) {
-        alert('Connection error while saving settings.');
+        alert('Connection error while saving appliance settings.');
       }
     }
 
@@ -2207,18 +2516,20 @@
         });
         if (res.ok) {
           let attempts = 0;
-          const maxAttempts = 8;
+          const maxAttempts = 5;
           const pollInterval = setInterval(async () => {
             attempts++;
             await pollTapoPlugs();
             const currentItem = tapoPlugsData[roomId];
-            const success = currentItem && currentItem.data && currentItem.data.state === nextState;
-            if (success || attempts >= maxAttempts) {
+            const currState = currentItem?.data?.state?.toLowerCase();
+            const isMatch = (nextState === 'on' && (currState === 'on' || currState === 'online')) ||
+                            (nextState === 'off' && (currState === 'off' || currState === 'offline'));
+            if (isMatch || attempts >= maxAttempts) {
               clearInterval(pollInterval);
               tapoToggling[roomId] = false;
               await pollTapoPlugs(true);
             }
-          }, 1000);
+          }, 800);
         } else {
           const errData = await res.json().catch(() => ({}));
           alert(errData.detail || 'Failed to toggle plug.');
@@ -2232,28 +2543,6 @@
       }
     }
 
-    function formatBatteryHtml(batteryVal) {
-      if (batteryVal === null || batteryVal === undefined || isNaN(batteryVal)) {
-        return `<span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>`;
-      }
-      const bat = parseFloat(batteryVal);
-      if (bat >= 70) {
-        return `<span class="meta-item-bat" style="color: #059669; font-weight: 700;">🔋 High (${bat.toFixed(0)}%)</span>`;
-      } else if (bat >= 30) {
-        return `<span class="meta-item-bat" style="color: #d97706; font-weight: 700;">🔋 Middle (${bat.toFixed(0)}%)</span>`;
-      } else {
-        return `<span class="meta-item-bat" style="color: #dc2626; font-weight: 800;">🪫 Low (${bat.toFixed(0)}%)</span>`;
-      }
-    }
-
-    function getBatteryLabel(batteryVal) {
-      if (batteryVal === null || batteryVal === undefined || isNaN(batteryVal)) return '🔋 --';
-      const bat = parseFloat(batteryVal);
-      if (bat >= 70) return `🔋 High (${bat.toFixed(0)}%)`;
-      if (bat >= 30) return `🔋 Middle (${bat.toFixed(0)}%)`;
-      return `🪫 Low (${bat.toFixed(0)}%)`;
-    }
-
     let activeDragPin = null;
     let mapContainerRect = null;
     let hasDragged = false;
@@ -2265,7 +2554,8 @@
       let pinsHtml = '';
       let unplacedCount = 0;
       
-      rooms.forEach(room => {
+      const tempRooms = rooms.filter(room => room.sensors?.some(s => s.type === 'temperature') && room.sensors.length > 0);
+      tempRooms.forEach(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
         let tempStr = '--';
         let pinClass = 'offline';
@@ -2274,7 +2564,7 @@
         if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
           const data = liveData[tempSensor.device_id];
           const temp = parseFloat(data.temperature);
-          const isOnline = (data && data.is_online === true);
+          const isOnline = data.is_online !== false;
           tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
           
           let isAlert = false;
@@ -2365,7 +2655,12 @@
     }
 
     function startDrag(e, pinEl, roomId) {
-      activeDragPin = { el: pinEl, roomId: roomId };
+      activeDragPin = { 
+        el: pinEl, 
+        roomId: roomId,
+        startX: e.clientX,
+        startY: e.clientY
+      };
       hasDragged = false;
       const mapContainer = document.getElementById('mapViewContainer');
       mapContainerRect = mapContainer.getBoundingClientRect();
@@ -2375,14 +2670,21 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!activeDragPin) return;
-      hasDragged = true;
-      dragMove(e);
+      const dist = Math.hypot(e.clientX - activeDragPin.startX, e.clientY - activeDragPin.startY);
+      if (dist > 8) {
+        hasDragged = true;
+        dragMove(e);
+      }
     });
 
     window.addEventListener('touchmove', (e) => {
       if (!activeDragPin) return;
-      hasDragged = true;
-      dragMove(e.touches[0]);
+      const t = e.touches[0];
+      const dist = Math.hypot(t.clientX - activeDragPin.startX, t.clientY - activeDragPin.startY);
+      if (dist > 8) {
+        hasDragged = true;
+        dragMove(t);
+      }
     }, { passive: false });
 
     function dragMove(e) {
@@ -2493,27 +2795,150 @@
       `;
     }
 
+    function getFridgeAndFreezerSensors(room) {
+      const tempSensors = room.sensors?.filter(s => s.type === 'temperature') || [];
+      if (tempSensors.length === 0) return { fridgeSensor: null, freezerSensor: null };
+      
+      const roomName = (room.name || '').toLowerCase();
+
+      if (tempSensors.length === 1) {
+        const s = tempSensors[0];
+        const sName = (s.name || '').toLowerCase();
+        
+        let isFz = false;
+        if (sName.includes('freezer') && !sName.includes('fridge')) {
+          isFz = true;
+        } else if (sName.includes('fridge') && !sName.includes('freezer')) {
+          isFz = false;
+        } else if (roomName.includes('freezer') && !roomName.includes('fridge')) {
+          isFz = true;
+        } else if (roomName.includes('fridge') && !roomName.includes('freezer')) {
+          isFz = false;
+        } else if (s && s.device_id && liveData[s.device_id]) {
+          const t = parseFloat(liveData[s.device_id].temperature);
+          if (t < -3.0) isFz = true; // Any sub-zero reading is a Freezer!
+        }
+
+        return isFz ? { fridgeSensor: null, freezerSensor: s } : { fridgeSensor: s, freezerSensor: null };
+      }
+
+      let fridgeSensor = tempSensors.find(s => (s.name || '').toLowerCase().includes('fridge'));
+      let freezerSensor = tempSensors.find(s => (s.name || '').toLowerCase().includes('freezer'));
+
+      if (!fridgeSensor || !freezerSensor) {
+        const s1 = tempSensors[0];
+        const s2 = tempSensors[1];
+        const t1 = (s1 && s1.device_id && liveData[s1.device_id]) ? parseFloat(liveData[s1.device_id].temperature) : 999;
+        const t2 = (s2 && s2.device_id && liveData[s2.device_id]) ? parseFloat(liveData[s2.device_id].temperature) : 999;
+
+        if (t1 < t2) {
+          if (!freezerSensor) freezerSensor = s1;
+          if (!fridgeSensor) fridgeSensor = s2;
+        } else {
+          if (!fridgeSensor) fridgeSensor = s1;
+          if (!freezerSensor) freezerSensor = s2;
+        }
+      }
+
+      return { fridgeSensor, freezerSensor };
+    }
+
     function buildSensorCard(room) {
-      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+      const allSensors = room.sensors || [];
+      const { fridgeSensor, freezerSensor } = getFridgeAndFreezerSensors(room);
+      const plugSensor = allSensors.find(s => s.type === 'plug' || (s.device_id && liveData[s.device_id]?.has_plug));
+      
+      const hasSecondary = Boolean(fridgeSensor && freezerSensor);
+      const primarySensor = fridgeSensor || freezerSensor || allSensors.find(s => s.device_id && liveData[s.device_id]) || allSensors[0];
+      
+      const mainDevId = primarySensor?.device_id;
+      const mainData = mainDevId ? liveData[mainDevId] : null;
+
+      const plugDevId = plugSensor?.device_id || allSensors.find(s => s.device_id && liveData[s.device_id]?.has_plug)?.device_id;
+      const plugData = plugDevId ? liveData[plugDevId] : (mainData?.has_plug ? mainData : null);
+
+      let tempValStr = '--';
+      let tempValStr2 = '--';
+      let badgeClass = 'badge-offline';
+      let badgeText = 'NO DATA';
+      let cardClass = 'sensor-card offline-border';
+      let powerHtml = '';
+      
+      if (fridgeSensor && fridgeSensor.device_id && liveData[fridgeSensor.device_id]) {
+        const dFridge = liveData[fridgeSensor.device_id];
+        const tFridge = parseFloat(dFridge.temperature);
+        const isOnline1 = dFridge.is_online !== false;
+        tempValStr = isOnline1 ? (hasSecondary ? `❄️ Fridge: ${tFridge.toFixed(1)}°C` : `${tFridge.toFixed(1)}°C`) : '--';
+      }
+      
+      if (freezerSensor && freezerSensor.device_id && liveData[freezerSensor.device_id]) {
+        const dFreezer = liveData[freezerSensor.device_id];
+        const tFreezer = parseFloat(dFreezer.temperature);
+        const isOnline2 = dFreezer.is_online !== false;
+        tempValStr2 = isOnline2 ? `🧊 Freezer: ${tFreezer.toFixed(1)}°C` : '--';
+        if (!fridgeSensor) {
+          tempValStr = tempValStr2;
+        }
+      }
+      
+      let tempIsOnline = Boolean((fridgeSensor && liveData[fridgeSensor.device_id]?.is_online !== false) || (freezerSensor && liveData[freezerSensor.device_id]?.is_online !== false));
+      let plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
+      let isOnline = tempIsOnline || plugIsOnline;
+
+      let isAlert = false;
+      if (fridgeSensor && fridgeSensor.min_threshold !== null && liveData[fridgeSensor.device_id] && parseFloat(liveData[fridgeSensor.device_id].temperature) < fridgeSensor.min_threshold) isAlert = true;
+      if (fridgeSensor && fridgeSensor.max_threshold !== null && liveData[fridgeSensor.device_id] && parseFloat(liveData[fridgeSensor.device_id].temperature) > fridgeSensor.max_threshold) isAlert = true;
+      if (freezerSensor && freezerSensor.min_threshold !== null && liveData[freezerSensor.device_id] && parseFloat(liveData[freezerSensor.device_id].temperature) < freezerSensor.min_threshold) isAlert = true;
+      if (freezerSensor && freezerSensor.max_threshold !== null && liveData[freezerSensor.device_id] && parseFloat(liveData[freezerSensor.device_id].temperature) > freezerSensor.max_threshold) isAlert = true;
+
+      if (room.under_maintenance) {
+        badgeClass = 'badge-maintenance';
+        badgeText = '🧹 CLEANING';
+        cardClass = 'sensor-card maintenance-border';
+      } else if (!isOnline) {
+        badgeClass = 'badge-offline';
+        badgeText = '⚠️ OFFLINE';
+        cardClass = 'sensor-card offline-border';
+      } else if (isAlert) {
+        badgeClass = 'badge-alert';
+        badgeText = '⚠️ ALERT';
+        cardClass = 'sensor-card alert-border';
+      } else {
+        badgeClass = 'badge-ok';
+        badgeText = tempIsOnline ? '✅ OK' : '🔌 POWER OK';
+        cardClass = 'sensor-card';
+      }
+
+      if (plugData) {
+        const pwr = parseFloat(plugData.apower || 0);
+        powerHtml = plugIsOnline ? `<div class="sensor-power" id="sp-${room.id}" style="font-size: 13px; font-weight: 600; color: #10b981;">🔌 ${pwr.toFixed(0)}W</div>` : `<div class="sensor-power" id="sp-${room.id}" style="font-size: 13px; font-weight: 600; color: #dc2626;">🔌 Offline</div>`;
+      } else {
+        powerHtml = `<div class="sensor-power" id="sp-${room.id}" style="display: none;"></div>`;
+      }
+
       return `
-      <div class="sensor-card" id="sc-${room.id}" onclick="showDetail('${room.id}')">
+      <div class="${cardClass}" id="sc-${room.id}" onclick="showDetail('${room.id}')">
         <div class="sensor-left" style="display: flex; align-items: center; gap: 10px;">
           <span class="sensor-icon" style="display: inline-flex; align-items: center; justify-content: center;">${getRoomIcon(room.type)}</span>
           <div style="display: flex; flex-direction: column;">
-            <span class="sensor-name" style="font-size: 13px; font-weight: 700; color: var(--text-primary);">${room.name}</span>
-            <span class="sensor-id-text" style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace;">ID: ${tempSensor?.device_id ? tempSensor.device_id : 'N/A'}</span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span class="sensor-name" style="font-size: 13px; font-weight: 700; color: var(--text-primary);">${room.name}</span>
+              <span onclick="event.stopPropagation(); openTapoSettingsModal('${mainDevId || ''}', '', '', '', 10.0, 80);" style="cursor: pointer; font-size: 12px; opacity: 0.7;" title="Appliance & Room Settings">⚙️</span>
+            </div>
+            <span class="sensor-id-text" style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace;">ID: ${mainDevId ? mainDevId : 'N/A'}</span>
           </div>
         </div>
         <div class="sensor-right" style="display: flex; align-items: center; gap: 10px; text-align: right;">
           <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px;">
             <div class="sensor-card-meta" id="sm-${room.id}" style="display: flex; gap: 6px; font-size: 9.5px; font-weight: 700; color: var(--text-secondary);">
-              <span class="meta-item-bat" style="color: #6b7280;">🔋 --</span>
-              <span class="meta-item-time">🕒 --</span>
+              <span class="meta-item-bat" style="color: #6b7280;">🔋 ${mainData ? 'High' : '--'}</span>
+              <span class="meta-item-time">🕒 ${mainData ? 'Live' : '--'}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <div class="sensor-temp" id="st-${room.id}" style="font-size: 16px; font-weight: 800; color: var(--text-primary);">--</div>
-              <div class="sensor-power" id="sp-${room.id}" style="font-size: 13px; font-weight: 600; color: #10b981; display: none;"></div>
-              <div class="sensor-badge badge-offline" id="sb-${room.id}" style="margin-top: 0; padding: 2px 6px; font-size: 9px; font-weight: 800; border-radius: 4px;">NO DATA</div>
+              <div class="sensor-temp" id="st-${room.id}" style="font-size: 16px; font-weight: 800; color: var(--text-primary);">${tempValStr}</div>
+              ${hasSecondary ? `<div class="sensor-temp-sec" id="st2-${room.id}" style="font-size: 16px; font-weight: 800; color: var(--text-primary);">${tempValStr2}</div>` : ''}
+              ${powerHtml}
+              <div class="sensor-badge ${badgeClass}" id="sb-${room.id}" style="margin-top: 0; padding: 2px 6px; font-size: 9px; font-weight: 800; border-radius: 4px;">${badgeText}</div>
             </div>
           </div>
         </div>
@@ -2521,23 +2946,27 @@
     }
 
     function getRoomPriority(room) {
-      const tempSensor = room.sensors?.find(s => s.type === 'temperature');
-      if (!tempSensor || !tempSensor.device_id || !liveData[tempSensor.device_id]) {
-        return 3;
+      const tempSensors = room.sensors?.filter(s => s.type === 'temperature') || [];
+      const primarySensor = tempSensors[0];
+      const isMergedMultiZone = tempSensors.length > 1;
+
+      if (!primarySensor || !primarySensor.device_id || !liveData[primarySensor.device_id]) {
+        return isMergedMultiZone ? 1 : 4;
       }
-      const data = liveData[tempSensor.device_id];
+      const data = liveData[primarySensor.device_id];
       const temp = parseFloat(data.temperature);
-      const isOnline = (data && data.is_online === true);
-      if (!isOnline) {
-        return 2;
-      }
+      const isOnline = data.is_online !== false;
+
       let isAlert = false;
-      if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-      if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
-      if (isAlert) {
-        return 1;
+      if (primarySensor.min_threshold !== null && temp < primarySensor.min_threshold) isAlert = true;
+      if (primarySensor.max_threshold !== null && temp > primarySensor.max_threshold) isAlert = true;
+
+      if (isMergedMultiZone) {
+        return isAlert ? 0 : 1; // Merged multi-zone appliances always show at VERY TOP
       }
-      return 3;
+      if (isAlert) return 2;
+      if (!isOnline) return 3;
+      return 4;
     }
 
     async function pollList() {
@@ -2570,7 +2999,7 @@
 
         document.querySelector('.section-title').textContent = `Devices (${rooms.length})`;
 
-        const sortedRooms = [...rooms].sort((a, b) => {
+        const sortedRooms = [...rooms].filter(r => r.sensors && r.sensors.length > 0).sort((a, b) => {
           return getRoomPriority(a) - getRoomPriority(b);
         });
 
@@ -2582,26 +3011,49 @@
 
         for (const room of sortedRooms) {
           try {
-            const tempSensor = room.sensors?.find(s => s.type === 'temperature');
+            const { fridgeSensor, freezerSensor } = getFridgeAndFreezerSensors(room);
+            const hasSecondary = Boolean(fridgeSensor && freezerSensor);
+            const tempSensor = fridgeSensor || freezerSensor;
             const el = document.getElementById(`st-${room.id}`);
+            const el2 = document.getElementById(`st2-${room.id}`);
             const badge = document.getElementById(`sb-${room.id}`);
             const card = document.getElementById(`sc-${room.id}`);
             const meta = document.getElementById(`sm-${room.id}`);
 
+            if (fridgeSensor && fridgeSensor.device_id && liveData[fridgeSensor.device_id]) {
+              const dFridge = liveData[fridgeSensor.device_id];
+              const tFridge = parseFloat(dFridge.temperature);
+              const isOnline1 = dFridge.is_online !== false;
+              if (el) el.textContent = isOnline1 ? (hasSecondary ? `❄️ Fridge: ${tFridge.toFixed(1)}°C` : `${tFridge.toFixed(1)}°C`) : '--';
+            }
+            if (freezerSensor && freezerSensor.device_id && liveData[freezerSensor.device_id]) {
+              const dFreezer = liveData[freezerSensor.device_id];
+              const tFreezer = parseFloat(dFreezer.temperature);
+              const isOnline2 = dFreezer.is_online !== false;
+              if (el2) el2.textContent = isOnline2 ? `🧊 Freezer: ${tFreezer.toFixed(1)}°C` : '--';
+              if (el && !fridgeSensor) {
+                el.textContent = isOnline2 ? `🧊 Freezer: ${tFreezer.toFixed(1)}°C` : '--';
+              }
+            }
+
             if (tempSensor && tempSensor.device_id && liveData[tempSensor.device_id]) {
               const data = liveData[tempSensor.device_id];
               const temp = parseFloat(data.temperature);
-              const battery = parseFloat(data.battery_level).toFixed(0);
+              const batVal = parseFloat(data.battery_level);
+              let batText = "High";
+              let batColor = "#059669";
+              if (batVal < 30) { batText = "Low"; batColor = "#EF4444"; }
+              else if (batVal < 70) { batText = "Medium"; batColor = "#F59E0B"; }
+              
               const ts = parseDate(data.timestamp);
               const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               
-              const isOnline = (data && data.is_online === true);
+              const isOnline = data.is_online !== false;
               
-              if (el) el.textContent = isOnline ? temp.toFixed(1) + '°C' : '--';
               if (meta) {
                 if (isOnline) {
                   meta.innerHTML = `
-                    ${formatBatteryHtml(data.battery_level)}
+                    <span class="meta-item-bat" style="color: ${batColor};">🔋 ${batText}</span>
                     <span class="meta-item-time">🕒 ${timeStr}</span>
                   `;
                 } else {
@@ -2612,31 +3064,34 @@
                 }
               }
 
-
-
-              // Update power
+              // Update power draw from ANY plug sensor in room
               const powerEl = document.getElementById(`sp-${room.id}`);
               if (powerEl) {
-                if (isOnline && data.has_plug) {
-                  const pwr = parseFloat(data.apower);
-                  powerEl.textContent = `🔌 ${pwr.toFixed(0)}W`;
+                const plugSensor = room.sensors?.find(s => s.type === 'plug' || (s.device_id && liveData[s.device_id]?.has_plug));
+                const plugDevId = plugSensor?.device_id || room.sensors?.find(s => s.device_id && liveData[s.device_id]?.has_plug)?.device_id;
+                const plugData = plugDevId ? liveData[plugDevId] : (data?.has_plug ? data : null);
+
+                const plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
+                if (plugData) {
+                  const pwr = parseFloat(plugData.apower || 0);
+                  powerEl.textContent = plugIsOnline ? `🔌 ${pwr.toFixed(0)}W` : `🔌 Offline`;
                   powerEl.style.display = 'inline-block';
-                  powerEl.style.color = '#10b981';
-                } else if (data.has_plug) {
-                  powerEl.textContent = `🔌 Offline`;
-                  powerEl.style.display = 'inline-block';
-                  powerEl.style.color = '#dc2626';
+                  powerEl.style.color = plugIsOnline ? '#10b981' : '#dc2626';
                 } else {
                   powerEl.style.display = 'none';
                 }
               }
 
+              const tempIsOnline = Boolean((fridgeSensor && liveData[fridgeSensor.device_id]?.is_online !== false) || (freezerSensor && liveData[freezerSensor.device_id]?.is_online !== false));
+              const plugIsOnline = Boolean(plugData && plugData.apower !== undefined && plugData.apower !== null && plugData.plug_is_online !== false);
+              const roomIsOnline = tempIsOnline || plugIsOnline;
+
               let isAlert = false;
-              if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-              if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+              if (tempSensor && tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
+              if (tempSensor && tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
 
               if (badge && card) {
-                if (!isOnline) {
+                if (!roomIsOnline) {
                   if (el) {
                     el.classList.add('offline');
                     el.classList.remove('alert');
@@ -2655,7 +3110,7 @@
                 } else {
                   if (el) el.classList.remove('alert', 'offline');
                   badge.className = 'sensor-badge badge-ok';
-                  badge.textContent = '✅ OK';
+                  badge.textContent = tempIsOnline ? '✅ OK' : '🔌 POWER OK';
                   card.className = 'sensor-card';
                 }
               }
@@ -2839,6 +3294,57 @@
       updateAnalyticsOptions();
     }
 
+    const plugChartOrientations = {};
+
+    function setPlugChartOrientation(roomId, chartType, orientation) {
+      if (!plugChartOrientations[roomId]) plugChartOrientations[roomId] = {};
+      plugChartOrientations[roomId][chartType] = orientation;
+      
+      const btnHoriz = document.getElementById(`btn-horiz-plug-${chartType}-${roomId}`);
+      const btnVert = document.getElementById(`btn-vert-plug-${chartType}-${roomId}`);
+      const wrapper = document.getElementById(chartType === 'power' ? `plugPowerWrapper-${roomId}` : `plugEnergyWrapper-${roomId}`);
+      
+      if (orientation === 'vertical') {
+        if (btnHoriz) {
+          btnHoriz.style.background = 'transparent';
+          btnHoriz.style.color = 'var(--text-secondary)';
+          btnHoriz.style.boxShadow = 'none';
+        }
+        if (btnVert) {
+          btnVert.style.background = '#fff';
+          btnVert.style.color = 'var(--text-primary)';
+          btnVert.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+        }
+        if (wrapper) {
+          wrapper.style.height = '300px';
+        }
+      } else {
+        if (btnVert) {
+          btnVert.style.background = 'transparent';
+          btnVert.style.color = 'var(--text-secondary)';
+          btnVert.style.boxShadow = 'none';
+        }
+        if (btnHoriz) {
+          btnHoriz.style.background = '#fff';
+          btnHoriz.style.color = 'var(--text-primary)';
+          btnHoriz.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+        }
+        if (wrapper) {
+          wrapper.style.height = chartType === 'power' ? '140px' : '160px';
+        }
+      }
+      
+      const item = tapoPlugsData[roomId];
+      if (item && item.room) {
+        const plugSensor = item.room.sensors?.find(s => s.type === 'plug');
+        const tempSensor = item.room.sensors?.find(s => s.type === 'temperature');
+        const mainSensor = plugSensor || tempSensor;
+        if (mainSensor) {
+          loadPlugChartsData(roomId, mainSensor.device_id);
+        }
+      }
+    }
+
     function handleTimeframeChange() {
       const days = document.getElementById('daysSelect').value;
       const intervalSelect = document.getElementById('intervalSelect');
@@ -2854,7 +3360,65 @@
         intervalSelect.value = '720';
       }
       toggleDateRangeInputs();
-      updateAnalyticsOptions();
+      generateTimeframeAnalytics();
+    }
+
+    async function downloadCsvFile(type) {
+      if (!currentDevice || !currentDevice.id) {
+        alert('No active device selected for export.');
+        return;
+      }
+      const daysSelect = document.getElementById('daysSelect').value;
+      const intervalSelect = document.getElementById('intervalSelect').value || '60';
+      let exportDays = daysSelect === 'Monthly' ? '30' : (daysSelect || '7');
+
+      let queryStr = `days=${exportDays}&interval_minutes=${intervalSelect}`;
+
+      if (daysSelect === 'custom') {
+        const startVal = document.getElementById('startDateInput').value;
+        const endVal = document.getElementById('endDateInput').value;
+        if (startVal && endVal) {
+          queryStr += `&start_date=${startVal}&end_date=${endVal}`;
+        }
+      }
+
+      let channels = 'all';
+      let includePlug = 'true';
+      if (type === 'fridge') {
+        channels = 'fridge_power';
+      } else if (type === 'freezer') {
+        channels = 'freezer_power';
+      } else if (type === 'sensor_only') {
+        includePlug = 'false';
+      }
+
+      const url = `${API}/sensors/device/${currentDevice.id}/export?${queryStr}&include_plug=${includePlug}&channels=${channels}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          alert('Failed to generate CSV export file.');
+          return;
+        }
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        let filename = `telemetry_${currentDevice.id}_${type}.csv`;
+        const contentDisp = res.headers.get('Content-Disposition');
+        if (contentDisp && contentDisp.includes('filename=')) {
+          filename = contentDisp.split('filename=')[1].replace(/"/g, '').trim();
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+      } catch (err) {
+        console.error('CSV Download error:', err);
+        alert('Network error while downloading CSV data.');
+      }
     }
 
     // Update analytics trend chart
@@ -2993,7 +3557,15 @@
         queryStr += `&start_date=${startStr}&end_date=${endStr}`;
       }
       
-      document.getElementById('dCsvLink').href = `${API}/sensors/device/${currentDevice.id}/export?${queryStr}`;
+      const currentRoomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+      const roomTempSensors = currentRoomObj ? (currentRoomObj.sensors?.filter(s => s.type === 'temperature') || []) : [];
+      const isMultiZoneAppliance = roomTempSensors.length > 1;
+
+      const fpBtn = document.getElementById('dCsvFridgePowerLink');
+      if (fpBtn) fpBtn.style.display = isMultiZoneAppliance ? 'inline-block' : 'none';
+      const fzBtn = document.getElementById('dCsvFreezerPowerLink');
+      if (fzBtn) fzBtn.style.display = isMultiZoneAppliance ? 'inline-block' : 'none';
+
       if (days === 'custom' && customStart && customEnd) {
         document.getElementById('chartCardTitle').textContent = `Temperature Trend (${customStart.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - ${customEnd.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})})`;
       } else {
@@ -3038,6 +3610,29 @@
             });
             const temps = sortedData.map(d => parseFloat(d.temperature));
 
+            // Compute dynamic AI timeframe summary metrics
+            if (temps.length > 0) {
+              const avgTemp = (temps.reduce((a,b)=>a+b,0) / temps.length).toFixed(1);
+              const minTemp = Math.min(...temps).toFixed(1);
+              const maxTemp = Math.max(...temps).toFixed(1);
+              let statusText = "Operating within normal thermal parameters.";
+              if (tempMax !== null && parseFloat(maxTemp) > tempMax) {
+                statusText = `<span style="color: #dc2626; font-weight: 700;">⚠️ High Excursion: Peak reached ${maxTemp}°C (Exceeds ${tempMax}°C threshold)</span>`;
+              } else if (tempMin !== null && parseFloat(minTemp) < tempMin) {
+                statusText = `<span style="color: #2563eb; font-weight: 700;">⚠️ Low Excursion: Drop reached ${minTemp}°C (Below ${tempMin}°C threshold)</span>`;
+              }
+              
+              const tfLabel = days === 'custom' ? 'Custom Selected Range' : (days === 'Monthly' ? 'Monthly Analytics' : `${days}-Day Timeframe`);
+              window.activeTimeframeSummaryPrompt = `Give me a detailed AI analysis for ${currentDevice.name} over the ${tfLabel}. Average temperature was ${avgTemp}°C (Min: ${minTemp}°C, Max: ${maxTemp}°C).`;
+            }
+
+            // Reset manual trigger box text on timeframe change
+            const textEl = document.getElementById('aiInsightText');
+            if (textEl) {
+              const selLabel = days === 'custom' ? 'Custom Selected Range' : (days === 'Monthly' ? 'Monthly Analytics' : `${days}-Day Timeframe`);
+              textEl.innerHTML = `Timeframe updated to <strong>${selLabel}</strong>. Click <strong>"⚡ Generate AI Insight"</strong> above to run a Gemini AI diagnostic analysis on this data.`;
+            }
+
             // Temperature Datasets
             const tempDatasets = [
               {
@@ -3076,6 +3671,26 @@
             }
 
             if (chartInstance) chartInstance.destroy();
+            
+            trendOptions.onClick = (e, activeEls) => {
+              if (activeEls.length > 0) {
+                const idx = activeEls[0].index;
+                const log = sortedData[idx];
+                const temp = parseFloat(log.temperature).toFixed(1);
+                const hum = parseFloat(log.humidity).toFixed(1);
+                const bat = parseFloat(log.battery_level).toFixed(1);
+                const ts = new Date(log.timestamp.endsWith('Z') ? log.timestamp : log.timestamp+'Z');
+                const tsString = ts.toLocaleString();
+                const prompt = `Give me a very brief 2 sentence AI summary of the condition of ${currentDevice.name} at ${tsString}. The temperature was ${temp}°C, humidity was ${hum}%, and battery was ${bat}%. Is this normal?`;
+                if (typeof sendQuickPrompt === 'function') {
+                  if (document.getElementById('chatWindow').style.display === 'none' || document.getElementById('chatWindow').style.display === '') {
+                    toggleChatWindow();
+                  }
+                  sendQuickPrompt(prompt);
+                }
+              }
+            };
+
             const ctxTemp = document.getElementById('telemetryChart').getContext('2d');
             chartInstance = new Chart(ctxTemp, {
               type: 'line',
@@ -3155,6 +3770,23 @@
               const tempMins = metrics.map(d => d.temp_min !== null ? d.temp_min : 0);
               
               if (extremesChartInstance) extremesChartInstance.destroy();
+              
+              extremesOptions.onClick = (e, activeEls) => {
+                if (activeEls.length > 0) {
+                  const idx = activeEls[0].index;
+                  const log = metrics[idx];
+                  const maxT = log.temp_max !== null ? parseFloat(log.temp_max).toFixed(1) : '--';
+                  const minT = log.temp_min !== null ? parseFloat(log.temp_min).toFixed(1) : '--';
+                  const prompt = `Give me a very brief AI summary of ${currentDevice.name} on ${log.date}. The maximum temperature was ${maxT}°C and minimum was ${minT}°C. Is this normal?`;
+                  if (typeof sendQuickPrompt === 'function') {
+                    if (document.getElementById('chatWindow').style.display === 'none' || document.getElementById('chatWindow').style.display === '') {
+                      toggleChatWindow();
+                    }
+                    sendQuickPrompt(prompt);
+                  }
+                }
+              };
+
               const ctxExt = document.getElementById('extremesChart').getContext('2d');
               extremesChartInstance = new Chart(ctxExt, {
                 type: 'bar',
@@ -3232,29 +3864,88 @@
       }
     }
 
+    async function toggleMaintenance(roomId, isUnderMaintenance) {
+      const action = isUnderMaintenance ? 'stop' : 'start';
+      try {
+        const res = await fetch(`${API}/rooms/${roomId}/maintenance/${action}`, {
+          method: 'POST'
+        });
+        if (res.ok) {
+          // Re-fetch rooms
+          const roomsRes = await fetch(`${API}/rooms`);
+          if (roomsRes.ok) {
+            rooms = await roomsRes.json();
+          }
+          // Refresh list and detail view
+          pollList();
+          showDetail(roomId, false);
+        } else {
+          alert('Failed to update cleaning mode.');
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Error updating cleaning mode status.');
+      }
+    }
+
     // Show detail screen
     async function showDetail(roomId, pushState = true) {
       const room = rooms.find(r => r.id === roomId);
       if (!room) return;
-      let targetSensor = room.sensors?.find(s => s.type === 'temperature');
-      if (!targetSensor && room.sensors && room.sensors.length > 0) {
-        targetSensor = room.sensors[0];
-      }
-      if (!targetSensor) {
-        alert('No sensor configured for this room.');
+      const tempSensors = room.sensors?.filter(s => s.type === 'temperature') || [];
+      const { fridgeSensor, freezerSensor } = getFridgeAndFreezerSensors(room);
+      const defaultTempSensor = fridgeSensor || freezerSensor || tempSensors[0];
+      if (!defaultTempSensor) {
+        alert('This room has no temperature sensor.');
         return;
       }
       currentDevice = {
-        id: targetSensor.device_id,
+        id: defaultTempSensor.device_id,
         name: room.name,
         icon: getRoomIcon(room.type)
       };
 
       document.getElementById('listView').classList.add('hidden');
       document.getElementById('detailView').classList.add('active');
-      document.getElementById('detailHeader').innerHTML = currentDevice.icon + ' <span style="font-weight: 800;">' + currentDevice.name + '</span> <span style="font-size: 11px; font-weight: 500; font-family: monospace; color: var(--text-secondary); margin-left: 8px;">ID: ' + currentDevice.id + '</span>';
       
-      document.getElementById('daysSelect').value = '7';
+      let switcherHtml = '';
+      if (tempSensors.length > 1) {
+        switcherHtml = `
+          <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+            ${fridgeSensor ? `
+              <button class="action-btn" onclick="switchDetailSensor('${fridgeSensor.device_id}')" style="padding: 5px 12px; font-size: 11.5px; margin: 0; background: ${fridgeSensor.device_id === currentDevice.id ? '#059669' : '#0284c7'}; color: #fff; border-radius: 6px; font-weight: 800; cursor: pointer;">
+                ❄️ Fridge Zone (${fridgeSensor.name || 'Fridge'})
+              </button>
+            ` : ''}
+            ${freezerSensor ? `
+              <button class="action-btn" onclick="switchDetailSensor('${freezerSensor.device_id}')" style="padding: 5px 12px; font-size: 11.5px; margin: 0; background: ${freezerSensor.device_id === currentDevice.id ? '#2563eb' : '#0284c7'}; color: #fff; border-radius: 6px; font-weight: 800; cursor: pointer;">
+                🧊 Freezer Zone (${freezerSensor.name || 'Freezer'})
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
+      
+      const maintenanceBtnHtml = `
+        <button onclick="toggleMaintenance('${room.id}', ${room.under_maintenance || false})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${room.under_maintenance ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+          ${room.under_maintenance ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
+        </button>
+      `;
+
+      document.getElementById('detailHeader').innerHTML = `
+        ${currentDevice.icon} <span style="font-weight: 800;">${currentDevice.name}</span> 
+        <span style="font-size: 11px; font-weight: 500; font-family: monospace; color: var(--text-secondary); margin-left: 8px;">ID: ${currentDevice.id}</span>
+        ${maintenanceBtnHtml}
+        ${switcherHtml}
+      `;
+
+      const isMultiZone = tempSensors.length > 1;
+      const fpBtn = document.getElementById('dCsvFridgePowerLink');
+      if (fpBtn) fpBtn.style.display = isMultiZone ? 'inline-block' : 'none';
+      const fzBtn = document.getElementById('dCsvFreezerPowerLink');
+      if (fzBtn) fzBtn.style.display = isMultiZone ? 'inline-block' : 'none';
+      
+      document.getElementById('daysSelect').value = '';
       document.getElementById('intervalSelect').value = '60'; // 1-hour intervals for 7-day default (avoids too-many-points bug)
       document.getElementById('customDateRangeRow').style.display = 'none';
       
@@ -3286,7 +3977,10 @@
       document.getElementById('thresholdsArrow').textContent = '▼';
 
       await fetchActiveThresholds(currentDevice.id);
-      await updateAnalyticsOptions();
+      
+      // Hide charts until manually loaded by timeframe selection
+      document.getElementById('chartCard').style.display = 'none';
+      document.getElementById('extremesChartCard').style.display = 'none';
       
       pollDetail();
       detailInterval = setInterval(pollDetail, 30000);
@@ -3294,6 +3988,64 @@
       if (pushState) {
         history.pushState({ tab: currentTab, roomId }, '', `#detail/${roomId}`);
       }
+    }
+
+    async function switchDetailSensor(deviceId) {
+      if (!currentDevice) return;
+      currentDevice.id = deviceId;
+
+      const currentRoomObj = rooms.find(r => r.sensors?.some(s => s.device_id === currentDevice.id));
+      if (currentRoomObj) {
+        const tempSensors = currentRoomObj.sensors?.filter(s => s.type === 'temperature') || [];
+        const { fridgeSensor, freezerSensor } = getFridgeAndFreezerSensors(currentRoomObj);
+        let switcherHtml = '';
+        if (tempSensors.length > 1) {
+          switcherHtml = `
+            <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+              ${fridgeSensor ? `
+                <button class="action-btn" onclick="switchDetailSensor('${fridgeSensor.device_id}')" style="padding: 5px 12px; font-size: 11.5px; margin: 0; background: ${fridgeSensor.device_id === currentDevice.id ? '#059669' : '#0284c7'}; color: #fff; border-radius: 6px; font-weight: 800; cursor: pointer;">
+                  ❄️ Fridge Zone (${fridgeSensor.name || 'Fridge'})
+                </button>
+              ` : ''}
+              ${freezerSensor ? `
+                <button class="action-btn" onclick="switchDetailSensor('${freezerSensor.device_id}')" style="padding: 5px 12px; font-size: 11.5px; margin: 0; background: ${freezerSensor.device_id === currentDevice.id ? '#2563eb' : '#0284c7'}; color: #fff; border-radius: 6px; font-weight: 800; cursor: pointer;">
+                  🧊 Freezer Zone (${freezerSensor.name || 'Freezer'})
+                </button>
+              ` : ''}
+            </div>
+          `;
+        const maintenanceBtnHtml = `
+          <button onclick="toggleMaintenance('${currentRoomObj.id}', ${currentRoomObj.under_maintenance || false})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${currentRoomObj.under_maintenance ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+            ${currentRoomObj.under_maintenance ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
+          </button>
+        `;
+
+        document.getElementById('detailHeader').innerHTML = `
+          ${currentDevice.icon} <span style="font-weight: 800;">${currentDevice.name}</span> 
+          <span style="font-size: 11px; font-weight: 500; font-family: monospace; color: var(--text-secondary); margin-left: 8px;">ID: ${currentDevice.id}</span>
+          ${maintenanceBtnHtml}
+          ${switcherHtml}
+        `;
+      }
+
+      await fetchActiveThresholds(deviceId);
+      if (document.getElementById('chartCard').style.display !== 'none') {
+        generateTimeframeAnalytics();
+      }
+      pollDetail();
+    }
+
+    async function generateTimeframeAnalytics() {
+      document.getElementById('chartCard').style.display = 'block';
+      document.getElementById('extremesChartCard').style.display = 'block';
+      await updateAnalyticsOptions();
+      const days = document.getElementById('daysSelect').value;
+      let sVal = null, eVal = null;
+      if (days === 'custom') {
+        sVal = document.getElementById('startDateInput')?.value;
+        eVal = document.getElementById('endDateInput')?.value;
+      }
+      await fetchTimeframeAiInsight(days, sVal, eVal);
     }
 
     function showList(pushState = true) {
@@ -3312,6 +4064,81 @@
 
       if (pushState) {
         history.pushState({ tab: currentTab }, '', `#${currentTab}`);
+      }
+    }
+
+    function askChatAboutChartTimeframe() {
+      const prompt = window.activeTimeframeSummaryPrompt || `Give me a detailed AI analysis for ${currentDevice ? currentDevice.name : 'this sensor'} over the selected timeframe.`;
+      if (typeof sendQuickPrompt === 'function') {
+        if (typeof toggleChatWindow === 'function' && (!document.getElementById('chatWindow').classList.contains('active'))) {
+          toggleChatWindow();
+        }
+        sendQuickPrompt(prompt);
+      }
+    }
+
+    async function fetchTimeframeAiInsight(targetDays = null, startVal = null, endVal = null) {
+      if (!currentDevice) return;
+      const textEl = document.getElementById('aiInsightText');
+      const badgeEl = document.getElementById('aiInsightBadge');
+      const actionsEl = document.getElementById('aiInsightActions');
+      if (!textEl) return;
+      
+      const days = targetDays || document.getElementById('daysSelect').value || 7;
+      if (days === 'custom') {
+        const sEl = document.getElementById('startDateInput');
+        const eEl = document.getElementById('endDateInput');
+        if (!startVal && sEl && sEl.value) startVal = sEl.value;
+        if (!endVal && eEl && eEl.value) endVal = eEl.value;
+      }
+
+      const tfDispLabel = days === 'custom' ? 'Custom Selected Range' : (days === 'Monthly' ? '30 days' : days + ' days');
+      textEl.innerHTML = `<span style="font-style: italic; color: #64748b;">⏳ Fetching AI diagnostic analysis for ${tfDispLabel}...</span>`;
+      
+      let queryStr = `days=${days === 'Monthly' ? '30' : days}`;
+      if (startVal && endVal) {
+        queryStr += `&start_date=${encodeURIComponent(startVal)}&end_date=${encodeURIComponent(endVal)}`;
+      }
+      
+      try {
+        const res = await fetch(`${API}/sensors/device/${currentDevice.id}/ai-summary?${queryStr}`);
+        if (res.ok) {
+          const data = await res.json();
+          let statusText = (data.status || 'healthy').toUpperCase();
+          let badgeBg = 'rgba(16, 185, 129, 0.15)';
+          let badgeColor = '#059669';
+          let badgeBorder = '#10b981';
+          
+          if (data.status === 'warning' || data.status === 'inefficient') {
+            badgeBg = 'rgba(245, 158, 11, 0.15)';
+            badgeColor = '#d97706';
+            badgeBorder = '#f59e0b';
+          } else if (data.status === 'critical' || data.status === 'cooling_fail') {
+            badgeBg = 'rgba(239, 68, 68, 0.15)';
+            badgeColor = '#dc2626';
+            badgeBorder = '#ef4444';
+          }
+          
+          if (badgeEl) {
+            badgeEl.textContent = statusText;
+            badgeEl.style.background = badgeBg;
+            badgeEl.style.color = badgeColor;
+            badgeEl.style.borderColor = badgeBorder;
+          }
+          
+          textEl.innerHTML = `<strong>${data.room_name || currentDevice.name}:</strong> ${data.analysis || 'Thermal telemetry operating within expected limits.'}`;
+          
+          if (actionsEl && data.action_items && data.action_items.length > 0) {
+            actionsEl.style.display = 'block';
+            actionsEl.innerHTML = `<strong>Recommendations:</strong> ` + data.action_items.join(' • ');
+          } else if (actionsEl) {
+            actionsEl.style.display = 'none';
+          }
+        } else {
+          textEl.innerHTML = `<span style="color: #64748b;">AI insight unavailable for this timeframe.</span>`;
+        }
+      } catch (e) {
+        textEl.innerHTML = `<span style="color: #94a3b8;">Unable to connect to AI summary service.</span>`;
       }
     }
 
@@ -3364,17 +4191,23 @@
         if (telemetryData && telemetryData.length > 0) {
           const d = telemetryData[0];
           const temp = parseFloat(d.temperature);
-          const batPercent = parseFloat(d.battery_level).toFixed(0) + '%';
+          const batVal = parseFloat(d.battery_level);
+          let batPercent = "High";
+          let batColor = "#059669";
+          if (batVal < 30) { batPercent = "Low"; batColor = "#EF4444"; }
+          else if (batVal < 70) { batPercent = "Medium"; batColor = "#F59E0B"; }
+          
           const ts = parseDate(d.timestamp);
           
-          const deviceLiveData = liveData[currentDevice.id];
-          const diffMs = new Date() - ts;
-          const isOnline = (deviceLiveData && typeof deviceLiveData.is_online === 'boolean') ? deviceLiveData.is_online : (diffMs < 10 * 60 * 1000);
+          const isOnline = data.is_online !== false;
           
           if (isOnline) {
             document.getElementById('dTemp').textContent = temp.toFixed(1) + '°C';
             document.getElementById('dHum').textContent = parseFloat(d.humidity).toFixed(1) + '%';
-            if (topBat) topBat.textContent = getBatteryLabel(d.battery_level);
+            if (topBat) {
+              topBat.textContent = '🔋 ' + batPercent;
+              topBat.style.color = batColor;
+            }
             if (topTime) topTime.textContent = '🕒 ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           } else {
             document.getElementById('dTemp').textContent = '--';
@@ -3405,7 +4238,7 @@
 
           if (!isOnline) {
             card.className = 'card offline-card';
-            warn.textContent = `⚠️ DEVICE OFFLINE (No data for >5 mins)`;
+            warn.textContent = `⚠️ DEVICE OFFLINE (No data for >2 mins)`;
             warn.className = 'warning-text show offline-warn';
             if (topBat) topBat.className = 'sensor-badge badge-offline';
             if (topTime) topTime.className = 'sensor-badge badge-offline';
@@ -3552,8 +4385,7 @@
             }
           }, 1000);
         } else {
-          const errData = await res.json().catch(() => ({}));
-          alert(errData.detail || 'Failed to toggle plug state.');
+          alert('Failed to toggle plug state.');
           detailPlugToggling = false;
           btn.disabled = false;
           await pollDetail();

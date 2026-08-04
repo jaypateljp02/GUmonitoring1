@@ -15,7 +15,7 @@ import os
 import logging
 
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
-from backend.routes import sensors, rooms, alerts, monitoring, reports
+from backend.routes import sensors, rooms, alerts, monitoring, reports, whatsapp_webhook
 from backend.database import SessionLocal, ensure_db_ready, get_db
 from backend.models import Room, Sensor, SensorReading, Alert, DeviceTelemetry, User
 from backend.schemas import LoginRequest, LoginResponse, UserResponseModel
@@ -125,6 +125,7 @@ app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
 app.include_router(reports.router)
+app.include_router(whatsapp_webhook.router)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -252,6 +253,13 @@ def update_apk_url_cache():
 
 @app.get("/download/apk", tags=["App"])
 def download_apk():
+    apk_path = os.path.join(os.path.dirname(__file__), "..", "web", "app.apk")
+    if os.path.exists(apk_path):
+        return FileResponse(
+            apk_path,
+            media_type="application/vnd.android.package-archive",
+            filename="ground-up-monitor.apk"
+        )
     return RedirectResponse(url="https://storage.googleapis.com/groundup-499909.appspot.com/monitoring-app.apk")
 
 @app.get("/download/tasks-apk", tags=["App"])

@@ -58,6 +58,9 @@ def ensure_db_ready():
     # Each statement is wrapped individually so one failure doesn't abort all migrations
     migrations = [
         "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS receive_reports BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)",
+        "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS receive_whatsapp_reports BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(10) DEFAULT 'en'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS receive_reports BOOLEAN DEFAULT TRUE",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS name VARCHAR(200)",
 
@@ -72,6 +75,9 @@ def ensure_db_ready():
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_last_seen TIMESTAMP",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_status VARCHAR(50)",
         "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_error VARCHAR(500)",
+        "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS tapo_mac VARCHAR(50)",
+        "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS alert_webhook_url VARCHAR(500)",
+        "ALTER TABLE sensors ADD COLUMN IF NOT EXISTS recovery_webhook_url VARCHAR(500)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_x VARCHAR(20)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS map_y VARCHAR(20)",
         "CREATE INDEX IF NOT EXISTS ix_device_telemetry_device_id ON device_telemetry (device_id)",
