@@ -1679,10 +1679,9 @@ async def get_device_ai_summary(
     from backend.models.room import Room
     from backend.models.plug_telemetry import PlugTelemetry
 
-    sensor = db.query(Sensor).filter(
-        Sensor.device_id == device_id,
-        Sensor.active == True
-    ).first()
+    sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
+    if not sensor and device_id:
+        sensor = db.query(Sensor).filter(Sensor.device_id == device_id.strip()).first()
     
     room = None
     if sensor and sensor.room_id:
@@ -1692,7 +1691,12 @@ async def get_device_ai_summary(
         room = db.query(Room).filter(Room.id == device_id).first()
         
     if not room and sensor:
-        room = Room(id=sensor.room_id or "0", name=sensor.name or device_id, type="fridge")
+        room = db.query(Room).filter(Room.name == sensor.name).first()
+        if not room:
+            room = Room(id=sensor.room_id or "0", name=sensor.name or device_id, type="fridge")
+
+    if not room:
+        room = db.query(Room).first()
 
     if not room:
         raise HTTPException(status_code=404, detail="Device or Room not found")
