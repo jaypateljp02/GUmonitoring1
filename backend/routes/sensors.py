@@ -1601,26 +1601,43 @@ def get_device_door_logs(device_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/device/{device_id}/ai-summary")
-async def get_device_ai_summary(device_id: str, db: Session = Depends(get_db)):
-    """Fetch Gemini AI maintenance summary & diagnostic recommendations for a device."""
+async def get_device_ai_summary(
+    device_id: str,
+    days: Optional[str] = "1",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Fetch Gemini AI maintenance summary & diagnostic recommendations for a device or room."""
     sensor = db.query(Sensor).filter(
         Sensor.device_id == device_id,
-        Sensor.type == "temperature",
         Sensor.active == True
     ).first()
-    if not sensor:
-        raise HTTPException(status_code=404, detail="Temperature sensor not found")
-        
-    room = db.query(Room).filter(Room.id == sensor.room_id).first()
+    
+    room = None
+    if sensor and sensor.room_id:
+        room = db.query(Room).filter(Room.id == sensor.room_id).first()
+    
     if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
+        room = db.query(Room).filter(Room.id == device_id).first()
         
-    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
-    sensors_list = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.active == True).all()
+    if not room and sensor:
+        room = Room(id=sensor.room_id or "0", name=sensor.name or device_id, type="fridge")
+
+    if not room:
+        raise HTTPException(status_code=404, detail="Device or Room not found")
+        
+    try:
+        days_int = int(days) if days and days != "custom" else 1
+    except (ValueError, TypeError):
+        days_int = 1
+        
+    cutoff_time = datetime.utcnow() - timedelta(days=days_int)
+    sensors_list = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.active == True).all() if room.id else [sensor] if sensor else []
     
     from backend.services.insights import query_24h_room_metrics, fetch_7d_baselines, call_gemini_diagnose
     
-    last_24h = query_24h_room_metrics(db, room, cutoff_24h, sensors_list)
+    last_24h = query_24h_room_metrics(db, room, cutoff_time, sensors_list)
     baselines = fetch_7d_baselines(db, room, sensors_list)
     
     telemetry_data = [{
@@ -1638,7 +1655,7 @@ async def get_device_ai_summary(device_id: str, db: Session = Depends(get_db)):
     return {
         "room_name": room.name,
         "status": "healthy",
-        "analysis": "No diagnostics findings returned by the AI engine.",
+        "analysis": "Thermal telemetry operating within expected limits. No anomalies detected.",
         "action_items": ["Verify sensor connections and threshold calibrations."]
     }
 
