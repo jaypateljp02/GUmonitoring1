@@ -815,7 +815,7 @@ async def ingestion_loop():
                 logger.error(f"Error committing batch telemetry ingestion: {e}")
                 db.rollback()
 
-            # Check and trigger daily report at 10:40 PM IST (22:40 IST)
+            # Check and trigger daily report at 8:00 PM IST (20:00 IST)
             try:
                 from backend.services.insights import generate_daily_report
                 from backend.models.setting import Setting
@@ -825,27 +825,29 @@ async def ingestion_loop():
                 now_ist = now_utc + timedelta(hours=5, minutes=30)
                 today_str = now_ist.strftime("%Y-%m-%d")
                 
-                # We target 22:40 (10:40 PM) IST
-                target_time = now_ist.replace(hour=22, minute=40, second=0, microsecond=0)
+                # Target 20:00 (8:00 PM) IST
+                target_time = now_ist.replace(hour=20, minute=0, second=0, microsecond=0)
                 
                 if now_ist >= target_time:
                     # Check if we already sent report for today
                     last_run_setting = db.query(Setting).filter(Setting.key == "last_daily_report_date").first()
                     if not last_run_setting or last_run_setting.value != today_str:
+                        logger.info(f"Reserving daily report lock for IST date {today_str} at 8:00 PM IST...")
+                        if not last_run_setting:
+                            last_run_setting = Setting(
+                                key="last_daily_report_date",
+                                value=today_str,
+                                description="Date of the last successful daily report run"
+                            )
+                            db.add(last_run_setting)
+                        else:
+                            last_run_setting.value = today_str
+                        db.commit()
+
                         logger.info(f"Triggering scheduled daily report for IST date {today_str}...")
                         success = await generate_daily_report(db)
                         if success:
                             logger.info(f"Daily report sent successfully for {today_str}")
-                            if not last_run_setting:
-                                last_run_setting = Setting(
-                                    key="last_daily_report_date",
-                                    value=today_str,
-                                    description="Date of the last successful daily report run"
-                                )
-                                db.add(last_run_setting)
-                            else:
-                                last_run_setting.value = today_str
-                            db.commit()
                         else:
                             logger.warning(f"Daily report generation returned False/failed for {today_str}")
             except Exception as cron_err:
