@@ -888,7 +888,38 @@ async def generate_report_html(db: Session) -> tuple[str, str, str]:
     insights = await call_gemini_diagnose(telemetry_data)
     
     overall_status = insights.get("overall_status", "healthy")
-    whatsapp_msg = insights.get("whatsapp_message", "Report compiled successfully.")
+    gemini_summary = insights.get("whatsapp_message", "")
+
+    # Build room-by-room telemetry overview for WhatsApp
+    room_lines = []
+    for r in telemetry_data:
+        m = r["last_24h"]
+        r_name = r["room_name"]
+        t_avg = m.get("t_avg")
+        t_min = m.get("t_min")
+        t_max = m.get("t_max")
+        
+        above = m.get("above_max_hours", 0.0) or 0.0
+        below = m.get("below_min_hours", 0.0) or 0.0
+        
+        status_flag = "OK"
+        if above > 0.25:
+            status_flag = f"HIGH ({above:.1f}h)"
+        elif below > 0.25:
+            status_flag = f"LOW ({below:.1f}h)"
+            
+        plug_info = ""
+        if m.get("has_plug") and m.get("p_avg") is not None:
+            plug_info = f" | {m.get('p_avg')}W ({m.get('runtime_hours', 0)}h run)"
+            
+        if t_avg is not None:
+            room_lines.append(f"• {r_name}: {t_avg}°C (range {t_min}-{t_max}°C) [{status_flag}]{plug_info}")
+
+    detail_block = "\n".join(room_lines)
+    if gemini_summary:
+        whatsapp_msg = f"{gemini_summary}\n\nRoom Telemetry:\n{detail_block}"
+    else:
+        whatsapp_msg = f"Factory Thermal Summary:\n{detail_block}"
 
     # Attach historical recurrences to insights diagnoses list
     for diag in insights.get("diagnoses", []):
