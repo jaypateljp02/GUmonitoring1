@@ -1845,17 +1845,36 @@ async def chat_with_sensors(req: ChatRequest, db: Session = Depends(get_db)):
     # 2. Match target room/device from the message text or current fallback
     device_id = None
     room_name = "Sensor"
+    import re
+    msg_tokens = set(re.findall(r'\w+', req.message.lower()))
+    
+    best_score = 0
+    best_room = None
     
     for r in rooms:
-        if r.name.lower() in req.message.lower():
-            r_sensors = [s for s in sensors if s.room_id == r.id and s.type == "temperature"]
-            if not r_sensors:
-                r_sensors = [s for s in sensors if s.room_id == r.id]
-            if r_sensors:
-                device_id = r_sensors[0].device_id
-                room_name = r.name
-                break
+        r_name_lower = r.name.lower()
+        if r_name_lower in req.message.lower():
+            best_room = r
+            best_score = 100
+            break
+        
+        # Keyword token match (e.g. 'miso', 'vinegar', 'terrace', 'freezer', 'samsung', 'black', 'wild')
+        room_tokens = set(re.findall(r'\w+', r_name_lower)) - {"room", "the", "and", "zone"}
+        common = room_tokens.intersection(msg_tokens)
+        if common:
+            score = len(common) * 10
+            if score > best_score:
+                best_score = score
+                best_room = r
                 
+    if best_room:
+        r_sensors = [s for s in sensors if s.room_id == best_room.id and s.type == "temperature"]
+        if not r_sensors:
+            r_sensors = [s for s in sensors if s.room_id == best_room.id]
+        if r_sensors:
+            device_id = r_sensors[0].device_id
+            room_name = best_room.name
+                 
     if not device_id and req.current_device_id:
         device_id = req.current_device_id
         matched_room = db.query(Room).join(Sensor).filter(Sensor.device_id == device_id).first()
