@@ -340,6 +340,12 @@ class EwelinkClient:
                     for _ in range(5):
                         resp_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
                         resp_data = json.loads(resp_raw)
+                        
+                        # Ignore incoming telemetry broadcasts (userAgent == "device" or action == "update" without error field)
+                        if "error" not in resp_data or resp_data.get("userAgent") == "device":
+                            logger.info(f"Ignoring device telemetry broadcast while waiting for toggle ACK: {resp_data}")
+                            continue
+
                         if resp_data.get("error") == 0 or resp_data.get("sequence") == seq_id:
                             logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
                             return True
