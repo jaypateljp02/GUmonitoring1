@@ -425,30 +425,28 @@ def export_device_telemetry(
         end_time = datetime.utcnow()
         filename = f"telemetry_{device_id}_{channels}_{days}d.csv"
         
-    aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
+    sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
+    room_sensors = []
+    if sensor and sensor.room_id:
+        room_sensors = db.query(Sensor).filter(Sensor.room_id == sensor.room_id).all()
+        
+    temp_device_ids = list(set([device_id] + [s.device_id for s in room_sensors if s.type == "temperature"]))
+    plug_device_ids = list(set([device_id] + [s.device_id for s in room_sensors if s.type == "plug"]))
+    
+    target_temp_id = temp_device_ids[0] if temp_device_ids else device_id
+    aggregated_logs = aggregate_telemetry(db, target_temp_id, cutoff, end_time, interval_minutes)
     aggregated_logs = list(reversed(aggregated_logs))
     
-    # Check if this device or its room has a plug sensor
-    plug_logs_map = {}
     want_plug = (include_plug and include_plug.lower() == "true") and (channels != "sensor_only")
+    plug_logs = []
+    plug_logs_map = {}
     
     if want_plug:
-        target_plug_id = device_id
-        sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).first()
-        if sensor and sensor.type != "plug" and sensor.room_id:
-            plug_sensor = db.query(Sensor).filter(
-                Sensor.room_id == sensor.room_id,
-                Sensor.type == "plug",
-                Sensor.active == True
-            ).first()
-            if plug_sensor:
-                target_plug_id = plug_sensor.device_id
-                
         plug_logs = db.query(PlugTelemetry).filter(
-            PlugTelemetry.device_id == target_plug_id,
+            PlugTelemetry.device_id.in_(plug_device_ids),
             PlugTelemetry.timestamp >= cutoff,
             PlugTelemetry.timestamp <= end_time
-        ).all()
+        ).order_by(PlugTelemetry.timestamp.asc()).all()
         
         for pl in plug_logs:
             t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
@@ -465,36 +463,60 @@ def export_device_telemetry(
         
     writer.writerow(headers)
     
-    for log in aggregated_logs:
-        utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-        ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
-        t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
-        
-        row = [
-            log.device_id,
-            utc_str,
-            ist_str,
-            str(log.temperature) if log.temperature is not None else "",
-            str(log.humidity) if log.humidity is not None else "",
-            str(log.battery_level) if log.battery_level is not None else ""
-        ]
-        
-        if want_plug:
-            pl_data = plug_logs_map.get(t_key)
-            if pl_data:
-                today_wh = float(pl_data.today_energy or 0.0)
-                today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
-                row.extend([
-                    str(round(float(pl_data.apower or 0.0), 1)),
-                    str(round(float(pl_data.voltage or 0.0), 1)),
-                    str(round(float(pl_data.current or 0.0), 3)),
-                    str(today_kwh)
-                ])
-            else:
-                row.extend(["", "", "", ""])
-                
-        writer.writerow(row)
-        
+    if aggregated_logs:
+        for log in aggregated_logs:
+            utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+            t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
+            
+            row = [
+                log.device_id,
+                utc_str,
+                ist_str,
+                str(log.temperature) if log.temperature is not None else "",
+                str(log.humidity) if log.humidity is not None else "",
+                str(log.battery_level) if log.battery_level is not None else ""
+            ]
+            
+            if want_plug:
+                pl_data = plug_logs_map.get(t_key)
+                if not pl_data and plug_logs:
+                    # Nearest minute matching fallback within 3 mins
+                    for pl in plug_logs:
+                        if abs((pl.timestamp - log.timestamp).total_seconds()) <= 180:
+                            pl_data = pl
+                            break
+                            
+                if pl_data:
+                    today_wh = float(pl_data.today_energy or 0.0)
+                    today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
+                    row.extend([
+                        str(round(float(pl_data.apower or 0.0), 1)),
+                        str(round(float(pl_data.voltage or 0.0), 1)),
+                        str(round(float(pl_data.current or 0.0), 3)),
+                        str(today_kwh)
+                    ])
+                else:
+                    row.extend(["", "", "", ""])
+                    
+            writer.writerow(row)
+    elif plug_logs and want_plug:
+        for pl in plug_logs:
+            utc_str = pl.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            ist_str = (pl.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
+            today_wh = float(pl.today_energy or 0.0)
+            today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
+            writer.writerow([
+                pl.device_id,
+                utc_str,
+                ist_str,
+                "", "", "",
+                str(round(float(pl.apower or 0.0), 1)),
+                str(round(float(pl.voltage or 0.0), 1)),
+                str(round(float(pl.current or 0.0), 3)),
+                str(today_kwh)
+            ])
+            
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
