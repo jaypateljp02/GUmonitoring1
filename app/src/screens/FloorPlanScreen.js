@@ -102,7 +102,12 @@ export default function FloorPlanScreen() {
 
         {(() => {
           let unplacedCount = 0;
-          return rooms.map(room => {
+          // Filter facility map rooms to strictly display physical temperature storage rooms
+          const mapRooms = rooms.filter(room => {
+            return room.sensors?.some(s => s.type === 'temperature');
+          });
+
+          return mapRooms.map(room => {
             const isPlaced = room.map_x && room.map_y;
             let left, top;
             if (isPlaced) {

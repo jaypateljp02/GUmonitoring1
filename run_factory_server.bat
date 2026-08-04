@@ -6,28 +6,19 @@ echo Ground Up Factory Local Server
 echo ========================================================
 echo.
 
-:: Check for Python
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Python is not installed.
-    echo Please install Python 3.10 or higher from Microsoft Store or python.org.
-    echo Make sure to check "Add Python to PATH" during installation!
-    pause
-    exit /b
-)
+:: Add Python 3.11 to PATH if needed
+set PATH=C:\Users\User\AppData\Local\Programs\Python\Python311;C:\Users\User\AppData\Local\Programs\Python\Python311\Scripts;%PATH%
 
-:: Create Virtual Environment
-if not exist "venv" (
+:: Check for Virtual Environment
+if not exist "venv\Scripts\python.exe" (
     echo [INFO] Creating virtual environment...
     python -m venv venv
-)
-
-:: Install Dependencies
-echo [INFO] Installing requirements...
-call venv\Scripts\activate.bat
-pip install -r requirements.txt >nul 2>&1
-if exist "edge_agent\requirements.txt" (
-    pip install -r edge_agent\requirements.txt >nul 2>&1
+    call venv\Scripts\activate.bat
+    echo [INFO] Installing requirements...
+    pip install -r requirements.txt
+    if exist "edge_agent\requirements.txt" (
+        pip install -r edge_agent\requirements.txt
+    )
 )
 
 :: Set up .env file
@@ -40,7 +31,7 @@ if not exist "backend\.env" (
     
     echo EWELINK_EMAIL=!EWELINK_EMAIL!> backend\.env
     echo EWELINK_PASSWORD=!EWELINK_PASSWORD!>> backend\.env
-    echo DATABASE_URL=sqlite:///monitoring.db>> backend\.env
+    echo DATABASE_URL=postgresql://postgres:1234@localhost:5432/groundup>> backend\.env
     endlocal
     
     echo [SUCCESS] Credentials saved to backend\.env!
@@ -55,5 +46,6 @@ echo http://localhost:8000
 echo ========================================================
 echo.
 
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+venv\Scripts\python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 pause
+

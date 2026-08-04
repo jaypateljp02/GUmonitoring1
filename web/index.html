@@ -2554,7 +2554,7 @@
       let pinsHtml = '';
       let unplacedCount = 0;
       
-      const tempRooms = rooms.filter(room => room.sensors?.some(s => s.type === 'temperature') && room.sensors.length > 0);
+      const tempRooms = rooms.filter(room => room.sensors?.some(s => s.type === 'temperature'));
       tempRooms.forEach(room => {
         const tempSensor = room.sensors?.find(s => s.type === 'temperature');
         let tempStr = '--';

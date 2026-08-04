@@ -85,7 +85,7 @@ class EwelinkClient:
             logger.error(f"Exception during eWeLink login: {str(e)}")
             return False
 
-    async def get_all_devices(self) -> Optional[List[Dict[str, Any]]]:
+    async def get_all_devices(self, retry: bool = True) -> Optional[List[Dict[str, Any]]]:
         """
         Fetch all devices/things registered under the eWeLink account.
         """
@@ -102,7 +102,7 @@ class EwelinkClient:
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, timeout=15)
+                response = await client.get(url, headers=headers, timeout=10.0)
                 if response.status_code != 200:
                     logger.error(f"Failed to fetch devices: {response.status_code} - {response.text}")
                     return None
@@ -110,10 +110,13 @@ class EwelinkClient:
                 resp_json = response.json()
                 error_code = resp_json.get("error", 0)
                 if error_code != 0:
-                    if error_code in (401, 402):
-                        logger.warning(f"eWeLink token expired or invalidated (error {error_code} - {resp_json.get('msg')}). Logging in again to refresh...")
+                    if error_code in (401, 402) and retry:
+                        logger.warning(f"eWeLink token expired or invalidated (error {error_code}). Re-logging in...")
                         self.access_token = None
-                        return await self.get_all_devices()
+                        login_ok = await self.login()
+                        if login_ok:
+                            return await self.get_all_devices(retry=False)
+                        return None
                     else:
                         logger.error(f"Device list API error: {error_code} - {resp_json.get('msg')}")
                         return None
@@ -229,12 +232,16 @@ class EwelinkClient:
         else:
             voltage_val = 0.0
 
-        # Current in Amperes (POWR320D reports in 0.01 A / cA)
+        # Current in Amperes (POWR320D reports in mA: 1A = 1000 mA)
         current = params_obj.get("current")
         if current is not None:
-            current_val = float(current)
-            if current_val > 100:
-                current_val = round(current_val / 100.0, 2)
+            c_float = float(current)
+            if c_float > 1000:
+                current_val = round(c_float / 1000.0, 2)
+            elif c_float > 25:
+                current_val = round(c_float / 100.0, 2)
+            else:
+                current_val = round(c_float, 2)
         else:
             current_val = 0.0
 
@@ -245,13 +252,16 @@ class EwelinkClient:
         elif "switch" in params_obj and params_obj["switch"] is not None:
             switch_state = str(params_obj["switch"]).lower()
 
-        # POWR320D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
-        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else params_obj.get("oneKwh")
-        today_energy = float(day_kwh_raw) / 100.0 if day_kwh_raw is not None else 0.0
+        # POWR320D/POW30D reports dayKwh and monthKwh in 0.01 kWh (centi-kWh) units
+        day_kwh_raw = params_obj.get("dayKwh") if params_obj.get("dayKwh") is not None else (params_obj.get("oneKwh") if params_obj.get("oneKwh") is not None else params_obj.get("todayKwh"))
+        if day_kwh_raw is not None:
+            today_energy = round(float(day_kwh_raw) / 100.0, 3)
+        else:
+            today_energy = 0.0
 
         month_kwh_raw = params_obj.get("monthKwh")
         if month_kwh_raw is not None:
-            month_energy = float(month_kwh_raw) / 100.0
+            month_energy = round(float(month_kwh_raw) / 100.0, 3)
         else:
             month_energy = 0.0
             hundred_days = params_obj.get("hundredDaysKwh")
@@ -277,60 +287,49 @@ class EwelinkClient:
             "online": is_online
         }
 
-    async def set_device_switch(self, device_id: str, state: str, max_retries: int = 3) -> bool:
+    async def set_device_switch(self, device_id: str, state: str) -> bool:
         """
-        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API.
-        Ignores intermediate telemetry/device broadcast frames to find the actual ACK packet.
+        Toggle eWeLink device switch state ('on' or 'off') via WebSocket API with frame filtering and automatic retry.
         """
-        import asyncio
         import websockets
-
-        if not self.access_token or not self.apikey:
-            if not await self.login():
-                return False
+        import asyncio
+        if not self.access_token:
+            await self.login()
 
         ws_url = f"wss://{self.region}-pconnect7.coolkit.cc/api/ws"
-
-        for attempt in range(1, max_retries + 1):
+        
+        for attempt in range(2):
             try:
-                nonce = self._get_nonce()
-                seq = str(int(time.time() * 1000))
                 auth_payload = {
                     "action": "userOnline",
                     "at": self.access_token,
                     "apikey": self.apikey,
                     "appid": self.appid,
-                    "nonce": nonce,
+                    "nonce": self._get_nonce(),
                     "ts": int(time.time()),
                     "userAgent": "app",
-                    "sequence": seq,
+                    "sequence": str(int(time.time() * 1000)),
                     "version": 8
                 }
-
-                async with websockets.connect(ws_url, open_timeout=8.0, close_timeout=3.0) as ws:
+                async with websockets.connect(ws_url, open_timeout=5.0, close_timeout=2.0) as ws:
                     await ws.send(json.dumps(auth_payload))
                     
-                    # Read auth response (filtering out any broadcasts)
                     user_apikey = self.apikey
                     for _ in range(3):
-                        try:
-                            raw = await asyncio.wait_for(ws.recv(), timeout=3.0)
-                            msg = json.loads(raw)
-                            if msg.get("error") == 0 and ("config" in msg or "apikey" in msg):
-                                if msg.get("apikey"):
-                                    user_apikey = msg["apikey"]
-                                break
-                        except Exception:
+                        auth_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
+                        auth_resp = json.loads(auth_raw)
+                        if auth_resp.get("error") == 0:
+                            user_apikey = auth_resp.get("apikey") or self.apikey
                             break
 
-                    toggle_seq = str(int(time.time() * 1000))
+                    seq_id = str(int(time.time() * 1000))
                     toggle_payload = {
                         "action": "update",
                         "deviceid": device_id,
                         "apikey": user_apikey,
                         "selfApikey": user_apikey,
                         "userAgent": "app",
-                        "sequence": toggle_seq,
+                        "sequence": seq_id,
                         "params": {
                             "switches": [{"outlet": 0, "switch": state.lower()}],
                             "switch": state.lower()
@@ -338,29 +337,42 @@ class EwelinkClient:
                     }
                     await ws.send(json.dumps(toggle_payload))
                     
-                    # Read up to 5 frames to find the response to our sequence/command
                     for _ in range(5):
-                        try:
-                            resp_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
-                            resp_data = json.loads(resp_raw)
-                            
-                            # Ignore incoming telemetry broadcasts (userAgent == "device" or action == "update" without error field)
-                            if "error" not in resp_data or resp_data.get("userAgent") == "device":
-                                logger.info(f"Ignoring device telemetry broadcast while waiting for toggle ACK: {resp_data}")
-                                continue
-
-                            error_code = resp_data.get("error")
-                            if error_code == 0:
-                                logger.info(f"WebSocket toggle ACK received for {device_id} -> {state} SUCCESS")
-                                return True
-                            elif error_code is not None and error_code != 0:
-                                logger.error(f"WebSocket toggle failed for {device_id} with error {error_code}: {resp_data}")
-                                break
-                        except asyncio.TimeoutError:
-                            logger.warning(f"Timeout waiting for toggle ACK from eWeLink WS (attempt {attempt})")
+                        resp_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
+                        resp_data = json.loads(resp_raw)
+                        if resp_data.get("error") == 0 or resp_data.get("sequence") == seq_id:
+                            logger.info(f"Sent WebSocket toggle command to eWeLink device {device_id} -> {state} SUCCESS")
+                            return True
+                        if "error" in resp_data and resp_data.get("error") != 0:
+                            logger.error(f"WebSocket toggle error for {device_id}: {resp_data}")
                             break
             except Exception as e:
-                logger.error(f"Error toggling eWeLink device {device_id} via WS (attempt {attempt}): {e}")
-                await asyncio.sleep(1.0)
+                logger.warning(f"WebSocket toggle attempt {attempt + 1} failed for {device_id}: {e}")
+                await asyncio.sleep(0.5)
 
         return False
+
+
+_GLOBAL_EWELINK_CLIENT = None
+
+async def get_cached_ewelink_client() -> EwelinkClient:
+    """
+    Returns a singleton EwelinkClient instance with a cached login token.
+    Prevents HTTP 429 'invoke too fast' rate limit errors from eWeLink Cloud API.
+    """
+    global _GLOBAL_EWELINK_CLIENT
+    import os
+
+    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+    region = os.getenv("EWELINK_REGION") or "as"
+
+    if _GLOBAL_EWELINK_CLIENT is None:
+        _GLOBAL_EWELINK_CLIENT = EwelinkClient(email, password, region)
+
+    if not _GLOBAL_EWELINK_CLIENT.access_token:
+        login_ok = await _GLOBAL_EWELINK_CLIENT.login()
+        if not login_ok:
+            logger.error("Failed to acquire cached eWeLink login token.")
+
+    return _GLOBAL_EWELINK_CLIENT

@@ -23,6 +23,10 @@ from backend.services.ewelink import EwelinkClient
 from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
 
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv("C:/GroundUp/ground-up-monitoring/.env")
+load_dotenv("C:/GroundUp/ground-up-monitoring/backend/.env")
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -75,13 +79,7 @@ def update_compressor_stats(db, sensor, target_date):
     daily_energy = float(latest_record.today_energy) if latest_record.today_energy is not None else 0.0
     monthly_energy = float(latest_record.month_energy) if latest_record.month_energy is not None else 0.0
     
-    # Standardize to kWh
-    if daily_energy > 500.0:
-        daily_energy = daily_energy / 1000.0
-    if monthly_energy > 500.0:
-        monthly_energy = monthly_energy / 1000.0
-
-    estimated_cost = monthly_energy * billing_rate
+    daily_cost = daily_energy * billing_rate
     avg_runtime = total_runtime_minutes / cycle_count if cycle_count > 0 else 0.0
 
     stats = db.query(CompressorStats).filter(
@@ -101,7 +99,7 @@ def update_compressor_stats(db, sensor, target_date):
     stats.avg_runtime_per_cycle_minutes = decimal.Decimal(str(round(avg_runtime, 2)))
     stats.daily_energy_kwh = decimal.Decimal(str(round(daily_energy, 3)))
     stats.monthly_energy_kwh = decimal.Decimal(str(round(monthly_energy, 3)))
-    stats.estimated_cost = decimal.Decimal(str(round(estimated_cost, 2)))
+    stats.estimated_cost = decimal.Decimal(str(round(daily_cost, 2)))
 
 
 async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
@@ -142,7 +140,8 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
             room = db.query(Room).filter(Room.id == existing_sensor.room_id).first()
 
         if room:
-            if room.name != device_name:
+            # Do not overwrite room name if it is a power/plug sensor attached to a temperature room
+            if is_temp_hum and room.name != device_name:
                 room.name = device_name
             room.active = True
             room_id = room.id
@@ -250,9 +249,9 @@ async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
     return synced_device_ids
 
 async def ingestion_loop():
-    email = os.getenv("EWELINK_EMAIL")
-    password = os.getenv("EWELINK_PASSWORD")
-    region = os.getenv("EWELINK_REGION", "as")
+    email = os.getenv("EWELINK_EMAIL") or "grounduppune89@gmail.com"
+    password = os.getenv("EWELINK_PASSWORD") or "Groundup"
+    region = os.getenv("EWELINK_REGION") or "as"
 
     client = None
     use_live = False
@@ -260,13 +259,9 @@ async def ingestion_loop():
 
     if has_credentials:
         logger.info(f"Initializing official eWeLink client for {email}...")
-        client = EwelinkClient(email=email, password=password, region=region)
-        
-        login_success = False
-        try:
-            login_success = await asyncio.wait_for(client.login(), timeout=10.0)
-        except Exception as e:
-            logger.error(f"eWeLink login timed out or failed: {e}")
+        from backend.services.ewelink import get_cached_ewelink_client
+        client = await get_cached_ewelink_client()
+        login_success = bool(client and client.access_token)
             
         if login_success:
             use_live = True
@@ -407,32 +402,39 @@ async def ingestion_loop():
                                 raw_voltage = params.get("voltage")
                                 raw_current = params.get("current")
 
+                                if raw_power is not None:
+                                    power_val = float(raw_power)
+                                    if power_val > 1000:
+                                        power_val = round(power_val / 100.0, 2)
+
                                 if raw_voltage is not None:
                                     voltage_val = float(raw_voltage)
                                     if voltage_val > 1000:
                                         voltage_val = round(voltage_val / 100.0, 1)
 
-                                if sw_state == "off":
+                                if raw_current is not None:
+                                    c_float = float(raw_current)
+                                    if c_float > 1000:
+                                        current_val = round(c_float / 1000.0, 2)
+                                    elif c_float > 25:
+                                        current_val = round(c_float / 100.0, 2)
+                                    else:
+                                        current_val = round(c_float, 2)
+
+                                if power_val is not None and power_val > 1.0:
+                                    sw_state = "on"
+                                elif sw_state == "off":
                                     power_val = 0.0
                                     current_val = 0.0
-                                else:
-                                    if raw_power is not None:
-                                        power_val = float(raw_power)
-                                        if power_val > 1000:
-                                            power_val = round(power_val / 100.0, 2)
-                                    if raw_current is not None:
-                                        current_val = float(raw_current)
-                                        if current_val > 100:
-                                            current_val = round(current_val / 100.0, 2)
 
                                 # Energy data
-                                day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else params.get("oneKwh")
+                                day_kwh_raw = params.get("dayKwh") if params.get("dayKwh") is not None else (params.get("oneKwh") if params.get("oneKwh") is not None else params.get("todayKwh"))
                                 if day_kwh_raw is not None:
-                                    today_energy_val = float(day_kwh_raw) / 100.0  # 0.01 kWh units -> kWh
+                                    today_energy_val = round(float(day_kwh_raw) / 100.0, 3)
 
                                 month_kwh_raw = params.get("monthKwh")
                                 if month_kwh_raw is not None:
-                                    month_energy_val = float(month_kwh_raw) / 100.0
+                                    month_energy_val = round(float(month_kwh_raw) / 100.0, 3)
                                 else:
                                     hundred_days = params.get("hundredDaysKwh")
                                     if hundred_days and isinstance(hundred_days, str):

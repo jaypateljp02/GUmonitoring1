@@ -47,9 +47,18 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
     # Find sensors linked to the room
     temp_sensor = next((s for s in sensors if s.type == "temperature" and s.active), None)
     hum_sensor = next((s for s in sensors if s.type == "humidity" and s.active), None)
+    plug_sensor = next((s for s in sensors if s.type == "plug" and s.active), None)
+    
+    # If no plug sensor in room_sensors list, search directly in database by room.id
+    if not plug_sensor:
+        plug_sensor = db.query(Sensor).filter(Sensor.room_id == room.id, Sensor.type == "plug", Sensor.active == True).first()
     
     device_id = temp_sensor.device_id if temp_sensor else None
-    threshold = float(temp_sensor.tapo_running_threshold) if (temp_sensor and temp_sensor.tapo_running_threshold is not None) else 80.0
+    plug_device_id = plug_sensor.device_id if plug_sensor else (device_id if (temp_sensor and temp_sensor.tapo_ip) else None)
+    
+    threshold = float(plug_sensor.tapo_running_threshold) if (plug_sensor and plug_sensor.tapo_running_threshold is not None) else (
+        float(temp_sensor.tapo_running_threshold) if (temp_sensor and temp_sensor.tapo_running_threshold is not None) else 80.0
+    )
     
     temp_min_th = float(temp_sensor.min_threshold) if (temp_sensor and temp_sensor.min_threshold is not None) else None
     temp_max_th = float(temp_sensor.max_threshold) if (temp_sensor and temp_sensor.max_threshold is not None) else None
@@ -95,11 +104,11 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
     runtime_hours = None
     starts_count = None
     
-    has_plug = temp_sensor is not None and temp_sensor.tapo_ip is not None and len(str(temp_sensor.tapo_ip).strip()) > 0
+    has_plug = plug_sensor is not None or (temp_sensor is not None and temp_sensor.tapo_ip is not None and len(str(temp_sensor.tapo_ip).strip()) > 0)
     
-    if has_plug and device_id:
+    if has_plug and plug_device_id:
         p_logs = db.query(PlugTelemetry).filter(
-            PlugTelemetry.device_id == device_id,
+            PlugTelemetry.device_id == plug_device_id,
             PlugTelemetry.timestamp >= cutoff
         ).order_by(PlugTelemetry.timestamp.asc()).all()
         
@@ -117,7 +126,8 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
                 p_max = round(max(power_vals), 1)
                 
             if energy_vals:
-                energy_kwh = round(max(energy_vals) / 1000.0, 3)
+                max_eng = max(energy_vals)
+                energy_kwh = round(max_eng / 1000.0, 3) if max_eng > 100.0 else round(max_eng, 3)
                 
             was_running = False
             for i, log in enumerate(p_logs):
@@ -132,10 +142,17 @@ def query_24h_room_metrics(db: Session, room: Room, cutoff: datetime, sensors: l
                         runtime_hours += delta
                         
     last_seen_str = None
-    if device_id:
-        last_rec = db.query(DeviceTelemetry).filter(
-            DeviceTelemetry.device_id == device_id
-        ).order_by(DeviceTelemetry.timestamp.desc()).first()
+    target_dev_for_last_seen = plug_device_id or device_id
+    if target_dev_for_last_seen:
+        last_rec = db.query(PlugTelemetry).filter(
+            PlugTelemetry.device_id == target_dev_for_last_seen
+        ).order_by(PlugTelemetry.timestamp.desc()).first()
+        
+        if not last_rec and device_id:
+            last_rec = db.query(DeviceTelemetry).filter(
+                DeviceTelemetry.device_id == device_id
+            ).order_by(DeviceTelemetry.timestamp.desc()).first()
+            
         if last_rec and last_rec.timestamp:
             ist_offset = timedelta(hours=5, minutes=30)
             last_seen_str = (last_rec.timestamp + ist_offset).strftime("%b %d, %I:%M %p IST")
@@ -816,6 +833,25 @@ async def generate_report_html(db: Session) -> tuple[str, str, str]:
             "last_24h": last_24h,
             "baseline_7d": baselines
         })
+
+    # Sort telemetry_data so High Temperature rooms appear first
+    def _sort_key(item):
+        m = item["last_24h"]
+        above_max = m.get("above_max_hours", 0.0) or 0.0
+        below_min = m.get("below_min_hours", 0.0) or 0.0
+        t_avg = m.get("t_avg") if m.get("t_avg") is not None else -999.0
+        t_max = m.get("t_max") if m.get("t_max") is not None else -999.0
+        
+        # Priority score: High temp breach -> Highest temp -> Middle temp -> Low temp / Offline
+        if above_max > 0:
+            score = 3000.0 + above_max * 100.0 + t_max
+        elif t_avg != -999.0 and below_min == 0:
+            score = 2000.0 + t_max
+        else:
+            score = 1000.0 + (t_avg if t_avg != -999.0 else -500.0)
+        return score
+
+    telemetry_data.sort(key=_sort_key, reverse=True)
 
     # 3. Persist today's per-device metadata to DB
     persist_device_daily_metadata(db, telemetry_data, report_date_obj)
