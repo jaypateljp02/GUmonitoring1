@@ -390,8 +390,21 @@ def get_rolling_analytics(
 
 @router.get("/device/{device_id}/export")
 def export_device_telemetry(
-    device_id: str, days: str = "1", interval_minutes: int = 1, start_date: Optional[str] = None, end_date: Optional[str] = None, db: Session = Depends(get_db)
+    device_id: str,
+    days: str = "1",
+    interval_minutes: int = 1,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    include_plug: Optional[str] = "true",
+    channels: Optional[str] = "all",
+    db: Session = Depends(get_db)
 ):
+    """
+    Export combined temperature, humidity, battery, AND smart plug power telemetry CSV.
+    Supports filtering by channels: 'all', 'fridge_power', 'freezer_power', 'sensor_only'.
+    """
+    from backend.models.plug_telemetry import PlugTelemetry
+    
     if start_date and end_date:
         try:
             start_local = datetime.fromisoformat(start_date) if "T" in start_date else datetime.strptime(start_date, "%Y-%m-%d")
@@ -400,7 +413,7 @@ def export_device_telemetry(
             end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
             cutoff = start_local - timedelta(hours=5, minutes=30)
             end_time = end_local - timedelta(hours=5, minutes=30)
-            filename = f"telemetry_{device_id}_{start_date}_to_{end_date}.csv"
+            filename = f"telemetry_{device_id}_{channels}_{start_date}_to_{end_date}.csv"
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Invalid date format. Use YYYY-MM-DD. Error: {err}")
     else:
@@ -410,23 +423,77 @@ def export_device_telemetry(
             days_count = 1
         cutoff = datetime.utcnow() - timedelta(days=days_count)
         end_time = datetime.utcnow()
-        filename = f"telemetry_{device_id}_{days}d.csv"
+        filename = f"telemetry_{device_id}_{channels}_{days}d.csv"
         
     aggregated_logs = aggregate_telemetry(db, device_id, cutoff, end_time, interval_minutes)
-    
-    # Sort ascending (oldest first) for readability in exported CSV
     aggregated_logs = list(reversed(aggregated_logs))
     
-    # IST offset for Indian users (UTC+5:30)
-    ist_offset = timedelta(hours=5, minutes=30)
+    # Check if this device or its room has a plug sensor
+    plug_logs_map = {}
+    want_plug = (include_plug and include_plug.lower() == "true") and (channels != "sensor_only")
     
+    if want_plug:
+        target_plug_id = device_id
+        sensor = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).first()
+        if sensor and sensor.type != "plug" and sensor.room_id:
+            plug_sensor = db.query(Sensor).filter(
+                Sensor.room_id == sensor.room_id,
+                Sensor.type == "plug",
+                Sensor.active == True
+            ).first()
+            if plug_sensor:
+                target_plug_id = plug_sensor.device_id
+                
+        plug_logs = db.query(PlugTelemetry).filter(
+            PlugTelemetry.device_id == target_plug_id,
+            PlugTelemetry.timestamp >= cutoff,
+            PlugTelemetry.timestamp <= end_time
+        ).all()
+        
+        for pl in plug_logs:
+            t_key = pl.timestamp.strftime('%Y-%m-%d %H:%M')
+            if t_key not in plug_logs_map:
+                plug_logs_map[t_key] = pl
+
+    ist_offset = timedelta(hours=5, minutes=30)
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Temperature (C)", "Humidity (%)", "Battery (%)"])
+    
+    headers = ["Device ID", "Timestamp (UTC)", "Timestamp (IST)", "Temperature (C)", "Humidity (%)", "Battery (%)"]
+    if want_plug:
+        headers.extend(["Active Power (W)", "Voltage (V)", "Current (A)", "Today Energy (kWh)"])
+        
+    writer.writerow(headers)
+    
     for log in aggregated_logs:
         utc_str = log.timestamp.strftime('%Y-%m-%d %H:%M:%S')
         ist_str = (log.timestamp + ist_offset).strftime('%Y-%m-%d %H:%M:%S')
-        writer.writerow([log.device_id, utc_str, ist_str, str(log.temperature), str(log.humidity), str(log.battery_level)])
+        t_key = log.timestamp.strftime('%Y-%m-%d %H:%M')
+        
+        row = [
+            log.device_id,
+            utc_str,
+            ist_str,
+            str(log.temperature) if log.temperature is not None else "",
+            str(log.humidity) if log.humidity is not None else "",
+            str(log.battery_level) if log.battery_level is not None else ""
+        ]
+        
+        if want_plug:
+            pl_data = plug_logs_map.get(t_key)
+            if pl_data:
+                today_wh = float(pl_data.today_energy or 0.0)
+                today_kwh = round(today_wh / 1000.0 if today_wh > 500.0 else today_wh, 3)
+                row.extend([
+                    str(round(float(pl_data.apower or 0.0), 1)),
+                    str(round(float(pl_data.voltage or 0.0), 1)),
+                    str(round(float(pl_data.current or 0.0), 3)),
+                    str(today_kwh)
+                ])
+            else:
+                row.extend(["", "", "", ""])
+                
+        writer.writerow(row)
         
     output.seek(0)
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
