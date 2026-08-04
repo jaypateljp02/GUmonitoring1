@@ -1710,6 +1710,22 @@
       }
     }
 
+    function getPlugCardTitle(plugSensor, room, mainSensor) {
+      if (plugSensor && plugSensor.name && plugSensor.name !== 'undefined' && plugSensor.name.trim() !== '') {
+        return plugSensor.name.trim();
+      }
+      if (room && room.name && room.name !== 'undefined' && room.name.trim() !== '') {
+        return room.name.trim();
+      }
+      if (mainSensor && mainSensor.name && mainSensor.name !== 'undefined' && mainSensor.name.trim() !== '') {
+        return mainSensor.name.trim();
+      }
+      if (mainSensor && mainSensor.device_id) {
+        return `Plug (${mainSensor.device_id})`;
+      }
+      return 'Smart Plug';
+    }
+
     function renderTapoPlugs() {
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
@@ -2045,7 +2061,7 @@
           <div class="card" style="margin-bottom: 14px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);">
               <div style="display: flex; flex-direction: column;">
-                <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${(plugSensor && plugSensor.name) ? plugSensor.name : (room.name || 'Smart Plug')}</span>
+                <span style="font-size: 13px; font-weight: 800; color: var(--text-primary);">${getPlugCardTitle(plugSensor, room, mainSensor)}</span>
                 <span style="font-size: 9.5px; color: var(--text-secondary); opacity: 0.8; font-family: monospace; display: flex; align-items: center; gap: 6px;">
                   ID: ${mainSensor.device_id || 'N/A'} ${mainSensor.tapo_ip ? '| IP: ' + mainSensor.tapo_ip : ''} (Rate: ₹${(data && data.billing_rate) ? data.billing_rate.toFixed(1) : '10.0'}/kWh)
                   <span onclick="openTapoSettingsModal('${mainSensor.device_id}', '${mainSensor.tapo_ip || ''}', '${mainSensor.tapo_username || ''}', '${mainSensor.tapo_password || ''}', ${(data && data.billing_rate) ? data.billing_rate : 10.0}, ${mainSensor.tapo_running_threshold !== null && mainSensor.tapo_running_threshold !== undefined ? mainSensor.tapo_running_threshold : 80.0})" style="cursor: pointer; font-size: 11px;" title="Plug & Energy Billing Settings">⚙️</span>
