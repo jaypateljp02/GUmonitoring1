@@ -2583,19 +2583,21 @@
           const isOnline = data.is_online !== false;
           tempStr = isOnline ? temp.toFixed(1) + '°C' : '--';
           
-          let isAlert = false;
-          if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-          if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+          let isHighAlert = (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold);
+          let isLowWarning = (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold);
           
           if (!isOnline) {
             pinClass = 'offline';
-            dotClass = 'offline';
-          } else if (isAlert) {
+            badgeStyle = 'background: rgba(148, 163, 184, 0.85); border: 1.5px solid #94a3b8; color: #ffffff;';
+          } else if (isHighAlert) {
             pinClass = 'alert';
-            dotClass = 'alert';
+            badgeStyle = 'background: rgba(239, 68, 68, 0.95); border: 1.5px solid #dc2626; color: #ffffff;';
+          } else if (isLowWarning) {
+            pinClass = 'warning';
+            badgeStyle = 'background: rgba(245, 158, 11, 0.95); border: 1.5px solid #d97706; color: #ffffff; font-weight: 800;';
           } else {
-            pinClass = '';
-            dotClass = '';
+            pinClass = 'normal';
+            badgeStyle = 'background: rgba(16, 185, 129, 0.9); border: 1.5px solid #059669; color: #ffffff;';
           }
         }
         
@@ -2623,17 +2625,18 @@
           y = `${xVal}%`;
         }
         
-        const borderStyle = isUnplaced ? "border: 2px dashed #f59e0b;" : "";
+        const borderStyle = isUnplaced ? "border: 2px dashed #f59e0b;" : badgeStyle;
         const badgeLabel = isUnplaced ? `<span style="font-size: 7px; color: #f59e0b; font-weight: 800; margin-bottom: 2px;">[NEW]</span>` : "";
         
         pinsHtml += `
           <div class="map-pin" id="pin-${room.id}" data-room-id="${room.id}" style="left: ${x}; top: ${y}; position: absolute; transform: translate(-50%, -50%); z-index: 10; cursor: grab;" title="${room.name}">
-            ${pinClass === 'alert' ? '<div class="pulse-ring-web"></div>' : ''}
-            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 4px 6px; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+            ${pinClass === 'alert' ? '<div class="pulse-ring-web" style="border-color:#ef4444;"></div>' : ''}
+            ${pinClass === 'warning' ? '<div class="pulse-ring-web" style="border-color:#f59e0b;"></div>' : ''}
+            <div class="pin-badge ${pinClass}" style="${borderStyle} padding: 4px 8px; display: flex; align-items: center; justify-content: center; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
               <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                 ${badgeLabel}
-                <span class="pin-name" style="font-size: 7.5px; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
-                <span class="pin-temp" style="font-size: 10px; font-weight: 800;">${tempStr}</span>
+                <span class="pin-name" style="font-size: 7.5px; color: rgba(255,255,255,0.9); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; max-width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${room.name}</span>
+                <span class="pin-temp" style="font-size: 10.5px; font-weight: 800; color: #ffffff;">${tempStr}</span>
               </div>
             </div>
           </div>

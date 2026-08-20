@@ -14,6 +14,13 @@ import threading
 import os
 import logging
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+PARENT_DIR = os.path.dirname(ROOT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
 from backend.config import APP_NAME, APP_VERSION, JWT_SECRET, JWT_ALGORITHM
 from backend.routes import sensors, rooms, alerts, monitoring, reports, whatsapp_webhook
 from backend.database import SessionLocal, ensure_db_ready, get_db
@@ -120,12 +127,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.add_middleware(ReportPreviewMiddleware)
 
 
+from groundup_webhooks.whatsapp_webhook import router as central_whatsapp_webhook_router
+
 app.include_router(sensors.router)
 app.include_router(rooms.router)
 app.include_router(alerts.router)
 app.include_router(monitoring.router)
 app.include_router(reports.router)
-app.include_router(whatsapp_webhook.router)
+app.include_router(central_whatsapp_webhook_router)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:

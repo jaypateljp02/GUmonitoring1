@@ -159,4 +159,36 @@ def seed_monitoring_data():
     seed()
     return {"message": "Database seeded successfully with blueprint layout."}
 
+from pydantic import BaseModel
+
+class SettingUpdate(BaseModel):
+    value: str
+    description: Optional[str] = None
+
+@router.put("/settings/{key}")
+def update_setting(key: str, payload: SettingUpdate, db: Session = Depends(get_db)):
+    """Update a specific setting in the settings table."""
+    from backend.models.setting import Setting
+    
+    setting = db.query(Setting).filter(Setting.key == key).first()
+    if setting:
+        setting.value = payload.value
+        if payload.description:
+            setting.description = payload.description
+    else:
+        setting = Setting(key=key, value=payload.value, description=payload.description)
+        db.add(setting)
+        
+    db.commit()
+    return {"message": "Setting updated successfully"}
+
+@router.get("/settings/{key}")
+def get_setting(key: str, db: Session = Depends(get_db)):
+    from backend.models.setting import Setting
+    setting = db.query(Setting).filter(Setting.key == key).first()
+    if setting:
+        return {"key": setting.key, "value": setting.value, "description": setting.description}
+    return {"key": key, "value": ""}
+
+
 

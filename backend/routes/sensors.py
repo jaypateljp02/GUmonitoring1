@@ -1763,8 +1763,8 @@ async def get_device_ai_summary(
     hums = [float(l.humidity) for l in logs if l.humidity is not None]
     
     temp_sensor = next((s for s in sensors_list if s.type == "temperature"), sensor)
-    temp_min_th = float(temp_sensor.temp_min_threshold) if temp_sensor and temp_sensor.temp_min_threshold is not None else None
-    temp_max_th = float(temp_sensor.temp_max_threshold) if temp_sensor and temp_sensor.temp_max_threshold is not None else None
+    temp_min_th = float(temp_sensor.min_threshold) if temp_sensor and temp_sensor.min_threshold is not None else None
+    temp_max_th = float(temp_sensor.max_threshold) if temp_sensor and temp_sensor.max_threshold is not None else None
     has_plug = temp_sensor is not None and temp_sensor.tapo_ip is not None and len(str(getattr(temp_sensor, 'tapo_ip', '') or '').strip()) > 0
     
     stats = {

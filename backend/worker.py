@@ -20,7 +20,11 @@ from backend.models.setting import Setting
 
 from backend.services.tapo import get_tapo_telemetry_cached
 from backend.services.ewelink import EwelinkClient
-from backend.services.whatsapp import send_whatsapp_alert, calculate_priority
+
+# Use unified WhatsApp alert sender (single source of truth)
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from groundup_webhooks.alert_sender import send_monitoring_alert, calculate_priority
 
 load_dotenv()
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -100,6 +104,72 @@ def update_compressor_stats(db, sensor, target_date):
     stats.daily_energy_kwh = decimal.Decimal(str(round(daily_energy, 3)))
     stats.monthly_energy_kwh = decimal.Decimal(str(round(monthly_energy, 3)))
     stats.estimated_cost = decimal.Decimal(str(round(daily_cost, 2)))
+
+
+async def send_morning_task_briefings(db):
+    """Sends morning WhatsApp task briefing to active employees/owners at 8:00 AM IST."""
+    try:
+        from groundup_webhooks.models import WebhookRecipient
+        from groundup_webhooks.whatsapp_client import send_whatsapp_text
+        from sqlalchemy import text
+
+        recipients = db.query(WebhookRecipient).filter(WebhookRecipient.is_active == True).all()
+        for r in recipients:
+            dname = r.display_name or "Staff"
+            role = r.role or "employee"
+            is_owner = role in ("owner", "admin")
+
+            sql = """
+                SELECT i.text, i.priority, i.status
+                FROM flipboard.items i
+                JOIN flipboard.pages p ON i.page_id = p.id
+                JOIN flipboard.folders f ON p.folder_id = f.id
+                WHERE i.status != 'deleted'
+                  AND (
+                      f.id = (
+                          SELECT id FROM flipboard.folders
+                          WHERE folder_type = 'daily_auto' AND (is_archived IS FALSE OR is_archived IS NULL)
+                          ORDER BY created_at DESC LIMIT 1
+                      )
+                      OR (f.folder_type = 'custom' AND (f.is_archived IS FALSE OR f.is_archived IS NULL))
+                  )
+            """
+            params = {}
+            if not is_owner:
+                sql += " AND i.assigned_to_name ILIKE :emp"
+                params["emp"] = f"%{dname}%"
+
+            sql += " ORDER BY i.position ASC"
+
+            tasks = db.execute(text(sql), params).fetchall()
+            active_tasks = [t for t in tasks if t[2] == 'active']
+
+            if is_owner:
+                msg = f"☀️ *Good Morning, {dname}!*\n📅 Today's Factory Overview:\n"
+                if active_tasks:
+                    msg += f"📋 *{len(active_tasks)} Pending Tasks Today:*\n"
+                    for idx, t in enumerate(active_tasks[:8], 1):
+                        prio = "🔴" if t[1] == "urgent" else "🟡"
+                        msg += f"{idx}. {prio} {t[0]}\n"
+                else:
+                    msg += "✅ No pending tasks currently."
+            else:
+                msg = f"☀️ *Good Morning, {dname}!*\n📋 *Your Tasks Today:*\n"
+                if active_tasks:
+                    for idx, t in enumerate(active_tasks[:5], 1):
+                        prio = "🔴" if t[1] == "urgent" else "🟡"
+                        msg += f"{idx}. {prio} {t[0]}\n"
+                    msg += "\n_Reply 'done 1' when finished!_"
+                else:
+                    msg += "✅ You have no assigned tasks for today."
+
+            await send_whatsapp_text(r.phone_number, msg, db, sender_name="GroundUp Bot")
+        logger.info("☀️ Morning task briefings dispatched successfully.")
+        return True
+    except Exception as e:
+        logger.error(f"Error sending morning task briefings: {e}")
+        return False
+
 
 
 async def sync_ewelink_devices(db, client: EwelinkClient) -> list:
@@ -448,7 +518,7 @@ async def ingestion_loop():
                                             pass
 
                                 is_online_in_cloud = device_data.get("online", True)
-                                if is_online_in_cloud or power_val is not None:
+                                if is_online_in_cloud:
                                     is_device_reporting = True
                                 else:
                                     logger.warning(f"Power device {target_device} is offline in eWeLink cloud.")
@@ -472,7 +542,7 @@ async def ingestion_loop():
                                     bat_val = float(raw_bat)
                                 
                                 is_online_in_cloud = device_data.get("online", True)
-                                if is_online_in_cloud or (temp_val is not None or hum_val is not None):
+                                if is_online_in_cloud:
                                     is_device_reporting = True
                                 else:
                                     logger.warning(f"Device {target_device} is offline in eWeLink cloud (online={device_data.get('online')}).")
@@ -541,7 +611,7 @@ async def ingestion_loop():
                                     logger.info(f"Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
 
                     # === POWER DEVICE TELEMETRY (POWR320D) ===
-                    if is_power_device and power_val is not None:
+                    if is_power_device and power_val is not None and is_device_reporting:
                         plug_tel = PlugTelemetry(
                             device_id=target_device,
                             apower=power_val,
@@ -563,7 +633,7 @@ async def ingestion_loop():
                         logger.info(f"Queued plug telemetry for eWeLink power device {target_device}: P={power_val}W V={voltage_val}V I={current_val}A")
 
                     # === TEMPERATURE/HUMIDITY DEVICE TELEMETRY (SNZB-02) ===
-                    elif not is_power_device and temp_val is not None and hum_val is not None:
+                    elif not is_power_device and temp_val is not None and hum_val is not None and is_device_reporting:
                         # 1. Raw Telemetry
                         telemetry = DeviceTelemetry(
                             device_id=target_device,
@@ -589,8 +659,9 @@ async def ingestion_loop():
                             is_violating = False
                             if s.max_threshold is not None and val > s.max_threshold:
                                 is_violating = True
-                            if s.min_threshold is not None and val < s.min_threshold:
-                                is_violating = True
+                            # Ignoring min_threshold for alerts as per user request
+                            # if s.min_threshold is not None and val < s.min_threshold:
+                            #     is_violating = True
                             
                             if open_alert:
                                 if not is_violating:
@@ -609,8 +680,8 @@ async def ingestion_loop():
                                         r_violating = False
                                         if s.max_threshold is not None and r.value > s.max_threshold:
                                             r_violating = True
-                                        if s.min_threshold is not None and r.value < s.min_threshold:
-                                            r_violating = True
+                                        # if s.min_threshold is not None and r.value < s.min_threshold:
+                                        #     r_violating = True
                                         
                                         if r_violating:
                                             first_violated_at = r.recorded_at
@@ -647,7 +718,7 @@ async def ingestion_loop():
                                             max_th_str = f"{s.max_threshold}°C" if s.type == "temperature" else f"{s.max_threshold}%"
                                             range_str = f"{min_th_str} - {max_th_str}"
 
-                                            send_whatsapp_alert(
+                                            send_monitoring_alert(
                                                 sensor_name=s.name,
                                                 alert_type=s.type.capitalize(),
                                                 current_value=val_str,
@@ -671,8 +742,8 @@ async def ingestion_loop():
                                         prev_violating = False
                                         if s.max_threshold is not None and prev_r.value > s.max_threshold:
                                             prev_violating = True
-                                        if s.min_threshold is not None and prev_r.value < s.min_threshold:
-                                            prev_violating = True
+                                        # if s.min_threshold is not None and prev_r.value < s.min_threshold:
+                                        #     prev_violating = True
                                             
                                         if prev_violating:
                                             # Tracing back to find when violation sequence started
@@ -681,8 +752,8 @@ async def ingestion_loop():
                                                 r_violating = False
                                                 if s.max_threshold is not None and r.value > s.max_threshold:
                                                     r_violating = True
-                                                if s.min_threshold is not None and r.value < s.min_threshold:
-                                                    r_violating = True
+                                                # if s.min_threshold is not None and r.value < s.min_threshold:
+                                                #     r_violating = True
                                                 
                                                 if r_violating:
                                                     opened_at = r.recorded_at
@@ -745,7 +816,7 @@ async def ingestion_loop():
                     if should_send_all_offline:
                         logger.warning("🚨 ALL SENSORS & DEVICES ARE OFFLINE! Sending consolidated WhatsApp alert.")
                         alert_id = str(new_offline_alerts[0].id) if new_offline_alerts else "all_offline"
-                        send_whatsapp_alert(
+                        send_monitoring_alert(
                             sensor_name="ALL SENSORS & EQUIPMENT",
                             alert_type="CRITICAL ALL OFFLINE",
                             current_value="ALL OFFLINE",
@@ -768,7 +839,7 @@ async def ingestion_loop():
                     logger.info(f"Processing {len(new_offline_alerts)} new offline alerts in this ingestion cycle.")
                     if len(new_offline_alerts) >= 3:
                         logger.info("Sending a single consolidated offline alert for multiple sensors.")
-                        send_whatsapp_alert(
+                        send_monitoring_alert(
                             sensor_name=f"Multiple ({len(new_offline_alerts)}) Sensors",
                             alert_type="Offline",
                             current_value="OFFLINE",
@@ -794,7 +865,7 @@ async def ingestion_loop():
                                     if last_tel and last_tel.timestamp:
                                         last_seen_str = (last_tel.timestamp + timedelta(hours=5, minutes=30)).strftime("%I:%M %p IST")
 
-                                send_whatsapp_alert(
+                                send_monitoring_alert(
                                     sensor_name=s.name,
                                     alert_type="Offline",
                                     current_value="OFFLINE",
@@ -818,14 +889,36 @@ async def ingestion_loop():
             # Check and trigger daily report at 8:00 PM IST (20:00 IST)
             try:
                 from backend.services.insights import generate_daily_report
-                from backend.models.setting import Setting
+                # (Removed local import of Setting to fix UnboundLocalError)
                 
                 # Get current date/time in IST
                 now_utc = datetime.utcnow()
                 now_ist = now_utc + timedelta(hours=5, minutes=30)
                 today_str = now_ist.strftime("%Y-%m-%d")
                 
-                # Target 20:00 (8:00 PM) IST
+                # 1. Target 08:00 (8:00 AM) IST for Morning Task Briefings
+                morning_target = now_ist.replace(hour=8, minute=0, second=0, microsecond=0)
+                if now_ist >= morning_target:
+                    last_morning_setting = db.query(Setting).filter(Setting.key == "last_morning_briefing_date").first()
+                    if not last_morning_setting or last_morning_setting.value != today_str:
+                        if not last_morning_setting:
+                            last_morning_setting = Setting(
+                                key="last_morning_briefing_date",
+                                value=today_str,
+                                description="Date of last morning WhatsApp briefing run"
+                            )
+                            db.add(last_morning_setting)
+                        else:
+                            last_morning_setting.value = today_str
+                        db.commit()
+
+                        logger.info(f"Triggering 8:00 AM IST morning task briefings for {today_str}...")
+                        try:
+                            await send_morning_task_briefings(db)
+                        except Exception as mb_err:
+                            logger.error(f"Morning briefing failed: {mb_err}")
+
+                # 2. Target 20:00 (8:00 PM) IST for Daily Summary Report
                 target_time = now_ist.replace(hour=20, minute=0, second=0, microsecond=0)
                 
                 if now_ist >= target_time:

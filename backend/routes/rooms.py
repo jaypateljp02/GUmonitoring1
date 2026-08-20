@@ -68,3 +68,41 @@ def update_room_coordinates(room_id: str, req: RoomCoordinatesUpdate, db: Sessio
     room.map_y = req.map_y
     db.commit()
     return MessageResponse(message="Room coordinates updated successfully")
+
+
+@router.post("/{room_id}/maintenance/{action}")
+def toggle_room_maintenance(room_id: str, action: str, db: Session = Depends(get_db)):
+    """
+    Toggle cleaning / maintenance mode for a room or appliance (start or stop).
+    Pauses alert notifications during cleaning mode.
+    """
+    if action not in ["start", "stop"]:
+        raise HTTPException(status_code=400, detail="Action must be 'start' or 'stop'")
+        
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    is_under_maint = (action == "start")
+    
+    try:
+        room.is_under_maintenance = is_under_maint
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # Fallback if DB column is missing, execute ALTER TABLE dynamically
+        try:
+            db.execute("ALTER TABLE monitoring.rooms ADD COLUMN IF NOT EXISTS is_under_maintenance BOOLEAN DEFAULT FALSE;")
+            db.commit()
+            room.is_under_maintenance = is_under_maint
+            db.commit()
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "action": action,
+        "room_id": str(room_id),
+        "is_under_maintenance": is_under_maint,
+        "message": f"Cleaning mode {'activated' if is_under_maint else 'deactivated'} for {room.name}"
+    }

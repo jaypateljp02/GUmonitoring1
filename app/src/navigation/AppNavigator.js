@@ -12,6 +12,8 @@ import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 import { api, getAuthToken, clearAuthToken } from '../services/api';
 
+import GlassesRecordScreen from '../screens/GlassesRecordScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 

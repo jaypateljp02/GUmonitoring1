@@ -131,11 +131,13 @@ export default function FloorPlanScreen() {
             const isOffline = data && !isOnline;
             const temp = data ? (isOffline ? '--' : `${parseFloat(data.temperature).toFixed(1)}°C`) : '--';
 
-            // Check for alerts
-            const isAlert = data && !isOffline && (
-              (tempSensor.min_threshold !== null && data.temperature < tempSensor.min_threshold) ||
-              (tempSensor.max_threshold !== null && data.temperature > tempSensor.max_threshold)
-            );
+            // Check temperature alert levels:
+            // High Temp > max_threshold = RED Alert (Food Spoilage Risk!)
+            // Low Temp < min_threshold = YELLOW Warning (Safe Cold - Food won't spoil!)
+            const tempVal = data ? parseFloat(data.temperature) : null;
+            const isHighTempAlert = data && !isOffline && tempSensor && tempSensor.max_threshold !== null && tempVal > tempSensor.max_threshold;
+            const isLowTempWarning = data && !isOffline && tempSensor && tempSensor.min_threshold !== null && tempVal < tempSensor.min_threshold;
+            const isNormal = data && !isOffline && !isHighTempAlert && !isLowTempWarning;
 
             return (
               <TouchableOpacity 
@@ -144,11 +146,14 @@ export default function FloorPlanScreen() {
                 onPress={() => handleMarkerPress(room)}
                 activeOpacity={0.7}
               >
-                {isAlert && <View style={styles.pulseRing} />}
+                {isHighTempAlert && <View style={styles.pulseRingRed} />}
+                {isLowTempWarning && <View style={styles.pulseRingYellow} />}
                 <View 
                   style={[
                     styles.markerBadge, 
-                    isAlert && styles.markerBadgeAlert,
+                    isHighTempAlert && styles.markerBadgeAlertRed,
+                    isLowTempWarning && styles.markerBadgeWarningYellow,
+                    isNormal && styles.markerBadgeNormalGreen,
                     isOffline && styles.markerBadgeOffline,
                     !isPlaced && styles.markerBadgeUnplaced
                   ]}
@@ -158,12 +163,22 @@ export default function FloorPlanScreen() {
                       <Text style={styles.newBadgeText}>NEW</Text>
                     </View>
                   )}
-                  {isPlaced && <View style={[styles.markerDot, isOffline && styles.markerDotOffline]} />}
+                  {isPlaced && (
+                    <View style={[
+                      styles.markerDot, 
+                      isHighTempAlert && styles.markerDotRed,
+                      isLowTempWarning && styles.markerDotYellow,
+                      isNormal && styles.markerDotGreen,
+                      isOffline && styles.markerDotOffline
+                    ]} />
+                  )}
                   <View>
                     <Text style={styles.markerName} numberOfLines={1} ellipsizeMode="tail">{room.name}</Text>
                     <Text style={[
                       styles.markerTemp, 
-                      isAlert && styles.markerTempAlert,
+                      isHighTempAlert && styles.markerTempRed,
+                      isLowTempWarning && styles.markerTempYellow,
+                      isNormal && styles.markerTempGreen,
                       isOffline && styles.markerTempOffline
                     ]}>
                       {temp}
@@ -235,9 +250,17 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',
   },
-  markerBadgeAlert: {
-    backgroundColor: 'rgba(153, 27, 27, 0.85)',
+  markerBadgeAlertRed: {
+    backgroundColor: 'rgba(185, 28, 28, 0.9)',
     borderColor: '#EF4444',
+  },
+  markerBadgeWarningYellow: {
+    backgroundColor: 'rgba(180, 83, 9, 0.9)',
+    borderColor: '#F59E0B',
+  },
+  markerBadgeNormalGreen: {
+    backgroundColor: 'rgba(21, 128, 61, 0.85)',
+    borderColor: '#10B981',
   },
   markerBadgeOffline: {
     backgroundColor: 'rgba(55, 65, 81, 0.85)',
@@ -249,6 +272,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#3B82F6',
     marginRight: 8,
+  },
+  markerDotRed: {
+    backgroundColor: '#EF4444',
+  },
+  markerDotYellow: {
+    backgroundColor: '#F59E0B',
+  },
+  markerDotGreen: {
+    backgroundColor: '#10B981',
   },
   markerDotOffline: {
     backgroundColor: '#9CA3AF',
@@ -283,8 +315,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  markerTempAlert: {
+  markerTempRed: {
     color: '#FECACA',
+  },
+  markerTempYellow: {
+    color: '#FEF3C7',
+  },
+  markerTempGreen: {
+    color: '#D1FAE5',
+  },
+  markerTempOffline: {
+    color: '#D1D5DB',
+  },
+  pulseRingRed: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+    top: -10,
+    left: -10,
+    zIndex: -1,
+  },
+  pulseRingYellow: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(245, 158, 11, 0.3)',
+    top: -10,
+    left: -10,
+    zIndex: -1,
   },
   markerTempOffline: {
     color: '#D1D5DB',

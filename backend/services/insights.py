@@ -1,3 +1,4 @@
+
 """Insights and Daily Reports service using Gemini API."""
 import os
 import time
@@ -794,6 +795,60 @@ def build_report_html(report_date: str, overall_status: str, summary_msg: str, t
     """
     return html
 
+def _build_clean_whatsapp_summary(overall_status: str, telemetry_data: list, insights: dict) -> str:
+    """
+    Build a SHORT, clean WhatsApp summary message for the daily report.
+    
+    Design principles:
+      - Factory owner should understand it in 5 seconds
+      - Only mention rooms with ISSUES
+      - No raw numbers/data dump for healthy rooms
+      - Actionable: tell them what to do
+      - Max ~400 chars to avoid Meta template truncation
+    """
+    status_emoji = {"healthy": "✅", "warning": "⚠️", "critical": "🚨"}.get(overall_status, "📊")
+
+    # Count issues vs healthy
+    issue_rooms = []
+    for r in telemetry_data:
+        m = r["last_24h"]
+        above = m.get("above_max_hours", 0.0) or 0.0
+        below = m.get("below_min_hours", 0.0) or 0.0
+        offline = m.get("t_avg") is None and m.get("runtime_hours") is None
+
+        if above > 0.25:
+            issue_rooms.append(f"🔴 {r['room_name']}: High temp ({m.get('t_max', '?')}°C) for {above:.0f}h")
+        elif below > 0.25:
+            issue_rooms.append(f"🟡 {r['room_name']}: Low temp ({m.get('t_min', '?')}°C) for {below:.0f}h")
+        elif offline:
+            issue_rooms.append(f"⚫ {r['room_name']}: Offline")
+
+    # Also check AI diagnoses for overworking/short-cycling issues
+    for diag in insights.get("diagnoses", []):
+        diag_name = diag.get("room_name", "")
+        diag_status = diag.get("status", "healthy")
+        if diag_status != "healthy" and not any(diag_name in ir for ir in issue_rooms):
+            action = diag.get("action_items", ["Check equipment"])[0] if diag.get("action_items") else "Check equipment"
+            issue_rooms.append(f"🟡 {diag_name}: {action[:60]}")
+
+    total_rooms = len(telemetry_data)
+    healthy_count = total_rooms - len(issue_rooms)
+
+    if not issue_rooms:
+        # All healthy
+        msg = f"{status_emoji} All {total_rooms} units running normally. No issues today."
+    else:
+        # Show all issues
+        issues_text = " | ".join(issue_rooms)
+        msg = f"{status_emoji} {healthy_count}/{total_rooms} OK. {len(issue_rooms)} issues: {issues_text}"
+
+    # Ensure it fits Meta's limits (keep under 500 chars)
+    if len(msg) > 500:
+        msg = msg[:497] + "..."
+
+    return msg
+
+
 async def generate_report_html(db: Session) -> tuple[str, str, str]:
     """Compile stats for all cold rooms, perform AI diagnostics, store metadata, and build HTML body."""
     ist_offset = timedelta(hours=5, minutes=30)
@@ -888,39 +943,9 @@ async def generate_report_html(db: Session) -> tuple[str, str, str]:
     insights = await call_gemini_diagnose(telemetry_data)
     
     overall_status = insights.get("overall_status", "healthy")
-    gemini_summary = insights.get("whatsapp_message", "")
-
-    # Build room-by-room telemetry overview for WhatsApp
-    room_lines = []
-    for r in telemetry_data:
-        m = r["last_24h"]
-        r_name = r["room_name"]
-        t_avg = m.get("t_avg")
-        t_min = m.get("t_min")
-        t_max = m.get("t_max")
-        
-        above = m.get("above_max_hours", 0.0) or 0.0
-        below = m.get("below_min_hours", 0.0) or 0.0
-        
-        status_flag = "OK"
-        if above > 0.25:
-            status_flag = f"HIGH ({above:.1f}h)"
-        elif below > 0.25:
-            status_flag = f"LOW ({below:.1f}h)"
-            
-        plug_info = ""
-        if m.get("has_plug") and m.get("p_avg") is not None:
-            plug_info = f" | {m.get('p_avg')}W ({m.get('runtime_hours', 0)}h run)"
-            
-        if t_avg is not None:
-            room_lines.append(f"• {r_name}: {t_avg}°C (range {t_min}-{t_max}°C) [{status_flag}]{plug_info}")
-
-    detail_block = "\n".join(room_lines)
-    if gemini_summary:
-        whatsapp_msg = f"{gemini_summary}\n\nRoom Telemetry:\n{detail_block}"
-    else:
-        whatsapp_msg = f"Factory Thermal Summary:\n{detail_block}"
-
+    # Build a clean WhatsApp summary
+    whatsapp_msg = _build_clean_whatsapp_summary(overall_status, telemetry_data, insights)
+    
     # Attach historical recurrences to insights diagnoses list
     for diag in insights.get("diagnoses", []):
         matched = next((t for t in telemetry_data if t["room_name"] == diag.get("room_name")), None)
@@ -985,8 +1010,14 @@ async def generate_daily_report(db: Session):
             else:
                 highest_priority = "Medium"
                 
-        # Format trimmed summary for Meta WhatsApp Cloud API template (<= 990 chars)
-        trimmed_summary = whatsapp_msg[:990] if len(whatsapp_msg) > 990 else whatsapp_msg
+        import re
+        # Format trimmed summary for Meta WhatsApp Cloud API template
+        # Meta API STRICTLY forbids newlines, tabs, and >=4 consecutive spaces in parameters.
+        # Max length of ENTIRE message is 1024. Truncating parameter to 800 characters.
+        sanitized_summary = re.sub(r'[\n\t\r]', ' ', whatsapp_msg)
+        sanitized_summary = re.sub(r'\s{2,}', ' ', sanitized_summary).strip()
+        trimmed_summary = sanitized_summary[:800] + ('...' if len(sanitized_summary) > 800 else '')
+
 
         logger.info(f"Dispatched daily summary to WhatsApp: date={report_date}, normal={normal_count}, active={active_count}, highest={highest_priority}")
         send_whatsapp_daily_summary(

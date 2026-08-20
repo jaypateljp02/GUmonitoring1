@@ -1,212 +1,28 @@
+"""
+DEPRECATED — This module has been replaced by groundup_webhooks.alert_sender.
+
+All WhatsApp functionality is now centralized in groundup_webhooks package:
+  - groundup_webhooks.alert_sender   → send_monitoring_alert(), send_daily_summary(), calculate_priority()
+  - groundup_webhooks.whatsapp_client → send_whatsapp_template_sync(), send_whatsapp_text_sync()
+
+This file exists only as a backwards-compatibility redirect.
+Do NOT add new code here.
+"""
 import os
-import logging
-import threading
-import httpx
-from typing import List, Optional
+import sys
 
-logger = logging.getLogger(__name__)
+# Ensure groundup_webhooks is importable
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
-def calculate_priority(room_type: str, sensor_type: str, value: float, sensor) -> str:
-    """
-    Calculate alert priority based on room type, sensor type, and severity of threshold deviation.
-    """
-    room_type_lower = (room_type or "").lower()
-    sensor_type_lower = (sensor_type or "").lower()
+# Re-export from the unified module so old imports keep working
+from groundup_webhooks.alert_sender import (
+    calculate_priority,
+    send_monitoring_alert as send_whatsapp_alert,
+    send_daily_summary as send_whatsapp_daily_summary,
+)
 
-    if sensor_type_lower == "offline":
-        if room_type_lower in ["fridge", "freezer"]:
-            return "High"
-        return "Low"
-
-    # For threshold violations (temperature, humidity)
-    if room_type_lower in ["fridge", "freezer"]:
-        if sensor_type_lower == "temperature":
-            # If temperature deviates by more than 10 degrees C, set to Critical (high-high)
-            min_th = float(sensor.min_threshold) if sensor.min_threshold is not None else None
-            max_th = float(sensor.max_threshold) if sensor.max_threshold is not None else None
-            
-            val_float = float(value)
-            if max_th is not None and val_float > (max_th + 10.0):
-                return "Critical"
-            if min_th is not None and val_float < (min_th - 10.0):
-                return "Critical"
-            return "High"
-        else:
-            # Humidity or other sensors in fridges/freezers
-            return "High"
-    elif room_type_lower == "room":
-        return "Medium"
-    
-    return "Medium"
-
-def _dispatch_whatsapp_request(phone_number_id: str, access_token: str, recipient: str, payload: dict):
-    """
-    Synchronous worker function to send the HTTP POST request to Meta API.
-    """
-    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    try:
-        with httpx.Client() as client:
-            response = client.post(url, json=payload, headers=headers, timeout=10.0)
-            if response.status_code in [200, 201]:
-                logger.info(f"WhatsApp message sent successfully to {recipient}. Response: {response.text}")
-            else:
-                logger.error(f"Failed to send WhatsApp message to {recipient}. Status: {response.status_code}, Response: {response.text}")
-    except Exception as e:
-        logger.error(f"Exception raised while sending WhatsApp to {recipient}: {e}", exc_info=True)
-
-def send_whatsapp_template_to_all(
-    template_name: str, 
-    body_parameters: List[str], 
-    button_parameters: Optional[List[str]] = None
-):
-    """
-    Formats the payload and dispatches the WhatsApp template message to all configured recipients
-    using a non-blocking background thread.
-    """
-    access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
-    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-    recipients_set = set()
-    env_recipients = os.getenv("WHATSAPP_RECIPIENTS")
-    if env_recipients:
-        for r in env_recipients.split(","):
-            if r.strip():
-                recipients_set.add(r.strip())
-                
-    try:
-        from backend.database import SessionLocal
-        from backend.models.setting import Setting
-        db = SessionLocal()
-        s = db.query(Setting).filter(Setting.key == "whatsapp_recipients").first()
-        if s and s.value:
-            for r in s.value.split(","):
-                if r.strip():
-                    recipients_set.add(r.strip())
-        db.close()
-    except Exception as e:
-        logger.warning(f"Could not query database settings for whatsapp_recipients: {e}")
-
-    recipients = list(recipients_set)
-    if not recipients:
-        logger.warning("No WhatsApp recipients found in database or WHATSAPP_RECIPIENTS.")
-        return
-
-    for recipient in recipients:
-        # Build payload
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": recipient,
-            "type": "template",
-            "template": {
-                "name": template_name,
-                "language": {
-                    "code": "en"
-                },
-                "components": []
-            }
-        }
-
-        # Body components
-        body_comp = {
-            "type": "body",
-            "parameters": [{"type": "text", "text": str(param)} for param in body_parameters]
-        }
-        payload["template"]["components"].append(body_comp)
-
-        # Button components (for dynamic URL buttons)
-        if button_parameters:
-            for idx, btn_param in enumerate(button_parameters):
-                btn_comp = {
-                    "type": "button",
-                    "sub_type": "url",
-                    "index": str(idx),
-                    "parameters": [
-                        {
-                            "type": "text",
-                            "text": str(btn_param)
-                        }
-                    ]
-                }
-                payload["template"]["components"].append(btn_comp)
-
-        logger.info(f"Queueing WhatsApp template '{template_name}' for {recipient}")
-        
-        # Fire background thread to avoid blocking the caller
-        thread = threading.Thread(
-            target=_dispatch_whatsapp_request,
-            args=(phone_number_id, access_token, recipient, payload),
-            daemon=True
-        )
-        thread.start()
-
-def send_whatsapp_alert(
-    sensor_name: str,
-    alert_type: str,
-    current_value: str,
-    normal_range: str,
-    duration: str,
-    priority: str,
-    alert_id: str
-):
-    """
-    Send the fermentary_alert_v1 template to all recipients.
-    Dynamic Data:
-    - Sensor Name
-    - Alert Type
-    - Current Value
-    - Normal Range
-    - Duration
-    - Priority
-    - Alert ID (for Url Button param)
-    """
-    body_params = [
-        sensor_name,
-        alert_type,
-        current_value,
-        normal_range,
-        duration,
-        priority
-    ]
-    
-    button_params = [str(alert_id)] if alert_id else ["active"]
-    
-    send_whatsapp_template_to_all(
-        template_name="fermentary_alert_v1",
-        body_parameters=body_params,
-        button_parameters=button_params
-    )
-
-def send_whatsapp_daily_summary(
-    date_str: str,
-    normal_count: int,
-    active_count: int,
-    highest_priority: str,
-    ai_summary: str
-):
-    """
-    Send the fermentary_daily_summary_v1 template to all recipients.
-    Dynamic Data:
-    - Date
-    - Sensors Normal Count
-    - Active Alerts Count
-    - Highest Priority
-    - AI Summary
-    """
-    body_params = [
-        date_str,
-        str(normal_count),
-        str(active_count),
-        highest_priority,
-        ai_summary
-    ]
-    
-    button_params = ["reports/preview"]
-    
-    send_whatsapp_template_to_all(
-        template_name="fermentary_daily_summary_v1",
-        body_parameters=body_params,
-        button_parameters=button_params
-    )
+__all__ = [
+    "calculate_priority",
+    "send_whatsapp_alert",
+    "send_whatsapp_daily_summary",
+]

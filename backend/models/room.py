@@ -15,4 +15,5 @@ class Room(Base):
     map_x = Column(String(20), nullable=True)  # Percentage string like '45%'
     map_y = Column(String(20), nullable=True)
     active = Column(Boolean, default=True)
+    is_under_maintenance = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

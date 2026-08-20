@@ -38,15 +38,19 @@ function RoomCard({ room, telemetry, onPress }) {
   const isOnline = hasTemp ? telemetry[tempSensor.id].is_online !== false : false;
   const isOffline = hasTemp && !isOnline;
 
-  // Determine alert status based on thresholds
-  let isAlert = false;
+  // Determine alert status based on thresholds:
+  // High Temp > max_threshold = RED Alert (Food Spoilage Risk!)
+  // Low Temp < min_threshold = YELLOW Warning (Safe Cold - Food won't spoil!)
+  let isHighAlert = false;
+  let isLowWarning = false;
+
   if (tempSensor && temp !== null) {
-    if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isAlert = true;
-    if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isAlert = true;
+    if (tempSensor.max_threshold !== null && temp > tempSensor.max_threshold) isHighAlert = true;
+    if (tempSensor.min_threshold !== null && temp < tempSensor.min_threshold) isLowWarning = true;
   }
   if (humSensor && hum !== null) {
-    if (humSensor.min_threshold !== null && hum < humSensor.min_threshold) isAlert = true;
-    if (humSensor.max_threshold !== null && hum > humSensor.max_threshold) isAlert = true;
+    if (humSensor.max_threshold !== null && hum > humSensor.max_threshold) isHighAlert = true;
+    if (humSensor.min_threshold !== null && hum < humSensor.min_threshold) isLowWarning = true;
   }
 
   const getIcon = () => {

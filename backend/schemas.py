@@ -60,6 +60,7 @@ class RoomResponse(BaseModel):
     map_x: Optional[str] = None
     map_y: Optional[str] = None
     active: bool
+    is_under_maintenance: Optional[bool] = False
     created_at: datetime
     sensors: List[SensorResponse] = []
     class Config:
