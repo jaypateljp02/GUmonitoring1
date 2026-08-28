@@ -613,11 +613,30 @@ def list_device_sensors(device_id: str, db: Session = Depends(get_db)):
 
 @router.put("/device/{device_id}/thresholds")
 def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(get_db)):
-    """Public endpoint: update thresholds, webhooks, and Tapo settings for a device's sensors."""
+    """Public endpoint: update thresholds, webhooks, and Tapo/eWeLink settings for a device's sensors."""
     sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
     if not sensors:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    # Generic & specific keys
+    billing_rate = req.get("tapo_billing_rate") if "tapo_billing_rate" in req else (req.get("billing_rate") if "billing_rate" in req else (req.get("temp_tapo_billing_rate") if "temp_tapo_billing_rate" in req else req.get("hum_tapo_billing_rate")))
+    running_threshold = req.get("tapo_running_threshold") if "tapo_running_threshold" in req else (req.get("running_threshold") if "running_threshold" in req else (req.get("temp_tapo_running_threshold") if "temp_tapo_running_threshold" in req else req.get("hum_tapo_running_threshold")))
+    tapo_ip = req.get("tapo_ip") if "tapo_ip" in req else (req.get("temp_tapo_ip") if "temp_tapo_ip" in req else req.get("hum_tapo_ip"))
+    tapo_user = req.get("tapo_username") if "tapo_username" in req else (req.get("temp_tapo_username") if "temp_tapo_username" in req else req.get("hum_tapo_username"))
+    tapo_pass = req.get("tapo_password") if "tapo_password" in req else (req.get("temp_tapo_password") if "temp_tapo_password" in req else req.get("hum_tapo_password"))
+
     for s in sensors:
+        if billing_rate is not None:
+            s.tapo_billing_rate = billing_rate
+        if running_threshold is not None:
+            s.tapo_running_threshold = running_threshold
+        if tapo_ip is not None:
+            s.tapo_ip = tapo_ip
+        if tapo_user is not None:
+            s.tapo_username = tapo_user
+        if tapo_pass is not None:
+            s.tapo_password = tapo_pass
+
         if s.type == "temperature":
             if "temp_min" in req:
                 s.min_threshold = req["temp_min"]
@@ -627,16 +646,6 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
                 s.alert_webhook_url = req["temp_alert_webhook_url"]
             if "temp_recovery_webhook_url" in req:
                 s.recovery_webhook_url = req["temp_recovery_webhook_url"]
-            if "temp_tapo_ip" in req:
-                s.tapo_ip = req["temp_tapo_ip"]
-            if "temp_tapo_username" in req:
-                s.tapo_username = req["temp_tapo_username"]
-            if "temp_tapo_password" in req:
-                s.tapo_password = req["temp_tapo_password"]
-            if "temp_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
-            if "temp_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
         elif s.type == "humidity":
             if "hum_min" in req:
                 s.min_threshold = req["hum_min"]
@@ -646,29 +655,25 @@ def update_device_thresholds(device_id: str, req: dict, db: Session = Depends(ge
                 s.alert_webhook_url = req["hum_alert_webhook_url"]
             if "hum_recovery_webhook_url" in req:
                 s.recovery_webhook_url = req["hum_recovery_webhook_url"]
-            if "hum_tapo_ip" in req:
-                s.tapo_ip = req["hum_tapo_ip"]
-            if "hum_tapo_username" in req:
-                s.tapo_username = req["hum_tapo_username"]
-            if "hum_tapo_password" in req:
-                s.tapo_password = req["hum_tapo_password"]
-            if "hum_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["hum_tapo_billing_rate"]
-            if "hum_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["hum_tapo_running_threshold"]
         elif s.type == "plug":
-            if "temp_tapo_ip" in req:
-                s.tapo_ip = req["temp_tapo_ip"]
-            if "temp_tapo_username" in req:
-                s.tapo_username = req["temp_tapo_username"]
-            if "temp_tapo_password" in req:
-                s.tapo_password = req["temp_tapo_password"]
-            if "temp_tapo_billing_rate" in req:
-                s.tapo_billing_rate = req["temp_tapo_billing_rate"]
-            if "temp_tapo_running_threshold" in req:
-                s.tapo_running_threshold = req["temp_tapo_running_threshold"]
+            pass
+
     db.commit()
     return {"message": "Thresholds, webhooks, and plug configurations updated"}
+
+@router.put("/device/{device_id}/room")
+def update_device_room(device_id: str, req: dict, db: Session = Depends(get_db)):
+    """Assign all sensors of a device to a room (or unmerge/clear room if None/'unmerge')."""
+    sensors = db.query(Sensor).filter(Sensor.device_id == device_id, Sensor.active == True).all()
+    if not sensors:
+        raise HTTPException(status_code=404, detail="Device not found")
+    room_id = req.get("room_id")
+    if room_id == "unmerge" or room_id == "" or room_id == "null":
+        room_id = None
+    for s in sensors:
+        s.room_id = room_id
+    db.commit()
+    return {"message": "Device room updated successfully"}
 
 @router.get("/device/{device_id}/plug")
 async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
@@ -708,14 +713,14 @@ async def get_device_plug_status(device_id: str, db: Session = Depends(get_db)):
         is_stale = age_seconds > 600.0  # Mark last_known if older than 10 mins
         raw_t_energy = float(last_log.today_energy or 0.0)
         raw_m_energy = float(last_log.month_energy or 0.0)
-        today_kwh = (raw_t_energy / 1000.0) if raw_t_energy > 10.0 else raw_t_energy
-        month_kwh = (raw_m_energy / 1000.0) if raw_m_energy > 10.0 else raw_m_energy
+        today_kwh = (raw_t_energy / 1000.0) if raw_t_energy > 500.0 else raw_t_energy
+        month_kwh = (raw_m_energy / 1000.0) if raw_m_energy > 5000.0 else raw_m_energy
         p_val = float(last_log.apower or 0.0) if not is_stale else 0.0
         v_val = float(last_log.voltage or 230.0) if float(last_log.voltage or 0.0) > 0 else 230.0
         c_val = float(last_log.current or 0.0) if not is_stale else 0.0
         sw_state = "on" if p_val > 0.5 else "off"
 
-        is_ewelink = (target_sensor and target_sensor.name and "ewelink" in target_sensor.name.lower()) or target_plug_id == "10029128ab"
+        is_ewelink = (target_sensor and target_sensor.name and "ewelink" in target_sensor.name.lower()) or str(target_plug_id).startswith("100") or (target_sensor and target_sensor.type == "plug")
         plug_type = "ewelink" if is_ewelink else "tapo"
 
         return {

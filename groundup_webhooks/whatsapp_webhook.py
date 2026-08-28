@@ -122,15 +122,18 @@ async def handle_incoming_message(request: Request, background_tasks: Background
 
         message = messages[0]
         sender_phone = message.get("from", "")
-        sender_name = contacts[0].get("profile", {}).get("name", "Unknown") if contacts else "Unknown"
+        profile_name = contacts[0].get("profile", {}).get("name", "Unknown") if contacts else "Unknown"
+        sender_info = _get_sender_info(sender_phone, db)
+        sender_name = sender_info.get("display_name") or profile_name
         msg_type = message.get("type", "text")
         meta_msg_id = message.get("id", "")
 
-        logger.info(f"📩 Incoming WhatsApp from {sender_phone} ({sender_name}) | type={msg_type}")
+        logger.info(f"📩 Incoming WhatsApp from {sender_phone} ({sender_name} | profile={profile_name}) | type={msg_type}")
 
         raw_content = ""
         media_url = None
 
+        audio_id = None
         # 1. Handle Text Messages
         if msg_type == "text":
             raw_content = message.get("text", {}).get("body", "").strip()
@@ -138,8 +141,7 @@ async def handle_incoming_message(request: Request, background_tasks: Background
         # 2. Handle Voice Notes (Audio)
         elif msg_type == "audio":
             audio_id = message.get("audio", {}).get("id")
-            if audio_id:
-                raw_content = await _download_and_transcribe_audio(audio_id)
+            raw_content = "[Voice Note Audio]"
 
         # 3. Handle Images / Photos
         elif msg_type == "image":
@@ -173,6 +175,7 @@ async def handle_incoming_message(request: Request, background_tasks: Background
         )
         db.add(msg_record)
         db.commit()
+        msg_record_id = msg_record.id
 
         # 4. Multi-Lingual Intent Parsing & AI Routing via Threadpool Background Worker
         is_photo = msg_type == "image"
@@ -185,19 +188,123 @@ async def handle_incoming_message(request: Request, background_tasks: Background
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # For photos: extract analysis and send formatted reply + forward to owner
-                    if is_photo and "[PHOTO_ANALYSIS]" in raw_content:
-                        analysis = raw_content.split("[PHOTO_ANALYSIS]")[1].split("[/PHOTO_ANALYSIS]")[0].strip()
-                        caption_part = raw_content.split("[/PHOTO_ANALYSIS]")[-1].strip() if "[/PHOTO_ANALYSIS]" in raw_content else ""
-
-                        # Send formatted reply to sender
-                        photo_reply = (
-                            f"📸 *Photo Analysis*\n"
-                            f"━━━━━━━━━━━━━━━━━━━━\n"
-                            f"{analysis}\n"
+                    # High-Speed Single-Pass Voice Processing
+                    if msg_type == "audio" and audio_id:
+                        transcript, parsed = loop.run_until_complete(
+                            _download_transcribe_and_parse_audio(audio_id, sender_phone, sender_name, bg_db)
                         )
-                        if caption_part:
-                            photo_reply += f"\n📝 *Your caption:* {caption_part}"
+                        current_raw = transcript
+                        try:
+                            m_rec = bg_db.query(WhatsAppMessage).filter(WhatsAppMessage.id == msg_record_id).first()
+                            if m_rec:
+                                m_rec.raw_content = current_raw
+                                bg_db.commit()
+                        except Exception:
+                            pass
+
+                        reply_text = loop.run_until_complete(_execute_parsed_intent(parsed, sender_phone, sender_name, current_raw, bg_db))
+                        if reply_text:
+                            # 1. Send native Voice Note Audio reply
+                            try:
+                                from groundup_webhooks.voice_engine import synthesize_speech, send_whatsapp_audio
+                                lang = parsed.get("language", "hi")
+                                speech_res = synthesize_speech(reply_text, language=lang)
+                                if speech_res:
+                                    _, audio_url = speech_res
+                                    loop.run_until_complete(send_whatsapp_audio(sender_phone, audio_url, bg_db, sender_name="Bandhu Voice"))
+                            except Exception as ve:
+                                logger.warning(f"Voice reply synthesis skipped: {ve}")
+
+                            # 2. Send formatted text summary card
+                            text_card = f"🎙️ *Voice Note:* \"{current_raw}\"\n━━━━━━━━━━━━━━━━━━━━\n{reply_text}"
+                            loop.run_until_complete(send_whatsapp_text(sender_phone, text_card, bg_db, sender_name="GroundUp Bot"))
+
+                    # For photos: extract analysis, distinguish QR code vs product photo, and save only product photos to timeline
+                    elif is_photo and "[PHOTO_ANALYSIS]" in raw_content:
+                        analysis = raw_content.split("[PHOTO_ANALYSIS]")[1].split("[/PHOTO_ANALYSIS]")[0].strip()
+                        photo_url = ""
+                        if "[PHOTO_URL]" in raw_content:
+                            photo_url = raw_content.split("[PHOTO_URL]")[1].split("[/PHOTO_URL]")[0].strip()
+                        
+                        is_qr = ("[IS_QR]1[/IS_QR]" in raw_content)
+                        extracted_jar = None
+                        if "[JAR_NUM]" in raw_content:
+                            j_str = raw_content.split("[JAR_NUM]")[1].split("[/JAR_NUM]")[0].strip()
+                            if j_str.isdigit():
+                                extracted_jar = int(j_str)
+
+                        caption_part = raw_content.split("[/PHOTO_ANALYSIS]")[-1]
+                        for tag in ["[PHOTO_URL]", "[/PHOTO_URL]", "[IS_QR]", "[/IS_QR]", "[JAR_NUM]", "[/JAR_NUM]"]:
+                            if tag in caption_part:
+                                caption_part = caption_part.split(tag)[-1]
+                        caption_part = caption_part.strip()
+
+                        if not extracted_jar:
+                            # Fallback regex search on caption and analysis
+                            j_match = re.search(r"jar\s*#?\s*(\d+)", f"{caption_part} {analysis}".lower())
+                            if j_match:
+                                extracted_jar = int(j_match.group(1))
+
+                        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+                        current_time_str = ist_now.strftime("%I:%M %p, %d %b %Y")
+
+                        # 1. User scanned a QR Code sticker -> DO NOT save sticker photo, prompt for product photo
+                        if is_qr and extracted_jar:
+                            jar_url = f"https://gu-production.initiativesewafoundation.com/jar.html?jar={extracted_jar}"
+                            photo_reply = (
+                                f"📱 *Jar #{extracted_jar} QR Code Scanned* ✅\n"
+                                f"━━━━━━━━━━━━━━━━━━━━\n"
+                                f"👤 *Scanned by:* {sender_name}\n"
+                                f"⏰ *Time:* {current_time_str}\n\n"
+                                f"📸 *Next Step:* Please take a photo of the *PRODUCT / FERMENT* inside Jar #{extracted_jar} to add to its quality timeline!\n\n"
+                                f"_Full timeline: {jar_url}_"
+                            )
+                        # 2. Actual Product / Ferment photo for Jar -> SAVE to timeline!
+                        elif extracted_jar:
+                            try:
+                                import uuid
+                                jar_url = f"https://gu-production.initiativesewafoundation.com/jar.html?jar={extracted_jar}"
+                                bg_db.execute(text("""
+                                    INSERT INTO production.jar_timeline (id, jar_id, action, details, recorded_by, created_at)
+                                    SELECT :eid, j.id, 'photo_inspection', CAST(:details AS jsonb), NULL, NOW()
+                                    FROM production.jars j WHERE j.jar_number = :jnum
+                                """), {
+                                    "eid": str(uuid.uuid4()), "jnum": extracted_jar,
+                                    "details": json.dumps({
+                                        "notes": analysis,
+                                        "photo_url": photo_url,
+                                        "caption": caption_part,
+                                        "recorded_by": sender_name,
+                                        "timestamp": current_time_str
+                                    })
+                                })
+                                bg_db.commit()
+
+                                photo_reply = (
+                                    f"📸 *Jar #{extracted_jar} Product Photo Saved to Timeline!* ✅\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"🔍 *AI Quality Analysis:* {analysis}\n\n"
+                                    f"👤 *Uploaded by:* {sender_name}\n"
+                                    f"⏰ *Time:* {current_time_str}\n\n"
+                                    f"🖼️ *View in Jar Timeline:*\n"
+                                    f"👉 {jar_url}"
+                                )
+                            except Exception as pe:
+                                logger.error(f"Error saving photo to jar timeline: {pe}")
+                                photo_reply = f"📸 *Photo Analysis*\n━━━━━━━━━━━━━━━━━━━━\n{analysis}\n"
+                                if caption_part:
+                                    photo_reply += f"\n📝 *Your caption:* {caption_part}"
+                        else:
+                            # General photo
+                            photo_reply = (
+                                f"📸 *Photo Analysis*\n"
+                                f"━━━━━━━━━━━━━━━━━━━━\n"
+                                f"{analysis}\n\n"
+                                f"💡 *Tip:* To attach product photos directly to a Jar timeline, send with a caption like *\"jar 1\"* or *\"jar 42\"*."
+                            )
+                            if caption_part:
+                                photo_reply += f"\n📝 *Your caption:* {caption_part}"
+
                         loop.run_until_complete(send_whatsapp_text(sender_phone, photo_reply, bg_db, sender_name="GroundUp Bot"))
 
                         # Forward photo analysis to owner (so owner always knows what's happening)
@@ -236,7 +343,7 @@ async def handle_incoming_message(request: Request, background_tasks: Background
                             except Exception:
                                 pass
                     else:
-                        # Normal text/voice/button flow
+                        # Normal text/button flow
                         try:
                             parsed = loop.run_until_complete(asyncio.wait_for(_parse_intent_with_gemini(raw_content, sender_phone, sender_name, bg_db), timeout=4.0))
                         except Exception as ge:
@@ -387,31 +494,130 @@ def _get_sender_info(phone: str, db: Session) -> dict:
     return {"role": "employee", "display_name": None, "preferred_lang": "hinglish", "alert_group": 1}
 
 
+def _broadcast_to_flipboard(msg: dict):
+    """Safely broadcasts a real-time event to connected FlipBoard WebSocket clients across threads and processes."""
+    # 1. Try local manager if running on main event loop
+    try:
+        from api.routes.websocket import manager
+        import asyncio
+        loop = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        if loop and loop.is_running():
+            loop.create_task(manager.broadcast(msg))
+            return
+    except Exception:
+        pass
+
+    # 2. Fire via internal broadcast HTTP endpoint (works cross-thread & cross-process)
+    def _fire_http():
+        try:
+            import httpx
+            for base_url in ["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:8080", "https://gubandhu.initiativesewafoundation.com"]:
+                try:
+                    res = httpx.post(f"{base_url}/api/internal/broadcast", json=msg, timeout=0.8)
+                    if res.status_code == 200:
+                        break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug(f"Broadcast HTTP failed: {e}")
+
+    import threading
+    threading.Thread(target=_fire_http, daemon=True).start()
+
+
+def _get_today_daily_folder(db: Session):
+    """Finds or creates today's active Daily Work folder matching /api/today."""
+    import uuid
+    from datetime import datetime, timedelta
+    from sqlalchemy import text
+
+    today_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    today_str = today_ist.strftime("%Y-%m-%d")
+
+    folder_res = db.execute(text("""
+        SELECT id FROM flipboard.folders
+        WHERE folder_type = 'daily_auto' 
+          AND (is_archived IS FALSE OR is_archived IS NULL)
+          AND title LIKE :tpattern
+        ORDER BY created_at DESC LIMIT 1
+    """), {"tpattern": f"Daily Work - {today_str}%"}).fetchone()
+
+    if folder_res:
+        return str(folder_res[0]), today_str
+
+    # Auto-create if not exists yet
+    fid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO flipboard.folders (id, title, folder_type, is_archived, created_at)
+        VALUES (:fid, :title, 'daily_auto', false, NOW())
+    """), {"fid": fid, "title": f"Daily Work - {today_str}"})
+    db.commit()
+
+    # Create Page 1
+    pid = str(uuid.uuid4())
+    db.execute(text("""
+        INSERT INTO flipboard.pages (id, folder_id, page_number, page_date, created_at)
+        VALUES (:pid, :fid, 1, :pdate, NOW())
+    """), {"pid": pid, "fid": fid, "pdate": today_ist})
+    db.commit()
+
+    # Rollover pending tasks from past 7 days
+    try:
+        pos = 1
+        for days_back in range(1, 8):
+            check_date = (today_ist - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            prev_folder = db.execute(text("""
+                SELECT id FROM flipboard.folders
+                WHERE folder_type = 'daily_auto'
+                  AND (is_archived IS FALSE OR is_archived IS NULL)
+                  AND title LIKE :pat
+                ORDER BY created_at DESC LIMIT 1
+            """), {"pat": f"Daily Work - {check_date}%"}).fetchone()
+
+            if prev_folder:
+                prev_fid = prev_folder[0]
+                prev_items = db.execute(text("""
+                    SELECT i.text, i.assigned_to_name, i.priority
+                    FROM flipboard.items i
+                    JOIN flipboard.pages p ON i.page_id = p.id
+                    WHERE p.folder_id = :pfid AND i.status = 'active'
+                    ORDER BY i.position ASC
+                """), {"pfid": prev_fid}).fetchall()
+
+                for p_text, p_assignee, p_prio in prev_items:
+                    exists = db.execute(text("""
+                        SELECT id FROM flipboard.items
+                        WHERE page_id = :pid AND text = :text AND status != 'deleted'
+                    """), {"pid": pid, "text": p_text}).fetchone()
+                    if not exists:
+                        db.execute(text("""
+                            INSERT INTO flipboard.items (id, page_id, text, assigned_to_name, position, priority, status, source, created_at)
+                            VALUES (:iid, :pid, :text, :assigned, :pos, :prio, 'active', 'rollover', NOW())
+                        """), {
+                            "iid": str(uuid.uuid4()), "pid": pid, "text": p_text,
+                            "assigned": p_assignee, "pos": pos, "prio": p_prio or "normal"
+                        })
+                        pos += 1
+                break
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to rollover tasks in WhatsApp helper: {e}")
+        db.rollback()
+
+    return fid, today_str
+
+
 def _sync_task_to_flipboard(title: str, assigned_to: str, db: Session):
     """Auto-creates item on FlipBoard on Page 1 of TODAY'S active Daily Work folder."""
     try:
         import uuid
-        from datetime import datetime, timedelta
         from sqlalchemy import text
         
-        today_str = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
-        
-        folder_res = db.execute(text("""
-            SELECT id FROM flipboard.folders
-            WHERE folder_type = 'daily_auto' AND title LIKE :tpattern
-            ORDER BY created_at DESC LIMIT 1
-        """), {"tpattern": f"Daily Work - {today_str}%"}).fetchone()
-        
-        if not folder_res:
-            fid = str(uuid.uuid4())
-            db.execute(text("""
-                INSERT INTO flipboard.folders (id, title, folder_type, created_at)
-                VALUES (:fid, :title, 'daily_auto', NOW())
-            """), {"fid": fid, "title": f"Daily Work - {today_str}"})
-            db.commit()
-            folder_id = fid
-        else:
-            folder_id = folder_res[0]
+        folder_id, today_str = _get_today_daily_folder(db)
 
         page_res = db.execute(text("""
             SELECT id FROM flipboard.pages
@@ -441,30 +647,20 @@ def _sync_task_to_flipboard(title: str, assigned_to: str, db: Session):
         db.commit()
         logger.info(f"✨ Auto-synced task to FlipBoard Page 1 of Daily Work ({today_str}): {title} ({assigned_to})")
 
-        # Broadcast real-time WebSocket update to FlipBoard UI (non-blocking)
-        try:
-            from api.routes.websocket import manager
-            msg = {
-                "event": "item_created",
-                "item": {
-                    "id": item_id,
-                    "page_id": str(page_id),
-                    "text": title,
-                    "assigned_to_name": assigned_to,
-                    "priority": "normal",
-                    "status": "active",
-                    "source": "whatsapp"
-                }
+        # Broadcast real-time WebSocket update to FlipBoard UI
+        _broadcast_to_flipboard({
+            "event": "item_created",
+            "page_id": str(page_id),
+            "item": {
+                "id": item_id,
+                "page_id": str(page_id),
+                "text": title,
+                "assigned_to_name": assigned_to,
+                "priority": "normal",
+                "status": "active",
+                "source": "whatsapp"
             }
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(manager.broadcast(msg))
-            except Exception:
-                pass
-        except Exception as wse:
-            logger.warning(f"WebSocket broadcast error: {wse}")
+        })
     except Exception as e:
         logger.warning(f"Failed to sync task to FlipBoard: {e}")
 
@@ -499,37 +695,156 @@ async def _execute_parsed_intent(parsed: dict, phone: str, sender_name: str, raw
     jar_match = re.search(r"jar\s*#?\s*(\d+)", lower)
     if jar_match or intent == "jar_check":
         jar_num = int(jar_match.group(1)) if jar_match else parsed.get("jar_number", 1)
-        qual = parsed.get("quality_details", {})
-        scores = parsed.get("quality_scores", {})
-        smell = qual.get("smell") or ("off" if ("mold" in lower or "bad" in lower or "foul" in lower) else "normal")
-        taste = qual.get("taste") or ("off" if ("sour" in lower or "bad" in lower or "off" in lower) else "normal")
-        color = qual.get("color", "normal")
-        texture = qual.get("texture", "normal")
+        jar_url = f"https://gu-production.initiativesewafoundation.com/jar.html?jar={jar_num}"
 
-        # Extract numeric scores if given: "jar 42 taste 8 smell 9 color 7"
+        # 1. Query current Jar & Timeline from DB
+        jar_row = db.execute(text("SELECT id, jar_number, status, created_at FROM production.jars WHERE jar_number = :jnum"), {"jnum": jar_num}).fetchone()
+        timeline_rows = []
+        if jar_row:
+            timeline_rows = db.execute(text("SELECT action, details, created_at FROM production.jar_timeline WHERE jar_id = :jid ORDER BY created_at DESC"), {"jid": str(jar_row[0])}).fetchall()
+
+        # Check if user is PROVIDING scores / observations or JUST ASKING status
+        scores = parsed.get("quality_scores", {}) or {}
         score_matches = re.findall(r"(taste|smell|color|umami|sweetness|aroma)\s*(\d+)", lower)
         for attr, val in score_matches:
             scores[attr] = int(val)
 
-        is_bad = "mold" in lower or "foul" in lower or "bad" in lower or "off" in lower
-        jar_url = f"https://gubandhu.initiativesewafoundation.com/admin/jar.html?jar={jar_num}"
+        has_scores = bool(scores)
+        has_observation = any(w in lower for w in ["mold", "bad", "foul", "sour", "bitter", "good", "sahi", "theek", "kharaab", "thik", "normal", "badhiya"]) and not (lower.startswith("check jar") and len(lower.split()) <= 3)
 
-        # Try to save quality check to production.jar_events
+        # 1. UNASSIGNED JAR (Clean jar with no batch packaged)
+        is_packaging = any(w in lower for w in ["package", "pack ", "assign recipe", "scale batch"])
+        if is_packaging and jar_num:
+            # Extract material & capacity
+            mat = "Glass" if ("glass" in lower or "kanch" in lower or "sheesha" in lower) else "Plastic"
+            cap_match = re.search(r"(\d+)\s*(l|litre|liter|kg)?", lower)
+            cap = int(cap_match.group(1)) if cap_match else (20 if mat == "Glass" else 50)
+            jt_label = f"{mat} ({cap}L)"
+            
+            rec_name = "White Miso" if "white" in lower else "Red Miso" if "red" in lower else "Rice Koji" if "koji" in lower else "Miso Ferment"
+            
+            try:
+                import uuid
+                now_dt = datetime.utcnow()
+                ready_dt = now_dt + timedelta(days=90)
+                db.execute(text("""
+                    INSERT INTO production.jar_timeline (id, jar_id, action, details, recorded_by, created_at)
+                    SELECT :eid, j.id, 'packaged', CAST(:details AS jsonb), NULL, NOW()
+                    FROM production.jars j WHERE j.jar_number = :jnum
+                """), {
+                    "eid": str(uuid.uuid4()), "jnum": jar_num,
+                    "details": json.dumps({
+                        "batch_size": cap,
+                        "material": mat,
+                        "capacity_litres": cap,
+                        "jar_type": jt_label,
+                        "notes": f"Recipe: {rec_name}. Container: {jt_label}. Packaged by {sender_name}.",
+                        "recorded_by": sender_name,
+                        "timestamp": now_dt.isoformat(),
+                        "target_ready_date": ready_dt.isoformat(),
+                        "fermentation_days": 90
+                    })
+                })
+                db.commit()
+                
+                j_icon = "🏺" if mat == "Glass" else "🪣"
+                return (
+                    f"🎉 *Jar #{jar_num} Batch Packaged!* 📦\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🍲 *Product:* {rec_name}\n"
+                    f"{j_icon} *Container:* {jt_label}\n"
+                    f"⚖️ *Quantity:* {cap} kg\n"
+                    f"👤 *Assigned by:* {sender_name}\n"
+                    f"⏳ *Target Ready:* {(now_dt + timedelta(days=90)).strftime('%d %b %Y')}\n\n"
+                    f"_View live details: {jar_url}_"
+                )
+            except Exception as pe:
+                logger.error(f"Error packaging batch via WhatsApp: {pe}")
+
+        if not timeline_rows:
+            return (
+                f"🫙 *Jar #{jar_num} is UNASSIGNED (Clean Jar)* ✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📦 *Status:* Clean & Empty (Available for batch)\n"
+                f"👤 *Checked by:* {sender_name}\n\n"
+                f"📝 *To package a new recipe batch into Jar #{jar_num}:*\n"
+                f"1️⃣ Open interactive recipe tool:\n"
+                f"👉 {jar_url}\n"
+                f"2️⃣ Or reply: *\"package 50kg miso into jar {jar_num} plastic 50L\"*"
+            )
+
+        # 2. ACTIVE JAR & USER IS JUST CHECKING STATUS (not submitting scores)
+        if not (has_scores or has_observation):
+            pack_event = next((e for e in timeline_rows if e[0] in ('packaged', 'package')), timeline_rows[-1])
+            prod_name = "Miso Ferment"
+            batch_size = "50"
+            pack_dt_str = "Recently"
+            ready_dt_str = "In 90 days"
+            age_days = 1
+            jar_type_str = ""
+
+            if pack_event and pack_event[1]:
+                details = pack_event[1] if isinstance(pack_event[1], dict) else json.loads(pack_event[1])
+                batch_size = details.get("batch_size", "50")
+                if details.get("notes") and "Recipe:" in details["notes"]:
+                    prod_name = details["notes"].split("Recipe:")[1].split(".")[0].strip()
+                
+                jt = details.get("jar_type") or (f"{details.get('material', 'Plastic')} ({details.get('capacity_litres', 50)}L)" if details.get("material") else None)
+                if jt:
+                    j_icon = "🏺" if "glass" in jt.lower() else "🪣"
+                    jar_type_str = f"\n{j_icon} *Container:* {jt}"
+
+                if pack_event[2]:
+                    now = datetime.utcnow()
+                    pack_created = pack_event[2]
+                    age_days = max(1, (now - pack_created).days + 1)
+                    pack_dt_str = pack_created.strftime("%d %b %Y")
+                    ferment_cycle = details.get("fermentation_days", 90)
+                    ready_dt = pack_created + timedelta(days=ferment_cycle)
+                    ready_dt_str = ready_dt.strftime("%d %b %Y")
+
+            return (
+                f"🫙 *Jar #{jar_num} — Active Batch Status* 🔍\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🍲 *Product:* {prod_name} (Day {age_days})\n"
+                f"📦 *Batch Size:* {batch_size} kg{jar_type_str}\n"
+                f"📅 *Packaged:* {pack_dt_str} | ⏳ *Target Ready:* {ready_dt_str}\n"
+                f"👤 *Inspected by:* {sender_name}\n\n"
+                f"📝 *Please record your inspection:*\n"
+                f"• Reply with ratings: *\"jar {jar_num} taste 8 smell 9 color 8\"*\n"
+                f"• Or describe: *\"jar {jar_num} smell good, taste normal, no mold\"*\n"
+                f"• 📸 *Send a photo of the ferment for AI vision check!*\n\n"
+                f"_Full interactive form: {jar_url}_"
+            )
+
+        # 3. USER IS SUBMITTING ACTUAL SCORES / OBSERVATIONS
+        qual = parsed.get("quality_details", {}) or {}
+        smell = qual.get("smell") or ("off" if ("mold" in lower or "bad" in lower or "foul" in lower or "kharaab" in lower) else "good" if ("good" in lower or "sahi" in lower or "theek" in lower) else "normal")
+        taste = qual.get("taste") or ("off" if ("sour" in lower or "bad" in lower or "bitter" in lower or "kharaab" in lower) else "normal")
+        color = qual.get("color", "normal")
+        is_bad = "mold" in lower or "foul" in lower or "bad" in lower or "kharaab" in lower
+
+        # Save quality check to production.jar_timeline
         try:
             import uuid
             db.execute(text("""
-                INSERT INTO production.jar_events (id, jar_id, action, notes, details, performed_by, created_at)
-                SELECT :eid, j.id, 'quality_check', :notes, :details::jsonb, :performer, NOW()
+                INSERT INTO production.jar_timeline (id, jar_id, action, details, recorded_by, created_at)
+                SELECT :eid, j.id, 'quality_check', CAST(:details AS jsonb), NULL, NOW()
                 FROM production.jars j WHERE j.jar_number = :jnum
             """), {
                 "eid": str(uuid.uuid4()), "jnum": jar_num,
-                "notes": raw_text,
-                "details": json.dumps({"smell": smell, "taste": taste, "color": color, "scores": scores, "is_alert": is_bad}),
-                "performer": sender_name
+                "details": json.dumps({"smell": smell, "taste": taste, "color": color, "scores": scores, "is_alert": is_bad, "notes": raw_text, "recorded_by": sender_name}),
             })
             db.commit()
         except Exception as je:
             logger.warning(f"Could not save jar event to production DB: {je}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+        current_time_str = ist_now.strftime("%I:%M %p, %d %b %Y")
 
         if is_bad:
             emit_event("production.jar.quality_alert", {
@@ -542,6 +857,7 @@ async def _execute_parsed_intent(parsed: dict, phone: str, sender_name: str, raw
                     f"👃 *Smell:* {smell} | 👅 *Taste:* {taste}\n"
                     f"🎨 *Color:* {color}\n"
                     f"👤 *Checked By:* {sender_name}\n"
+                    f"⏰ *Time:* {current_time_str}\n"
                     f"📝 *Notes:* {raw_text[:100]}\n\n"
                     f"⚠️ Owner has been notified!\n"
                     f"_Full timeline: {jar_url}_")
@@ -552,13 +868,26 @@ async def _execute_parsed_intent(parsed: dict, phone: str, sender_name: str, raw
                 if score_parts:
                     score_line = f"\n📊 *Scores:* {' | '.join(score_parts)}"
 
-            return (f"🫙 *Jar #{jar_num} Quality Check* ✅\n"
+            return (f"🫙 *Jar #{jar_num} Quality Check Recorded* ✅\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"👃 Smell: {smell} | 👅 Taste: {taste}\n"
                     f"🎨 Color: {color}{score_line}\n"
                     f"👤 Checked By: {sender_name}\n"
-                    f"⏰ Time: Just now\n\n"
+                    f"⏰ Time: {current_time_str}\n\n"
                     f"_Full timeline: {jar_url}_")
+
+    # ── 0. TWO-WAY HUMAN ESCALATION CHECK ──
+    try:
+        from groundup_webhooks.escalation_engine import check_and_handle_owner_reply, escalate_to_human, is_active_escalation
+        owner_reply = await check_and_handle_owner_reply(phone, raw_text, db)
+        if owner_reply:
+            return owner_reply
+
+        # If user explicitly requests human help or says they can't figure it out
+        if any(kw in lower for kw in ["gaya se baat", "owner se baat", "talk to human", "connect manager", "help chahiye owner", "escalate", "sir se baat", "call lagao"]):
+            return await escalate_to_human(phone, sender_name, raw_text, "User requested human assistance", db)
+    except Exception as ee:
+        logger.warning(f"Escalation engine notice: {ee}")
 
     # --- Resolve if this is a greeting / status / pending / task-related ---
     is_greeting = lower in ("hi", "hello", "hey", "namaste", "good morning", "gm",
@@ -579,10 +908,11 @@ async def _execute_parsed_intent(parsed: dict, phone: str, sender_name: str, raw
         return await _build_real_status_reply(phone, sender_name, db, is_greeting, target_emp)
 
     # --- Determine if this is a task assignment vs other intent ---
-    if intent in ("general_chat", "unknown") and not any(kw in lower for kw in ["jar", "done", "ho gaya"]):
-        intent = "task_create"
+    task_assignment_keywords = ["tell ", "assign ", "add task", "add ", "clean ", "naya kaam", "karo ", "check ", "dekh lo", "saaf karo", "pack "]
+    is_explicit_task = intent in ("task_create", "task_assignment", "create_task")
+    is_keyword_task = any(kw in lower for kw in task_assignment_keywords) and len(lower.split()) >= 3
 
-    is_task_assignment = intent in ("task_create", "task_assignment", "create_task")
+    is_task_assignment = is_explicit_task or (intent in ("general_chat", "unknown") and is_keyword_task)
 
     # --- 1. Task Completion ---
     if intent == "task_complete" or ("done" in lower and not is_task_assignment):
@@ -658,68 +988,122 @@ async def _execute_parsed_intent(parsed: dict, phone: str, sender_name: str, raw
         return f"⚠️ Issue logged and sent to Owner: *{issue_desc}*"
 
     # --- 5. Call Confirmation YES ---
-    elif intent == "call_confirm_yes":
-        emit_event("flipboard.call.confirmed", {
-            "confirmed_by": sender_name, "raw_text": raw_text
-        }, actor_name=sender_name, db=db)
-        return "✅ Call tasks confirmed and added to FlipBoard!"
+    elif intent == "call_confirm_yes" or lower in ("yes", "y", "ha", "haan", "confirm"):
+        try:
+            import uuid as _uuid
+            rec_row = db.execute(text("""
+                SELECT id, filename, employee_name, extracted_tasks, extracted_issues
+                FROM flipboard.call_recordings
+                WHERE owner_confirmed = false AND (status IS NULL OR status != 'skipped')
+                ORDER BY uploaded_at DESC LIMIT 1
+            """)).fetchone()
+
+            if not rec_row:
+                return "ℹ️ No pending call recordings to confirm."
+
+            rec_id, filename, emp_name, tasks_json, issues_json = rec_row
+            import json as _json
+            extracted_tasks = _json.loads(tasks_json) if isinstance(tasks_json, str) else (tasks_json or [])
+            extracted_issues = _json.loads(issues_json) if isinstance(issues_json, str) else (issues_json or [])
+
+            folder_id, today_str = _get_today_daily_folder(db)
+            page_res = db.execute(text("""
+                SELECT id FROM flipboard.pages WHERE folder_id = :fid AND page_number = 1 LIMIT 1
+            """), {"fid": folder_id}).fetchone()
+            page_id = page_res[0] if page_res else None
+
+            created_count = 0
+            if page_id:
+                pos_res = db.execute(text("SELECT COALESCE(MAX(position), 0) + 1 FROM flipboard.items WHERE page_id = :pid"), {"pid": page_id}).fetchone()
+                max_pos = pos_res[0] if pos_res else 1
+
+                for task in extracted_tasks:
+                    item_id = str(_uuid.uuid4())
+                    task_text = task.get("text", "")
+                    task_assignee = task.get("assigned_to", emp_name or "Staff")
+                    task_prio = task.get("priority", "normal")
+                    db.execute(text("""
+                        INSERT INTO flipboard.items (id, page_id, text, assigned_to_name, position, priority, status, source, created_at)
+                        VALUES (:iid, :pid, :text, :assigned, :pos, :prio, 'active', 'call', NOW())
+                    """), {"iid": item_id, "pid": page_id, "text": task_text, "assigned": task_assignee, "pos": max_pos, "prio": task_prio})
+                    max_pos += 1
+                    created_count += 1
+                    _broadcast_to_flipboard({
+                        "event": "item_created",
+                        "page_id": str(page_id),
+                        "item": {"id": item_id, "page_id": str(page_id), "text": task_text, "assigned_to_name": task_assignee, "priority": task_prio, "status": "active", "source": "call"}
+                    })
+
+                for issue in extracted_issues:
+                    item_id = str(_uuid.uuid4())
+                    issue_text = f"[ISSUE] {issue.get('text', '')}"
+                    issue_sev = issue.get("severity", "medium")
+                    issue_prio = "urgent" if issue_sev == "high" else "normal"
+                    db.execute(text("""
+                        INSERT INTO flipboard.items (id, page_id, text, assigned_to_name, position, priority, status, source, created_at)
+                        VALUES (:iid, :pid, :text, :assigned, :pos, :prio, 'active', 'call', NOW())
+                    """), {"iid": item_id, "pid": page_id, "text": issue_text, "assigned": emp_name or "Owner", "pos": max_pos, "prio": issue_prio})
+                    max_pos += 1
+                    created_count += 1
+                    _broadcast_to_flipboard({
+                        "event": "item_created",
+                        "page_id": str(page_id),
+                        "item": {"id": item_id, "page_id": str(page_id), "text": issue_text, "assigned_to_name": emp_name or "Owner", "priority": issue_prio, "status": "active", "source": "call"}
+                    })
+
+            # Mark recording confirmed
+            db.execute(text("""
+                UPDATE flipboard.call_recordings
+                SET owner_confirmed = true, tasks_created_count = :cnt, confirmed_at = NOW(), status = 'confirmed'
+                WHERE id = :rid
+            """), {"cnt": created_count, "rid": rec_id})
+            db.commit()
+
+            emit_event("flipboard.call.confirmed", {
+                "recording_id": str(rec_id), "tasks_created": created_count, "confirmed_by": sender_name
+            }, actor_name=sender_name, db=db)
+
+            return f"✅ Confirmed! {created_count} task(s) from call added to FlipBoard."
+        except Exception as ce:
+            logger.error(f"Error confirming call recording via WhatsApp: {ce}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return "⚠️ Error confirming call recording tasks."
 
     # --- 6. Call Confirmation SKIP ---
-    elif intent == "call_confirm_skip":
-        return "👍 Call tasks skipped."
+    elif intent == "call_confirm_skip" or lower in ("skip", "nahi", "no", "ignore"):
+        try:
+            db.execute(text("""
+                UPDATE flipboard.call_recordings
+                SET status = 'skipped'
+                WHERE id = (
+                    SELECT id FROM flipboard.call_recordings
+                    WHERE owner_confirmed = false AND (status IS NULL OR status != 'skipped')
+                    ORDER BY uploaded_at DESC LIMIT 1
+                )
+            """))
+            db.commit()
+            return "👍 Call tasks skipped."
+        except Exception as se:
+            logger.error(f"Error skipping call recording: {se}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return "👍 Call tasks skipped."
 
-    # --- 7. Recipe Query ---
-    elif intent == "recipe_query" or any(kw in lower for kw in ["recipe", "ingredients", "banane ka tarika", "kitna daalna", "weight", "quantity"]):
-        return await _handle_recipe_query(raw_text, sender_name, db)
+    # ── Specialist Agent Orchestration (Chef Gaya, Production, Monitoring) ──
+    try:
+        from groundup_agents.orchestrator import orchestrator
+        agent_reply = await orchestrator.dispatch(raw_text, phone, sender_name, parsed, db)
+        if agent_reply:
+            return agent_reply
+    except Exception as oe:
+        logger.error(f"Error in AgentOrchestrator dispatch: {oe}")
 
-    # --- 8. Supply / Inventory Request ---
-    elif intent == "supply_request" or any(kw in lower for kw in ["khatam", "order karo", "supply", "chahiye", "need more", "finish ho gaya", "out of stock"]):
-        item_desc = parsed.get("issue_description") or parsed.get("task_hint") or raw_text
-        emit_event("tasks.supply.requested", {
-            "title": f"Supply needed: {item_desc}",
-            "requested_by": sender_name, "item": item_desc,
-            "severity": "high" if "urgent" in lower else "normal"
-        }, actor_name=sender_name, db=db)
-        _sync_task_to_flipboard(f"🛒 Supply: {item_desc}", "Owner", db)
-        return (f"📦 *Supply Request Logged*\n"
-                f"🛒 *Item:* {item_desc}\n"
-                f"👤 *Requested By:* {sender_name}\n"
-                f"✅ Owner has been notified.")
-
-    # --- 9. Production Logging ---
-    elif intent == "production_log" or any(kw in lower for kw in ["batch", "packed", "started batch", "production"]):
-        product = parsed.get("product_name") or parsed.get("task_hint") or raw_text
-        quantity = parsed.get("quantity", "")
-        log_text = f"🏭 {product}"
-        if quantity:
-            log_text += f" ({quantity})"
-
-        emit_event("production.batch.logged", {
-            "product": product, "quantity": quantity,
-            "logged_by": sender_name, "raw_message": raw_text
-        }, actor_name=sender_name, db=db)
-        _sync_task_to_flipboard(log_text, sender_name, db)
-
-        return (f"🏭 *Production Logged*\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📦 *Product:* {product}\n"
-                + (f"⚖️ *Quantity:* {quantity}\n" if quantity else "")
-                + f"👤 *By:* {sender_name}\n"
-                f"✅ Added to FlipBoard & notified Owner.")
-
-    # --- 10. Product Catalog Query ---
-    elif intent == "product_query" or any(kw in lower for kw in ["products", "catalog", "product list"]):
-        return await _handle_product_query(db)
-
-    # --- 11. Report Query ---
-    elif intent == "report_query" or any(kw in lower for kw in ["report", "summary report"]):
-        return await _handle_report_query(db)
-
-    # --- 12. Sensor Data Query ---
-    elif intent == "sensor_query" or any(kw in lower for kw in ["temp history", "temperature report", "sensor log"]):
-        return await _handle_sensor_query(raw_text, db)
-
-    # --- 13. Fallback: Smart response ---
+    # Fallback: Smart response
     suggested = parsed.get("reply_in_language")
     if suggested:
         return f"🤖 Bandhu: {suggested}"
@@ -770,24 +1154,16 @@ async def _build_real_status_reply(phone: str, sender_name: str, db: Session, is
 
     # --- 1. Today's FlipBoard Tasks ---
     try:
-        # Show items on Current Active FlipBoard (Latest Daily Board + Custom Active Folders)
-        # Exactly matches the live FlipBoard UI
+        folder_id, folder_date_str = _get_today_daily_folder(db)
+
         sql = """
             SELECT i.text, i.assigned_to_name, i.status, i.priority, i.position
             FROM flipboard.items i
             JOIN flipboard.pages p ON i.page_id = p.id
-            JOIN flipboard.folders f ON p.folder_id = f.id
-            WHERE i.status != 'deleted'
-              AND (
-                  f.id = (
-                      SELECT id FROM flipboard.folders
-                      WHERE folder_type = 'daily_auto' AND (is_archived IS FALSE OR is_archived IS NULL)
-                      ORDER BY created_at DESC LIMIT 1
-                  )
-                  OR (f.folder_type = 'custom' AND (f.is_archived IS FALSE OR f.is_archived IS NULL))
-              )
+            WHERE p.folder_id = :fid
+              AND i.status != 'deleted'
         """
-        params = {}
+        params = {"fid": folder_id}
         if target_employee:
             sql += " AND i.assigned_to_name ILIKE :emp"
             params["emp"] = f"%{target_employee}%"
@@ -909,55 +1285,65 @@ async def _build_real_status_reply(phone: str, sender_name: str, db: Session, is
 async def _handle_task_complete(parsed: dict, phone: str, sender_name: str, raw_text: str, db: Session) -> str:
     """Handle task completion — find the actual task and mark it done."""
     import re
+    from datetime import datetime, timedelta
     from sqlalchemy import text
 
     lower = raw_text.lower().strip()
     hint = parsed.get("task_hint", raw_text)
+    folder_id, today_str = _get_today_daily_folder(db)
 
     # Check if user specified a task number: "done 1", "done 3", etc.
     num_match = re.search(r"done\s+(\d+)", lower)
 
     if num_match:
         task_num = int(num_match.group(1))
-        # Find the Nth active task in current FlipBoard board
+        # Find the Nth active task in TODAY's FlipBoard board
         try:
             result = db.execute(text("""
-                SELECT i.id, i.text, i.assigned_to_name
+                SELECT i.id, i.text, i.assigned_to_name, i.page_id
                 FROM flipboard.items i
                 JOIN flipboard.pages p ON i.page_id = p.id
-                JOIN flipboard.folders f ON p.folder_id = f.id
-                WHERE i.status = 'active'
-                  AND (
-                      f.id = (
-                          SELECT id FROM flipboard.folders
-                          WHERE folder_type = 'daily_auto' AND (is_archived IS FALSE OR is_archived IS NULL)
-                          ORDER BY created_at DESC LIMIT 1
-                      )
-                      OR (f.folder_type = 'custom' AND (f.is_archived IS FALSE OR f.is_archived IS NULL))
-                  )
+                WHERE p.folder_id = :fid
+                  AND i.status = 'active'
                 ORDER BY
                   CASE i.priority WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
                   i.position ASC
-            """))
+            """), {"fid": folder_id})
             active_tasks = result.fetchall()
 
             if task_num < 1 or task_num > len(active_tasks):
                 return (f"⚠️ Task #{task_num} not found. "
-                        f"There are {len(active_tasks)} active tasks.\n"
+                        f"There are {len(active_tasks)} active tasks today.\n"
                         f"_Reply 'pending' to see the list._")
 
             task = active_tasks[task_num - 1]
             task_id = task[0]
             task_text = task[1]
             task_assignee = task[2]
+            page_id = task[3]
 
-            # Mark as done
+            # Mark as done with hide_after
+            now_dt = datetime.utcnow()
+            hide_dt = now_dt + timedelta(minutes=30)
             db.execute(text("""
                 UPDATE flipboard.items
-                SET status = 'done', completed_at = NOW()
+                SET status = 'done', completed_at = :cat, hide_after = :hat
                 WHERE id = :tid
-            """), {"tid": str(task_id)})
+            """), {"tid": str(task_id), "cat": now_dt, "hat": hide_dt})
             db.commit()
+
+            # Broadcast real-time update to FlipBoard UI
+            _broadcast_to_flipboard({
+                "event": "item_done",
+                "page_id": str(page_id),
+                "item": {
+                    "id": str(task_id),
+                    "page_id": str(page_id),
+                    "status": "done",
+                    "completed_at": now_dt.isoformat(),
+                    "hide_after": hide_dt.isoformat()
+                }
+            })
 
             emit_event("tasks.task.completed", {
                 "title": task_text, "completed_by": sender_name,
@@ -978,21 +1364,13 @@ async def _handle_task_complete(parsed: dict, phone: str, sender_name: str, raw_
     # Fuzzy match: "done miso cleaning", "vinegar room saaf ho gaya"
     try:
         result = db.execute(text("""
-            SELECT i.id, i.text, i.assigned_to_name
+            SELECT i.id, i.text, i.assigned_to_name, i.page_id
             FROM flipboard.items i
             JOIN flipboard.pages p ON i.page_id = p.id
-            JOIN flipboard.folders f ON p.folder_id = f.id
-            WHERE i.status = 'active'
-              AND (
-                  f.id = (
-                      SELECT id FROM flipboard.folders
-                      WHERE folder_type = 'daily_auto' AND (is_archived IS FALSE OR is_archived IS NULL)
-                      ORDER BY created_at DESC LIMIT 1
-                  )
-                  OR (f.folder_type = 'custom' AND (f.is_archived IS FALSE OR f.is_archived IS NULL))
-              )
+            WHERE p.folder_id = :fid
+              AND i.status = 'active'
             ORDER BY i.position ASC
-        """))
+        """), {"fid": folder_id})
         active_tasks = result.fetchall()
 
         # Try to find a matching task by keyword
@@ -1005,11 +1383,27 @@ async def _handle_task_complete(parsed: dict, phone: str, sender_name: str, raw_
                 break
 
         if best_match:
+            now_dt = datetime.utcnow()
+            hide_dt = now_dt + timedelta(minutes=30)
             db.execute(text("""
-                UPDATE flipboard.items SET status = 'done', completed_at = NOW()
+                UPDATE flipboard.items
+                SET status = 'done', completed_at = :cat, hide_after = :hat
                 WHERE id = :tid
-            """), {"tid": str(best_match[0])})
+            """), {"tid": str(best_match[0]), "cat": now_dt, "hat": hide_dt})
             db.commit()
+
+            # Broadcast real-time update to FlipBoard UI
+            _broadcast_to_flipboard({
+                "event": "item_done",
+                "page_id": str(best_match[3]),
+                "item": {
+                    "id": str(best_match[0]),
+                    "page_id": str(best_match[3]),
+                    "status": "done",
+                    "completed_at": now_dt.isoformat(),
+                    "hide_after": hide_dt.isoformat()
+                }
+            })
 
             emit_event("tasks.task.completed", {
                 "title": best_match[1], "completed_by": sender_name,
@@ -1032,55 +1426,111 @@ async def _handle_task_complete(parsed: dict, phone: str, sender_name: str, raw_
     return f"✅ Noted: *{hint}* marked as done by {sender_name}."
 
 
-async def _download_and_transcribe_audio(media_id: str) -> str:
-    """Fetch voice note audio from Meta API and transcribe with Gemini."""
+async def _download_transcribe_and_parse_audio(media_id: str, phone: str, sender_name: str, db: Session) -> tuple[str, dict]:
+    """Downloads audio from Meta and runs a single ultra-fast Gemini 2.5 Flash call
+    that produces BOTH transcription and structured intent JSON simultaneously."""
     if not WHATSAPP_ACCESS_TOKEN or not GEMINI_API_KEY:
-        return "[Voice Note Received]"
+        return "[Voice Note Received]", {"intent": "general_chat", "text": "Voice note"}
 
     try:
-        # Step 1: Get media URL from Meta
+        # Step 1: Get media URL from Meta & download audio
         media_info_url = f"https://graph.facebook.com/v19.0/{media_id}"
         headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             res = await client.get(media_info_url, headers=headers)
             if res.status_code != 200:
-                return "[Voice Note Audio Unavailable]"
+                return "[Voice Note Audio Unavailable]", {"intent": "general_chat"}
             download_url = res.json().get("url")
 
-            # Step 2: Download raw audio
             res_audio = await client.get(download_url, headers=headers)
             if res_audio.status_code != 200:
-                return "[Voice Note Download Error]"
+                return "[Voice Note Download Error]", {"intent": "general_chat"}
             audio_bytes = res_audio.content
 
-        # Step 3: Call Gemini Audio API
+        # Step 2: Single unified Gemini call for transcription + intent parsing
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        prompt = "Transcribe this audio voice note accurately. It may be in Hindi, Hinglish, Marathi, Bengali, or English."
-        gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        prompt = f"""You are the AI Factory Assistant for Ground Up Factory in Pune, India (miso, vinegar, koji fermentation factory).
+An employee ({sender_name}, phone {phone}) sent this voice note.
+
+1. Transcribe the audio accurately in the original spoken language (Hindi, Hinglish, Marathi, Bengali, English).
+2. Understand the intent and extract structured data:
+- task_complete: worker finished a task ("done", "ho gaya", "saaf kiya", "cleaned")
+- task_create / task_assignment: assigning a task to someone
+- jar_check: inspecting or querying a jar ("jar 1", "check jar 42", ratings)
+- status_query: asking what tasks/work is pending ("status", "aaj ke kaam", "kya pending hai")
+- maintenance_update: maintenance started/ended for a room
+- issue_report: reporting a problem, leak, damage, mold
+- general_chat: greeting or other message
+
+Return ONLY JSON:
+{{
+    "transcript": "exact transcription in original spoken language",
+    "intent": "task_complete | task_create | jar_check | status_query | maintenance_update | issue_report | general_chat",
+    "task_hint": "cleaned task description or title",
+    "assigned_to": "target person if mentioned (Yadav Sir / Ravi / Priya / Owner)",
+    "jar_number": null,
+    "quality_details": {{"smell": "normal", "taste": "normal", "color": "normal"}},
+    "quality_scores": {{"taste": null, "smell": null, "color": null}}
+}}"""
+
+        gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {
             "contents": [{
                 "parts": [
                     {"inline_data": {"mime_type": "audio/ogg", "data": audio_b64}},
                     {"text": prompt}
                 ]
-            }]
+            }],
+            "generationConfig": {"temperature": 0.1, "response_mime_type": "application/json"}
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=12.0) as client:
             gem_res = await client.post(gem_url, json=payload)
             if gem_res.status_code == 200:
-                text = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                logger.info(f"🎙️ Voice Note Transcribed: {text}")
-                return text.strip()
+                result = gem_res.json()
+                content_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                parsed = json.loads(content_text.strip())
+                transcript = parsed.get("transcript", "[Voice Note Transcribed]")
+                logger.info(f"🎙️ Single-Pass Voice Note: '{transcript}' -> intent={parsed.get('intent')}")
+                return transcript, parsed
     except Exception as e:
-        logger.error(f"Error downloading/transcribing voice note: {e}")
+        logger.error(f"Error in unified voice note processing: {e}")
 
-    return "[Voice Note Transcribed]"
+    return "[Voice Note Received]", {"intent": "general_chat"}
+
+
+async def _download_and_transcribe_audio(media_id: str) -> str:
+    transcript, _ = await _download_transcribe_and_parse_audio(media_id, "", "", None)
+    return transcript
+
+
+def _save_whatsapp_photo_file(image_bytes: bytes, ext: str = "jpg") -> str:
+    """Saves raw photo bytes to web/uploads/ and returns the public media URL."""
+    import uuid
+    filename = f"wa_{uuid.uuid4().hex[:12]}.{ext}"
+    
+    possible_dirs = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web", "uploads"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "uploads"),
+        r"C:\GroundUp\web\uploads",
+        r"C:\GroundUp\ground-up-production\web\uploads",
+        r"C:\GroundUp\ground-up-admin\web\uploads",
+    ]
+    
+    for udir in possible_dirs:
+        try:
+            os.makedirs(udir, exist_ok=True)
+            fpath = os.path.join(udir, filename)
+            with open(fpath, "wb") as f:
+                f.write(image_bytes)
+        except Exception:
+            pass
+            
+    return f"https://gu-production.initiativesewafoundation.com/media/file/{filename}"
 
 
 async def _analyze_image(image_id: str, caption: str) -> str:
-    """Fetch photo from Meta API and analyze with factory-aware Gemini Vision.
-    Understands miso, vinegar, fermentation, jars, equipment, and products."""
+    """Fetch photo from Meta API, save to disk, and analyze with factory-aware Gemini Vision."""
     if not WHATSAPP_ACCESS_TOKEN or not GEMINI_API_KEY:
         return caption or "[Photo Received]"
 
@@ -1096,22 +1546,27 @@ async def _analyze_image(image_id: str, caption: str) -> str:
             res_img = await client.get(download_url, headers=headers)
             if res_img.status_code != 200:
                 return caption or "[Photo Download Error]"
+            
+            # Save photo to disk for timeline embedding
+            photo_url = _save_whatsapp_photo_file(res_img.content, ext="jpg")
             img_b64 = base64.b64encode(res_img.content).decode("utf-8")
 
-        prompt = f"""You are the AI assistant for Ground Up Factory in Pune, India — a food/fermentation factory that makes miso, vinegar, koji, and fermented products.
+        prompt = f"""You are the AI assistant for Ground Up Factory in Pune, India — a food/fermentation factory making miso, vinegar, koji, and fermented products.
+Analyze this photo sent by a worker on WhatsApp. Caption: '{caption}'
 
-Analyze this image sent by a factory worker on WhatsApp. Caption: '{caption}'
+Categorize the photo and extract details:
+1. is_qr_code: true if this photo is primarily a close-up scan/picture of a QR code sticker, QR label, or barcode on a jar/paper.
+2. is_product: true if this photo shows the ACTUAL FOOD/PRODUCT/FERMENT (e.g. miso paste, koji grains, vinegar liquid, surface mold inspection, jar contents).
+3. jar_number: integer jar number (e.g. 1, 42) if visible in the QR code, label, or caption.
+4. analysis: 1-2 sentence direct description of the visual condition, color, texture, and fermentation quality.
 
-Identify what you see. It could be:
-- A PRODUCT photo (miso paste, vinegar, koji, fermented item) → describe the product, estimate quality, note color/texture/consistency
-- A JAR photo (fermentation jars with QR codes) → note jar condition, contents, fermentation stage
-- A RECIPE/WEIGHT photo (weighing scale, ingredients being measured) → read weights/numbers if visible, identify ingredients
-- A MAINTENANCE/ISSUE photo (equipment, leak, damage, dirty area) → describe the issue, severity, recommend action
-- A PACKAGING photo (packed products, labels) → note packing quality, label correctness
-- A GENERAL WORK photo (cleaning, organizing) → describe the work being done
-
-Be specific and useful. If you can read any text, numbers, or measurements in the image, include them.
-Keep response under 150 words. Be direct and actionable."""
+Return ONLY JSON:
+{{
+    "is_qr_code": false,
+    "is_product": true,
+    "jar_number": 1,
+    "analysis": "Light golden miso paste with smooth surface and rich texture. No mold observed."
+}}"""
 
         gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {
@@ -1120,15 +1575,27 @@ Keep response under 150 words. Be direct and actionable."""
                     {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}},
                     {"text": prompt}
                 ]
-            }]
+            }],
+            "generationConfig": {"temperature": 0.1, "response_mime_type": "application/json"}
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             gem_res = await client.post(gem_url, json=payload)
             if gem_res.status_code == 200:
-                analysis = gem_res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                logger.info(f"📸 Photo analyzed: {analysis[:100]}")
-                return f"[PHOTO_ANALYSIS]{analysis}[/PHOTO_ANALYSIS] {caption}".strip()
+                result_json = gem_res.json()
+                raw_json = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+                try:
+                    parsed = json.loads(raw_json)
+                    analysis = parsed.get("analysis", "Visual inspection recorded.")
+                    is_qr = "1" if parsed.get("is_qr_code") else "0"
+                    jar_n = str(parsed.get("jar_number") or "")
+                except Exception:
+                    analysis = raw_json
+                    is_qr = "0"
+                    jar_n = ""
+
+                logger.info(f"📸 Photo analyzed: QR={is_qr}, Jar={jar_n}, text={analysis[:80]}")
+                return f"[PHOTO_ANALYSIS]{analysis}[/PHOTO_ANALYSIS][PHOTO_URL]{photo_url}[/PHOTO_URL][IS_QR]{is_qr}[/IS_QR][JAR_NUM]{jar_n}[/JAR_NUM] {caption}".strip()
     except Exception as e:
         logger.error(f"Error analyzing image: {e}")
 
@@ -1138,63 +1605,31 @@ Keep response under 150 words. Be direct and actionable."""
 # ─── Recipe & Production Handlers ────────────────────────────────────────────
 
 async def _handle_recipe_query(question: str, sender_name: str, db: Session) -> str:
-    """Answer recipe questions using Gemini with Ground Up factory context."""
-    from sqlalchemy import text
+    """Answer recipe, SOP, and fermentation questions using Vector RAG Knowledge Base."""
+    import re
+    from groundup_webhooks.rag_engine import answer_with_rag, scale_recipe_formula
 
-    # Try to get recipes from production.recipes table first
-    recipe_context = ""
-    try:
-        result = db.execute(text("""
-            SELECT name, ingredients, process_steps, notes
-            FROM production.recipes
-            WHERE is_active = true
-            ORDER BY name
-        """))
-        recipes = result.fetchall()
-        if recipes:
-            recipe_lines = []
-            for r in recipes:
-                recipe_lines.append(f"- {r[0]}: Ingredients: {r[1]}, Steps: {r[2]}")
-            recipe_context = "Factory recipes on file:\n" + "\n".join(recipe_lines)
-    except Exception:
-        # Table might not exist yet — use hardcoded context
-        recipe_context = """Factory recipes (Ground Up, Pune):
-- White Miso: Soybeans (1kg), Rice Koji (1.2kg), Salt (400g), Water (as needed). Ferment 3-6 months at room temp.
-- Red/Brown Miso: Soybeans (1kg), Barley Koji (800g), Salt (500g). Ferment 12-18 months.
-- Rice Vinegar: Rice (1kg), Koji starter, Water (3L). Ferment 2-3 weeks for alcohol, then 6-8 weeks for acetic acid.
-- Koji: Steamed rice inoculated with Aspergillus oryzae spores. 48hr incubation at 30°C, 80% humidity.
-- Soy Sauce (experimental): Soybeans + wheat + salt brine. 6+ months fermentation.
-- Shio Koji: Rice Koji (200g), Salt (60g), Water (300ml). Ferment 7-10 days at room temp."""
+    lower = question.lower()
+    
+    # 1. Check if this is a recipe scaling request (e.g. "scale 50kg red miso", "batch 30kg white miso", "50kg miso")
+    scale_match = re.search(r"(?:scale|batch|package|make)?\s*(\d+(?:\.\d+)?)\s*(?:kg|kilo|litres?|l)?\s+(?:of\s+)?(red miso|white miso|miso|shio koji|vinegar|sesame miso|seaweed miso|ginger beer)", lower)
+    if not scale_match:
+        scale_match = re.search(r"(red miso|white miso|shio koji|vinegar|sesame miso|seaweed miso|ginger beer)\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(?:kg|kilo)?", lower)
+        if scale_match:
+            prod = scale_match.group(1)
+            qty = float(scale_match.group(2))
+            return scale_recipe_formula(prod, qty)
+    else:
+        qty = float(scale_match.group(1))
+        prod = scale_match.group(2)
+        return scale_recipe_formula(prod, qty)
 
-    prompt = f"""You are the recipe expert for Ground Up Factory (Pune, India) — a food/fermentation factory making miso, vinegar, koji, and fermented products.
-
-{recipe_context}
-
-Question from {sender_name}: "{question}"
-
-Answer the recipe question accurately. Include specific weights, ratios, temperatures, and timing.
-If they ask about a product you don't have a recipe for, suggest the closest match.
-Reply in Hinglish (mix of Hindi and English) if the question was in Hindi/Hinglish, otherwise English.
-Keep response concise — under 200 words."""
-
-    try:
-        gem_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3}
-        }
-
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.post(gem_url, json=payload)
-            if res.status_code == 200:
-                answer = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                return (f"🍳 *Recipe Info*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"{answer}")
-    except Exception as e:
-        logger.error(f"[RecipeQuery] Error: {e}")
-
-    return "Sorry, couldn't look up the recipe right now. Try asking again."
+    # 2. General RAG Knowledge Query (Recipes, SOPs, Temperature, Mold, Hygiene)
+    sender_info = _get_sender_info("", db) if not sender_name else {"preferred_lang": "en"}
+    lang = sender_info.get("preferred_lang", "en")
+    
+    ans = answer_with_rag(user_query=question, sender_name=sender_name, preferred_lang=lang)
+    return ans
 
 
 # ─── Meeting Intelligence Handlers ───────────────────────────────────────────
@@ -1275,9 +1710,9 @@ async def _handle_product_query(db: Session) -> str:
     from sqlalchemy import text
     try:
         result = db.execute(text("""
-            SELECT name, category, batch_size, status
+            SELECT name, category, room, description
             FROM production.products
-            WHERE is_active = true
+            WHERE active = true
             ORDER BY category, name
         """))
         products = result.fetchall()
@@ -1286,13 +1721,17 @@ async def _handle_product_query(db: Session) -> str:
             by_cat = {}
             for p in products:
                 cat = p[1] or "General"
-                by_cat.setdefault(cat, []).append(f"• *{p[0]}* (Batch: {p[2] or 'Standard'})")
+                by_cat.setdefault(cat, []).append(f"• *{p[0]}*" + (f" ({p[2]})" if p[2] else ""))
             for cat, items in by_cat.items():
                 lines.append(f"\n📦 *{cat.title()}:*")
                 lines.extend(items)
             return "\n".join(lines)
     except Exception as e:
         logger.warning(f"Could not query production.products: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     # Default catalog fallback
     return (
@@ -1317,14 +1756,14 @@ async def _handle_report_query(db: Session) -> str:
 
     # 1. FlipBoard tasks summary
     try:
+        folder_id, folder_date_str = _get_today_daily_folder(db)
         res = db.execute(text("""
-            SELECT status, COUNT(*)
+            SELECT i.status, COUNT(*)
             FROM flipboard.items i
             JOIN flipboard.pages p ON i.page_id = p.id
-            JOIN flipboard.folders f ON p.folder_id = f.id
-            WHERE f.folder_type = 'daily_auto' AND f.created_at::date = CURRENT_DATE
-            GROUP BY status
-        """)).fetchall()
+            WHERE p.folder_id = :fid AND i.status != 'deleted'
+            GROUP BY i.status
+        """), {"fid": folder_id}).fetchall()
         counts = {row[0]: row[1] for row in res}
         active_c = counts.get('active', 0)
         done_c = counts.get('done', 0)

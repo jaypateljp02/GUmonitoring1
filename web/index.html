@@ -1730,7 +1730,9 @@
       const container = document.getElementById('tapoPlugsList');
       if (!container) return;
       
-      const isBillingDay = (new Date().getDate() >= 28);
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const isBillingDay = (now.getDate() === 30 || now.getDate() === 31 || tomorrow.getDate() === 1);
       
       // Show/hide the Add button based on whether there are unconfigured rooms
       const unconfiguredRooms = Object.values(tapoPlugsData).filter(item => item && item.error === 'Unconfigured');
@@ -2498,11 +2500,14 @@
         
         if (res1.ok && res2.ok) {
           closeTapoSettingsModal();
-          await pollList();
+          if (typeof pollTapoPlugs === 'function') await pollTapoPlugs(true);
+          if (typeof pollData === 'function') await pollData();
+          alert('Appliance settings saved successfully!');
         } else {
           alert('Failed to save appliance settings.');
         }
       } catch (err) {
+        console.error('Save appliance settings error:', err);
         alert('Connection error while saving appliance settings.');
       }
     }

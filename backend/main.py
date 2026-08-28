@@ -49,10 +49,8 @@ def startup_event():
     DEVICES = [
         {"device_id": "a4b002884e", "name": "Device 1 - Temperature", "type": "temperature", "min_threshold": 0.0, "max_threshold": 4.0},
         {"device_id": "a4b002884e", "name": "Device 1 - Humidity",    "type": "humidity",    "min_threshold": None, "max_threshold": None},
-        {"device_id": "a4b002898f", "name": "Miso Room - Temperature", "type": "temperature", "min_threshold": 0.0, "max_threshold": 4.0},
+        {"device_id": "a4b002898f", "name": "Miso Room - Temperature", "type": "temperature", "min_threshold": 18.0, "max_threshold": 28.0},
         {"device_id": "a4b002898f", "name": "Miso Room - Humidity",    "type": "humidity",    "min_threshold": None, "max_threshold": None},
-        {"device_id": "REMOVED_a4b0028991", "name": "Vinegar Room - Temperature", "type": "temperature", "min_threshold": 0.0, "max_threshold": 4.0},
-        {"device_id": "REMOVED_a4b0028991", "name": "Vinegar Room - Humidity",    "type": "humidity",    "min_threshold": None, "max_threshold": None},
     ]
     try:
         logger.info("Opening session to seed sensors...")
@@ -73,8 +71,41 @@ def startup_event():
                 db.add(s)
         logger.info("Committing seeded sensors...")
         db.commit()
-        db.close()
         logger.info("Sensors seeded OK.")
+
+        # One-time migration: Fix Miso Room threshold if still set to fridge values (4.0)
+        miso_temp = db.query(Sensor).filter(
+            Sensor.device_id == "a4b002898f",
+            Sensor.type == "temperature"
+        ).first()
+        if miso_temp and miso_temp.max_threshold is not None and float(miso_temp.max_threshold) <= 4.0:
+            logger.warning(f"Miso Room sensor has fridge threshold (max={miso_temp.max_threshold}). Migrating to room threshold (18-28°C).")
+            miso_temp.min_threshold = 18.0
+            miso_temp.max_threshold = 28.0
+            false_alerts = db.query(Alert).filter(
+                Alert.sensor_id == miso_temp.id,
+                Alert.resolved == False
+            ).all()
+            for fa in false_alerts:
+                fa.resolved = True
+                logger.info(f"Auto-resolved false Miso Room alert: {fa.id}")
+            db.commit()
+
+        # One-time migration: Ensure physical Hall fridge (10) sensor is active and only dead test sensors are deactivated
+        from sqlalchemy import text
+        db.execute(text("UPDATE monitoring.sensors SET active=true WHERE device_id='a4b0028d6e'"))
+        db.execute(text("UPDATE monitoring.sensors SET active=false WHERE name LIKE '%Replacing white Fridge%' OR device_id LIKE 'REMOVED_%'"))
+        db.execute(text("""
+            UPDATE monitoring.alerts 
+            SET resolved=true 
+            WHERE sensor_id IN (
+                SELECT id FROM monitoring.sensors WHERE active=false
+            ) AND resolved=false
+        """))
+        db.commit()
+        logger.info("Hall fridge (10) active state verified, duplicate cleanup complete.")
+
+        db.close()
     except Exception as e:
         logger.error(f"Seed error: {e}")
 

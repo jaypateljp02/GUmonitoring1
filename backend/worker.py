@@ -114,6 +114,9 @@ async def send_morning_task_briefings(db):
         from sqlalchemy import text
 
         recipients = db.query(WebhookRecipient).filter(WebhookRecipient.is_active == True).all()
+        today_ist = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+        today_str = today_ist.strftime("%Y-%m-%d")
+
         for r in recipients:
             dname = r.display_name or "Staff"
             role = r.role or "employee"
@@ -125,16 +128,10 @@ async def send_morning_task_briefings(db):
                 JOIN flipboard.pages p ON i.page_id = p.id
                 JOIN flipboard.folders f ON p.folder_id = f.id
                 WHERE i.status != 'deleted'
-                  AND (
-                      f.id = (
-                          SELECT id FROM flipboard.folders
-                          WHERE folder_type = 'daily_auto' AND (is_archived IS FALSE OR is_archived IS NULL)
-                          ORDER BY created_at DESC LIMIT 1
-                      )
-                      OR (f.folder_type = 'custom' AND (f.is_archived IS FALSE OR f.is_archived IS NULL))
-                  )
+                  AND f.folder_type = 'daily_auto'
+                  AND f.title LIKE :tpattern
             """
-            params = {}
+            params = {"tpattern": f"Daily Work - {today_str}%"}
             if not is_owner:
                 sql += " AND i.assigned_to_name ILIKE :emp"
                 params["emp"] = f"%{dname}%"
@@ -560,7 +557,6 @@ async def ingestion_loop():
 
                     # Handle database alerts for offline status
                     if not is_device_reporting:
-                        logger.warning(f"Device {target_device} is offline or not reporting. Queueing offline alerts.")
                         from decimal import Decimal
                         ist_offset = timedelta(hours=5, minutes=30)
                         
@@ -581,26 +577,56 @@ async def ingestion_loop():
                             if last_ts is None or last_plug_tel.timestamp > last_ts:
                                 last_ts = last_plug_tel.timestamp
 
+                        # --- OFFLINE GRACE PERIOD ---
+                        # Zigbee SNZB-02 battery sensors sleep when temperature is stable and report only on delta
+                        # or 30-60 min heartbeat. Give 60 minutes grace to prevent false offline alerts.
+                        # Mains-powered Smart Plugs (POWR320D): 30 minutes grace.
+                        room = db.query(Room).filter(Room.id == sensors[0].room_id).first() if sensors and sensors[0].room_id else None
+                        room_type = room.type if room else "room"
+                        
+                        if is_power_device:
+                            offline_grace_minutes = 30.0
+                        else:
+                            offline_grace_minutes = 60.0
+
+                        offline_duration_minutes = 0.0
                         if last_ts:
+                            offline_duration_minutes = (timestamp_parsed - last_ts).total_seconds() / 60.0
                             last_seen_ist = (last_ts + ist_offset).strftime("%I:%M %p IST (%b %d)")
                             offline_detail = f"went offline at {last_seen_ist}"
                         else:
+                            # No telemetry ever recorded — treat as long-offline
+                            offline_duration_minutes = offline_grace_minutes + 1
                             offline_detail = "is offline (stopped sending telemetry data)"
 
-                        for s in sensors:
-                            sensor_alerts = alerts_by_sensor.get(s.id, [])
-                            has_offline = any("offline" in (a.message or "").lower() for a in sensor_alerts if not a.resolved)
-                            if not has_offline:
-                                new_alert = Alert(
-                                    sensor_id=s.id,
-                                    value=Decimal("0.0"),
-                                    message=f"[{s.name}] {s.type.capitalize()} sensor {offline_detail}.",
-                                    created_at=timestamp_parsed
-                                )
-                                db.add(new_alert)
-                                db.flush()
-                                alerts_by_sensor.setdefault(s.id, []).append(new_alert)
-                                new_offline_alerts.append(new_alert)
+                        if offline_duration_minutes >= offline_grace_minutes:
+                            logger.warning(f"Device {target_device} is offline for {offline_duration_minutes:.1f} mins (grace={offline_grace_minutes} mins). Creating offline alerts.")
+                            for s in sensors:
+                                sensor_alerts = alerts_by_sensor.get(s.id, [])
+                                has_offline = any("offline" in (a.message or "").lower() for a in sensor_alerts if not a.resolved)
+                                if not has_offline:
+                                    # Check cooldown: do not alert if an alert for this sensor was created recently (< 2 hours)
+                                    recent_alert = db.query(Alert).filter(
+                                        Alert.sensor_id == s.id,
+                                        Alert.message.like("%offline%"),
+                                        Alert.created_at >= (timestamp_parsed - timedelta(hours=2))
+                                    ).first()
+                                    
+                                    new_alert = Alert(
+                                        sensor_id=s.id,
+                                        value=Decimal("0.0"),
+                                        message=f"[{s.name}] {s.type.capitalize()} sensor {offline_detail}.",
+                                        created_at=timestamp_parsed
+                                    )
+                                    db.add(new_alert)
+                                    db.flush()
+                                    alerts_by_sensor.setdefault(s.id, []).append(new_alert)
+                                    if not recent_alert:
+                                        new_offline_alerts.append(new_alert)
+                                    else:
+                                        logger.info(f"Offline alert for sensor {s.name} created in DB but WhatsApp suppressed (cooldown: 2 hours).")
+                        else:
+                            logger.info(f"Device {target_device} offline for {offline_duration_minutes:.1f} mins — suppressed (grace period: {offline_grace_minutes} mins for {'plug' if is_power_device else 'battery sensor'})")
                     else:
                         # Immediately resolve any active offline alerts as soon as device is reporting
                         for s in sensors:
@@ -608,7 +634,7 @@ async def ingestion_loop():
                             for alert in sensor_alerts:
                                 if "offline" in (alert.message or "").lower() and not alert.resolved:
                                     alert.resolved = True
-                                    logger.info(f"Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
+                                    logger.info(f"🟢 Sensor {s.name} (id: {s.id}) is now ONLINE. Resolved offline alert {alert.id}.")
 
                     # === POWER DEVICE TELEMETRY (POWR320D) ===
                     if is_power_device and power_val is not None and is_device_reporting:
@@ -789,6 +815,13 @@ async def ingestion_loop():
                         update_compressor_stats(db, s, today)
                     except Exception as ex:
                         logger.error(f"Error updating compressor stats for sensor {s.id}: {ex}")
+
+            # Audit compressor duty cycles and health anomalies (with internal 4h cooldown)
+            try:
+                from backend.services.compressor_analytics import audit_compressors_health
+                audit_compressors_health(db, lookback_hours=6.0)
+            except Exception as cae:
+                logger.error(f"Error auditing compressor health: {cae}")
 
             # Evaluate consolidated offline alerts (check if ALL sensors are offline across DB, or send new offline alerts)
             try:

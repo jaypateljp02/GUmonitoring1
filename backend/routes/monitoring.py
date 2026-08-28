@@ -182,6 +182,16 @@ def update_setting(key: str, payload: SettingUpdate, db: Session = Depends(get_d
     db.commit()
     return {"message": "Setting updated successfully"}
 
+@router.get("/settings")
+def list_settings(db: Session = Depends(get_db)):
+    """List all settings."""
+    from backend.models.setting import Setting
+    settings = db.query(Setting).all()
+    res = {}
+    for s in settings:
+        res[s.key] = {"key": s.key, "value": s.value, "description": s.description}
+    return res
+
 @router.get("/settings/{key}")
 def get_setting(key: str, db: Session = Depends(get_db)):
     from backend.models.setting import Setting
