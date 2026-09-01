@@ -219,9 +219,13 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         )
 
 @app.get("/", tags=["Dashboard"])
+@app.head("/", include_in_schema=False)
 @app.get("/health", tags=["Dashboard"])
+@app.head("/health", include_in_schema=False)
 @app.get("/dashboard", tags=["Dashboard"])
+@app.head("/dashboard", include_in_schema=False)
 @app.get("/index.html", tags=["Dashboard"], include_in_schema=False)
+@app.head("/index.html", include_in_schema=False)
 def serve_dashboard():
     """Serve the main Web Dashboard."""
     html_path = os.path.join(os.path.dirname(__file__), "..", "web", "index.html")
