@@ -1470,16 +1470,6 @@
           <!-- CATEGORY ROLL-UP CARDS -->
           <div class="mc-categories-grid" id="mcCategoriesGrid"></div>
 
-          <!-- DAILY CUMULATIVE GROWTH CHART -->
-          <div class="mc-distribution-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-              <span style="font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Daily Power & Cost Growth</span>
-              <span style="font-size: 11px; color: #64748B;">Cumulative progression through the month</span>
-            </div>
-            <div style="height: 180px; position: relative;">
-              <canvas id="mcDailyChart"></canvas>
-            </div>
-          </div>
 
           <!-- RANKED DEVICE LEDGER TABLE -->
           <div class="mc-table-card">
@@ -5185,7 +5175,6 @@
     // SONOFF MONTHLY POWER & ELECTRICITY COST ANALYTICS CONTROLLER
     // ==========================================================================
     let currentMonthlyData = null;
-    let mcDailyChartInstance = null;
     let isWhatIfActive = false;
     let selectedMonthlyCostMonth = '';
     const MC_DEVICE_COLORS = [
@@ -5207,10 +5196,6 @@
       const modal = document.getElementById('monthlyCostModal');
       if (modal) modal.style.display = 'none';
       document.body.style.overflow = '';
-      if (mcDailyChartInstance) {
-        mcDailyChartInstance.destroy();
-        mcDailyChartInstance = null;
-      }
     }
 
     async function navigateMonth(dir) {
@@ -5345,10 +5330,7 @@
       // 5. Category Roll-up Cards
       renderMonthlyCategories(data.categories);
 
-      // 6. Daily Cumulative Growth Chart
-      renderMonthlyTrendsChart(data.daily_trends, data.month_name);
-
-      // 7. Device Ledger Table
+      // 6. Device Ledger Table
       renderMonthlyDeviceTable(data.devices, data.summary.total_cost);
 
       // 8. Automated Insights
@@ -5431,101 +5413,7 @@
       });
     }
 
-    function renderMonthlyTrendsChart(trends, monthName) {
-      const canvas = document.getElementById('mcDailyChart');
-      if (!canvas) return;
 
-      if (mcDailyChartInstance) {
-        mcDailyChartInstance.destroy();
-        mcDailyChartInstance = null;
-      }
-
-      if (!trends || trends.length === 0) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        return;
-      }
-
-      const labels = trends.map(t => `Day ${t.day}`);
-      const energyData = trends.map(t => t.cumulative_kwh);
-      const costData = trends.map(t => t.cumulative_cost);
-
-      const ctx = canvas.getContext('2d');
-      mcDailyChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Cumulative Energy (kWh)',
-              data: energyData,
-              borderColor: '#0284C7',
-              backgroundColor: 'rgba(2, 132, 199, 0.08)',
-              borderWidth: 2.5,
-              fill: true,
-              tension: 0.35,
-              yAxisID: 'y'
-            },
-            {
-              label: 'Cumulative Cost (₹)',
-              data: costData,
-              borderColor: '#059669',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              borderDash: [5, 5],
-              fill: false,
-              tension: 0.35,
-              yAxisID: 'y1'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: {
-              display: true,
-              labels: { color: '#475569', font: { size: 11, weight: '600' }, boxWidth: 12 }
-            },
-            tooltip: {
-              backgroundColor: '#1E293B',
-              borderColor: 'rgba(0, 0, 0, 0.08)',
-              borderWidth: 1,
-              titleColor: '#FFFFFF',
-              bodyColor: '#E2E8F0',
-              callbacks: {
-                label: function(ctx) {
-                  const val = ctx.raw || 0;
-                  if (ctx.datasetIndex === 0) return ` Energy: ${val.toFixed(2)} kWh`;
-                  return ` Cost: ₹ ${val.toFixed(2)}`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              grid: { color: 'rgba(0, 0, 0, 0.05)' },
-              ticks: { color: '#64748B', font: { size: 10 } }
-            },
-            y: {
-              type: 'linear',
-              display: true,
-              position: 'left',
-              grid: { color: 'rgba(0, 0, 0, 0.05)' },
-              ticks: { color: '#0284C7', font: { size: 10 } }
-            },
-            y1: {
-              type: 'linear',
-              display: true,
-              position: 'right',
-              grid: { drawOnChartArea: false },
-              ticks: { color: '#059669', font: { size: 10 } }
-            }
-          }
-        }
-      });
-    }
 
     function renderMonthlyDeviceTable(devices, totalCost) {
       const tableBody = document.getElementById('mcDeviceTableBody');
