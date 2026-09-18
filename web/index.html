@@ -388,15 +388,15 @@
     }
 
     /* ==========================================================================
-       SONOFF MONTHLY POWER & COST ANALYTICS SPACE (SLEEK FULL-SCREEN MODAL)
+       SONOFF MONTHLY POWER & COST ANALYTICS SPACE (CLEAN WHITE THEME)
        ========================================================================== */
     .monthly-cost-overlay {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(11, 19, 41, 0.88);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 1200;
       justify-content: center;
       align-items: flex-start;
@@ -405,14 +405,14 @@
       animation: fadeIn 0.25s ease-out;
     }
     .monthly-cost-modal {
-      background: #0F172A;
-      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
       border-radius: 24px;
       width: 100%;
       max-width: 1100px;
       margin: 10px auto 40px auto;
-      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
-      color: #F8FAFC;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.04);
+      color: #1E293B;
       position: relative;
       overflow: hidden;
       display: flex;
@@ -423,16 +423,17 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 4px;
-      background: linear-gradient(90deg, #3B82F6, #10B981, #8B5CF6, #F59E0B);
+      background: linear-gradient(90deg, #2563EB, #10B981, #8B5CF6, #F59E0B);
     }
     .mc-header {
       padding: 22px 24px 16px 24px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      border-bottom: 1px solid #E2E8F0;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 14px;
+      background: #FAFAFA;
     }
     .mc-title-group {
       display: flex;
@@ -442,16 +443,16 @@
     .mc-title {
       font-size: 19px;
       font-weight: 800;
-      color: #FFFFFF;
+      color: #0F172A;
       letter-spacing: -0.02em;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .mc-badge-sonoff {
-      background: rgba(59, 130, 246, 0.15);
-      color: #60A5FA;
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      background: #EFF6FF;
+      color: #2563EB;
+      border: 1px solid #BFDBFE;
       padding: 3px 9px;
       border-radius: 8px;
       font-size: 11px;
@@ -467,15 +468,16 @@
     .mc-month-picker {
       display: flex;
       align-items: center;
-      background: #1E293B;
-      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
       border-radius: 12px;
       padding: 3px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
     .mc-month-nav-btn {
       background: transparent;
       border: none;
-      color: #94A3B8;
+      color: #64748B;
       font-size: 14px;
       padding: 6px 10px;
       border-radius: 8px;
@@ -486,13 +488,13 @@
       transition: all 0.15s ease;
     }
     .mc-month-nav-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #FFFFFF;
+      background: #F1F5F9;
+      color: #0F172A;
     }
     .mc-month-select {
       background: transparent;
       border: none;
-      color: #F8FAFC;
+      color: #0F172A;
       font-size: 13px;
       font-weight: 700;
       padding: 6px 12px;
@@ -501,13 +503,13 @@
       font-family: inherit;
     }
     .mc-month-select option {
-      background: #0F172A;
-      color: #F8FAFC;
+      background: #FFFFFF;
+      color: #0F172A;
     }
     .mc-action-btn {
-      background: #1E293B;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      color: #E2E8F0;
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      color: #334155;
       padding: 7px 13px;
       border-radius: 11px;
       font-size: 12px;
@@ -517,33 +519,34 @@
       align-items: center;
       gap: 6px;
       transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
     .mc-action-btn:hover {
-      background: #334155;
-      color: #FFFFFF;
-      border-color: rgba(148, 163, 184, 0.4);
+      background: #E2E8F0;
+      color: #0F172A;
+      border-color: #94A3B8;
     }
     .mc-action-btn.green {
-      background: rgba(16, 185, 129, 0.12);
-      color: #34D399;
-      border-color: rgba(16, 185, 129, 0.3);
+      background: #ECFDF5;
+      color: #059669;
+      border-color: #A7F3D0;
     }
     .mc-action-btn.green:hover {
-      background: rgba(16, 185, 129, 0.22);
-      color: #6EE7B7;
+      background: #D1FAE5;
+      color: #047857;
     }
     .mc-action-btn.blue {
-      background: rgba(37, 99, 235, 0.15);
-      color: #60A5FA;
-      border-color: rgba(37, 99, 235, 0.35);
+      background: #EFF6FF;
+      color: #2563EB;
+      border-color: #BFDBFE;
     }
     .mc-action-btn.blue:hover {
-      background: rgba(37, 99, 235, 0.25);
+      background: #DBEAFE;
     }
     .mc-close-btn {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-      color: #F87171;
+      background: #FEE2E2;
+      border: 1px solid #FECACA;
+      color: #DC2626;
       width: 34px;
       height: 34px;
       border-radius: 10px;
@@ -554,22 +557,23 @@
       transition: all 0.15s ease;
     }
     .mc-close-btn:hover {
-      background: rgba(239, 68, 68, 0.22);
-      color: #FECACA;
+      background: #FCA5A5;
+      color: #991B1B;
     }
     .mc-content {
       padding: 20px 24px;
       display: flex;
       flex-direction: column;
       gap: 20px;
+      background: #FFFFFF;
     }
     /* Toolbar / Tariff Strip */
     .mc-tariff-strip {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #182234;
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
       padding: 10px 16px;
       border-radius: 14px;
       flex-wrap: wrap;
@@ -577,13 +581,13 @@
     }
     .mc-tariff-info {
       font-size: 13px;
-      color: #94A3B8;
+      color: #475569;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .mc-tariff-val {
-      color: #38BDF8;
+      color: #0284C7;
       font-weight: 800;
     }
     /* Hero KPI Cards */
@@ -593,21 +597,23 @@
       gap: 14px;
     }
     .mc-kpi-card {
-      background: #182234;
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
       border-radius: 16px;
       padding: 16px 18px;
       position: relative;
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
     .mc-kpi-card:hover {
       transform: translateY(-2px);
-      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+      border-color: #93C5FD;
     }
     .mc-kpi-label {
       font-size: 11px;
       font-weight: 800;
-      color: #94A3B8;
+      color: #64748B;
       text-transform: uppercase;
       letter-spacing: 0.6px;
       margin-bottom: 6px;
@@ -618,7 +624,7 @@
     .mc-kpi-value {
       font-size: 26px;
       font-weight: 900;
-      color: #F8FAFC;
+      color: #0F172A;
       letter-spacing: -0.02em;
       margin-bottom: 4px;
     }
@@ -638,30 +644,34 @@
       display: inline-block;
     }
     .mc-badge-pill.green {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34D399;
+      background: #ECFDF5;
+      color: #059669;
+      border: 1px solid #A7F3D0;
     }
     .mc-badge-pill.orange {
-      background: rgba(245, 158, 11, 0.15);
-      color: #FBBF24;
+      background: #FFFBEB;
+      color: #D97706;
+      border: 1px solid #FDE68A;
     }
     .mc-badge-pill.red {
-      background: rgba(239, 68, 68, 0.15);
-      color: #F87171;
+      background: #FEF2F2;
+      color: #DC2626;
+      border: 1px solid #FECACA;
     }
     /* Distribution Bar */
     .mc-distribution-card {
-      background: #182234;
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
       border-radius: 16px;
       padding: 16px 18px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .mc-dist-bar-wrapper {
       height: 18px;
       border-radius: 9px;
       overflow: hidden;
       display: flex;
-      background: #334155;
+      background: #E2E8F0;
       margin: 10px 0 12px 0;
     }
     .mc-dist-segment {
@@ -680,7 +690,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      color: #CBD5E1;
+      color: #334155;
     }
     .mc-dist-color-dot {
       width: 10px;
@@ -694,13 +704,14 @@
       gap: 12px;
     }
     .mc-cat-card {
-      background: #182234;
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
       border-radius: 14px;
       padding: 14px 16px;
       display: flex;
       align-items: center;
       gap: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .mc-cat-icon {
       font-size: 26px;
@@ -708,11 +719,11 @@
     .mc-cat-name {
       font-size: 13px;
       font-weight: 800;
-      color: #FFFFFF;
+      color: #0F172A;
     }
     .mc-cat-sub {
       font-size: 11px;
-      color: #94A3B8;
+      color: #64748B;
       margin-top: 2px;
     }
     .mc-cat-cost {
@@ -722,7 +733,7 @@
     .mc-cat-cost-val {
       font-size: 15px;
       font-weight: 800;
-      color: #10B981;
+      color: #059669;
     }
     .mc-cat-cost-pct {
       font-size: 11px;
@@ -731,8 +742,8 @@
     /* What-If Drawer */
     .mc-whatif-drawer {
       display: none;
-      background: rgba(30, 41, 59, 0.85);
-      border: 1px dashed rgba(59, 130, 246, 0.4);
+      background: #F8FAFC;
+      border: 1px dashed #93C5FD;
       border-radius: 14px;
       padding: 14px 18px;
       margin-bottom: 4px;
@@ -746,48 +757,50 @@
     }
     .mc-slider {
       flex: 1;
-      accent-color: #38BDF8;
+      accent-color: #2563EB;
       cursor: pointer;
     }
     /* Ledger Table */
     .mc-table-card {
-      background: #182234;
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
       border-radius: 16px;
       padding: 16px 18px;
       overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .mc-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12.5px;
-      color: #E2E8F0;
+      color: #1E293B;
     }
     .mc-table th {
       text-align: left;
       padding: 10px 12px;
       font-size: 11px;
       font-weight: 800;
-      color: #94A3B8;
+      color: #475569;
+      background: #F8FAFC;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      border-bottom: 2px solid #E2E8F0;
     }
     .mc-table td {
       padding: 12px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      border-bottom: 1px solid #F1F5F9;
       vertical-align: middle;
     }
     .mc-table tr:last-child td {
       border-bottom: none;
     }
     .mc-table tr:hover td {
-      background: rgba(255, 255, 255, 0.03);
+      background: #F8FAFC;
     }
     .mc-rate-pill {
-      background: rgba(56, 189, 248, 0.12);
-      color: #38BDF8;
-      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: #EFF6FF;
+      color: #0284C7;
+      border: 1px solid #BAE6FD;
       padding: 3px 8px;
       border-radius: 7px;
       font-weight: 700;
@@ -798,13 +811,13 @@
       transition: all 0.15s ease;
     }
     .mc-rate-pill:hover {
-      background: rgba(56, 189, 248, 0.25);
+      background: #E0F2FE;
       transform: scale(1.03);
     }
     .mc-progress-track {
       width: 80px;
       height: 6px;
-      background: #334155;
+      background: #E2E8F0;
       border-radius: 3px;
       overflow: hidden;
       display: inline-block;
@@ -821,7 +834,7 @@
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(15, 23, 42, 0.45);
       backdrop-filter: blur(5px);
       z-index: 1300;
       justify-content: center;
@@ -829,26 +842,26 @@
       padding: 16px;
     }
     .mc-rate-edit-content {
-      background: #1E293B;
-      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
       border-radius: 18px;
       padding: 22px;
       width: 100%;
       max-width: 380px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-      color: #F8FAFC;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      color: #0F172A;
     }
     /* Insights Card */
     .mc-insights-card {
-      background: rgba(30, 41, 59, 0.6);
-      border: 1px solid rgba(245, 158, 11, 0.25);
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
       border-radius: 14px;
       padding: 14px 18px;
     }
     .mc-insights-list {
       margin: 8px 0 0 16px;
       font-size: 12px;
-      color: #CBD5E1;
+      color: #78350F;
       line-height: 1.6;
     }
     @media (max-width: 900px) {
@@ -1370,19 +1383,19 @@
         <!-- WHAT-IF SIMULATOR DRAWER -->
         <div id="mcWhatIfDrawer" class="mc-whatif-drawer">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-            <div style="font-size: 13px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 6px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0284C7; display: flex; align-items: center; gap: 6px;">
               🔮 Electricity Tariff Stress-Test Simulator
             </div>
-            <div style="font-size: 12px; color: #94A3B8;">
-              Simulated Tariff: <span id="mcSimulatedRateDisplay" style="color: #F8FAFC; font-weight: 800; font-size: 14px;">₹ 10.00</span> / kWh
+            <div style="font-size: 12px; color: #64748B;">
+              Simulated Tariff: <span id="mcSimulatedRateDisplay" style="color: #0F172A; font-weight: 800; font-size: 14px;">₹ 17.00</span> / kWh
             </div>
           </div>
           <div class="mc-slider-row">
             <span style="font-size: 11px; color: #64748B;">₹ 5</span>
-            <input type="range" min="5" max="30" step="0.5" value="10" id="mcWhatIfSlider" class="mc-slider" oninput="onWhatIfSliderChange(this.value)" />
-            <span style="font-size: 11px; color: #64748B;">₹ 30</span>
-            <div style="font-size: 12px; font-weight: 700; color: #F8FAFC; min-width: 140px; text-align: right;">
-              Simulated Total: <span id="mcSimulatedTotalDisplay" style="color: #34D399; font-weight: 900;">₹ --</span>
+            <input type="range" min="5" max="35" step="0.5" value="17" id="mcWhatIfSlider" class="mc-slider" oninput="onWhatIfSliderChange(this.value)" />
+            <span style="font-size: 11px; color: #64748B;">₹ 35</span>
+            <div style="font-size: 12px; font-weight: 700; color: #0F172A; min-width: 140px; text-align: right;">
+              Simulated Total: <span id="mcSimulatedTotalDisplay" style="color: #059669; font-weight: 900;">₹ --</span>
             </div>
           </div>
         </div>
@@ -1392,11 +1405,11 @@
           <!-- TARIFF STRIP -->
           <div class="mc-tariff-strip">
             <div class="mc-tariff-info">
-              <span class="material-icons" style="font-size: 16px; color: #38BDF8;">bolt</span>
-              Standard Factory Tariff: <span class="mc-tariff-val" id="mcDefaultTariffDisplay">₹ 10.00 / kWh</span>
-              <span style="font-size: 11px; color: #64748B;">(MSEDCL commercial rate)</span>
+              <span class="material-icons" style="font-size: 16px; color: #0284C7;">bolt</span>
+              Factory Tariff: <span class="mc-tariff-val" id="mcDefaultTariffDisplay">₹ 17.00 / kWh</span>
+              <span style="font-size: 11px; color: #64748B;">(Active Rate for All Monitored Devices)</span>
             </div>
-            <button class="mc-action-btn" onclick="openRateEditor(null, 'All Appliances (Factory Default)', 10.0)" style="font-size: 11px; padding: 5px 10px;">
+            <button class="mc-action-btn" onclick="openRateEditor(null, 'All Appliances (Factory Default)', 17.0)" style="font-size: 11px; padding: 5px 10px;">
               ✏️ Edit Factory Tariff
             </button>
           </div>
@@ -1409,7 +1422,7 @@
                 <span>Total Electricity Bill</span>
                 <span id="mcMoMBadge" class="mc-badge-pill green">--</span>
               </div>
-              <div class="mc-kpi-value" id="mcTotalBill" style="color: #34D399;">₹ --</div>
+              <div class="mc-kpi-value" id="mcTotalBill" style="color: #059669;">₹ --</div>
               <div class="mc-kpi-sub" id="mcPrevMonthSub">vs Previous Month: --</div>
             </div>
 
@@ -1417,7 +1430,7 @@
             <div class="mc-kpi-card">
               <div class="mc-kpi-label">
                 <span>Total Energy Consumed</span>
-                <span class="material-icons" style="font-size: 14px; color: #38BDF8;">electric_meter</span>
+                <span class="material-icons" style="font-size: 14px; color: #0284C7;">electric_meter</span>
               </div>
               <div class="mc-kpi-value" id="mcTotalEnergy">-- kWh</div>
               <div class="mc-kpi-sub" id="mcDailyAvgSub">Daily Avg: -- kWh/day</div>
@@ -1427,9 +1440,9 @@
             <div class="mc-kpi-card">
               <div class="mc-kpi-label">
                 <span>Projected Month-End</span>
-                <span class="material-icons" style="font-size: 14px; color: #F59E0B;">trending_up</span>
+                <span class="material-icons" style="font-size: 14px; color: #D97706;">trending_up</span>
               </div>
-              <div class="mc-kpi-value" id="mcProjectedBill" style="color: #FBBF24;">₹ --</div>
+              <div class="mc-kpi-value" id="mcProjectedBill" style="color: #D97706;">₹ --</div>
               <div class="mc-kpi-sub" id="mcProjectionSub">Based on daily run rate</div>
             </div>
 
@@ -1447,7 +1460,7 @@
           <!-- PROPORTIONAL LOAD DISTRIBUTION BAR -->
           <div class="mc-distribution-card">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-              <span style="font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;">Factory Load Distribution (%)</span>
+              <span style="font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Factory Load Distribution (%)</span>
               <span style="font-size: 11px; color: #64748B;">Proportional share of total electricity expense</span>
             </div>
             <div class="mc-dist-bar-wrapper" id="mcDistBarWrapper"></div>
@@ -1460,7 +1473,7 @@
           <!-- DAILY CUMULATIVE GROWTH CHART -->
           <div class="mc-distribution-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-              <span style="font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;">Daily Power & Cost Growth</span>
+              <span style="font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Daily Power & Cost Growth</span>
               <span style="font-size: 11px; color: #64748B;">Cumulative progression through the month</span>
             </div>
             <div style="height: 180px; position: relative;">
@@ -1472,10 +1485,10 @@
           <div class="mc-table-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
               <div>
-                <span style="font-size: 13px; font-weight: 800; color: #FFFFFF;">📋 Individual Appliance Ledger</span>
+                <span style="font-size: 13px; font-weight: 800; color: #0F172A;">📋 Individual Appliance Ledger</span>
                 <span style="font-size: 11.5px; color: #64748B; margin-left: 8px;">(Ranked by Power & Cost)</span>
               </div>
-              <div style="font-size: 11px; color: #38BDF8;">
+              <div style="font-size: 11px; color: #0284C7;">
                 💡 Tip: Click any <strong>₹ / kWh</strong> badge to adjust tariff rate
               </div>
             </div>
@@ -1490,7 +1503,7 @@
                   <th style="text-align: right;">Total Cost</th>
                   <th style="text-align: center;">Share of Bill</th>
                   <th style="text-align: right;">Daily Avg</th>
-                  <th style="text-align: right;">Live Load</th>
+                  <th style="text-align: right;">Live Load (W · A · V)</th>
                   <th style="text-align: center;">Status</th>
                 </tr>
               </thead>
@@ -1502,7 +1515,7 @@
 
           <!-- SMART INSIGHTS & ANOMALIES -->
           <div class="mc-insights-card">
-            <div style="font-size: 13px; font-weight: 800; color: #F59E0B; display: flex; align-items: center; gap: 6px;">
+            <div style="font-size: 13px; font-weight: 800; color: #B45309; display: flex; align-items: center; gap: 6px;">
               <span class="material-icons" style="font-size: 16px;">lightbulb</span> Automated Power Insights & Anomaly Alerts
             </div>
             <ul class="mc-insights-list" id="mcInsightsList">
@@ -1516,32 +1529,32 @@
     <!-- RATE EDIT QUICK MODAL -->
     <div id="rateEditModal" class="mc-rate-edit-modal">
       <div class="mc-rate-edit-content">
-        <div style="font-size: 16px; font-weight: 800; color: #FFFFFF; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+        <div style="font-size: 16px; font-weight: 800; color: #0F172A; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
           ⚙️ Edit Electricity Tariff
         </div>
-        <div style="font-size: 12px; color: #94A3B8; margin-bottom: 14px;" id="rateEditDeviceName">
+        <div style="font-size: 12px; color: #64748B; margin-bottom: 14px;" id="rateEditDeviceName">
           Updating rate for appliance
         </div>
         <input type="hidden" id="rateEditDeviceId" />
         
         <div style="margin-bottom: 14px;">
-          <span style="font-size: 11px; font-weight: 800; color: #CBD5E1; display: block; margin-bottom: 6px; text-transform: uppercase;">Tariff Rate (₹ / kWh)</span>
-          <input type="number" step="0.1" id="rateEditInput" class="input-field" style="background: #0F172A; border-color: #334155; color: #FFF; font-size: 15px; font-weight: 800; padding: 10px; margin-top: 0;" placeholder="e.g. 10.0" />
+          <span style="font-size: 11px; font-weight: 800; color: #475569; display: block; margin-bottom: 6px; text-transform: uppercase;">Tariff Rate (₹ / kWh)</span>
+          <input type="number" step="0.1" id="rateEditInput" class="input-field" style="background: #F8FAFC; border: 1px solid #CBD5E1; color: #0F172A; font-size: 15px; font-weight: 800; padding: 10px; margin-top: 0;" placeholder="e.g. 17.0" />
         </div>
 
-        <div style="margin-bottom: 18px; background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 10px;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #E2E8F0; cursor: pointer; margin-bottom: 8px;">
-            <input type="radio" name="rateApplyScope" id="rateScopeSingle" value="single" checked style="accent-color: #3B82F6;" />
+        <div style="margin-bottom: 18px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer; margin-bottom: 8px;">
+            <input type="radio" name="rateApplyScope" id="rateScopeSingle" value="single" checked style="accent-color: #2563EB;" />
             <span>Apply only to this appliance</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #E2E8F0; cursor: pointer;">
-            <input type="radio" name="rateApplyScope" id="rateScopeAll" value="all" style="accent-color: #3B82F6;" />
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer;">
+            <input type="radio" name="rateApplyScope" id="rateScopeAll" value="all" style="accent-color: #2563EB;" />
             <span>Set as default for <strong>ALL</strong> factory appliances</span>
           </label>
         </div>
 
         <div style="display: flex; gap: 10px;">
-          <button class="action-btn" style="flex: 1; background: #334155; color: #E2E8F0; border: none; margin: 0;" onclick="closeRateEditor()">Cancel</button>
+          <button class="action-btn" style="flex: 1; background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; margin: 0;" onclick="closeRateEditor()">Cancel</button>
           <button class="action-btn blue" style="flex: 1.5; margin: 0;" onclick="saveRateEdit()">Save & Recompute</button>
         </div>
       </div>
@@ -5344,8 +5357,8 @@
       // 9. Reset What-If slider default
       const slider = document.getElementById('mcWhatIfSlider');
       if (slider) {
-        slider.value = '10';
-        onWhatIfSliderChange('10');
+        slider.value = '17';
+        onWhatIfSliderChange('17');
       }
     }
 
@@ -5358,7 +5371,7 @@
       legend.innerHTML = '';
 
       if (!devices || devices.length === 0 || totalCost <= 0) {
-        barWrapper.innerHTML = '<div style="width: 100%; height: 100%; background: #334155;"></div>';
+        barWrapper.innerHTML = '<div style="width: 100%; height: 100%; background: #E2E8F0;"></div>';
         legend.innerHTML = '<div style="color: #64748B;">No device energy recorded for this month.</div>';
         return;
       }
@@ -5446,8 +5459,8 @@
             {
               label: 'Cumulative Energy (kWh)',
               data: energyData,
-              borderColor: '#38BDF8',
-              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderColor: '#0284C7',
+              backgroundColor: 'rgba(2, 132, 199, 0.08)',
               borderWidth: 2.5,
               fill: true,
               tension: 0.35,
@@ -5456,7 +5469,7 @@
             {
               label: 'Cumulative Cost (₹)',
               data: costData,
-              borderColor: '#10B981',
+              borderColor: '#059669',
               backgroundColor: 'transparent',
               borderWidth: 2,
               borderDash: [5, 5],
@@ -5473,14 +5486,14 @@
           plugins: {
             legend: {
               display: true,
-              labels: { color: '#94A3B8', font: { size: 11, weight: '600' }, boxWidth: 12 }
+              labels: { color: '#475569', font: { size: 11, weight: '600' }, boxWidth: 12 }
             },
             tooltip: {
-              backgroundColor: '#0F172A',
-              borderColor: 'rgba(148, 163, 184, 0.3)',
+              backgroundColor: '#1E293B',
+              borderColor: 'rgba(0, 0, 0, 0.08)',
               borderWidth: 1,
-              titleColor: '#F8FAFC',
-              bodyColor: '#CBD5E1',
+              titleColor: '#FFFFFF',
+              bodyColor: '#E2E8F0',
               callbacks: {
                 label: function(ctx) {
                   const val = ctx.raw || 0;
@@ -5492,22 +5505,22 @@
           },
           scales: {
             x: {
-              grid: { color: 'rgba(148, 163, 184, 0.08)' },
+              grid: { color: 'rgba(0, 0, 0, 0.05)' },
               ticks: { color: '#64748B', font: { size: 10 } }
             },
             y: {
               type: 'linear',
               display: true,
               position: 'left',
-              grid: { color: 'rgba(148, 163, 184, 0.08)' },
-              ticks: { color: '#38BDF8', font: { size: 10 } }
+              grid: { color: 'rgba(0, 0, 0, 0.05)' },
+              ticks: { color: '#0284C7', font: { size: 10 } }
             },
             y1: {
               type: 'linear',
               display: true,
               position: 'right',
               grid: { drawOnChartArea: false },
-              ticks: { color: '#10B981', font: { size: 10 } }
+              ticks: { color: '#059669', font: { size: 10 } }
             }
           }
         }
@@ -5541,17 +5554,17 @@
         tr.innerHTML = `
           <td style="color: #64748B; font-weight: 800;">${idx + 1}</td>
           <td>
-            <div style="font-weight: 800; color: #FFFFFF; display: flex; align-items: center; gap: 6px;">
+            <div style="font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 6px;">
               <span>${icon}</span>
               <span>${d.device_name}</span>
             </div>
             <div style="font-size: 11px; color: #64748B;">${d.category}</div>
           </td>
           <td>
-            <div style="font-size: 11px; font-weight: 700; color: #94A3B8;">Sonoff POWR320D</div>
-            <div style="font-size: 10px; color: #475569; font-family: monospace;">${d.device_id}</div>
+            <div style="font-size: 11px; font-weight: 700; color: #475569;">Sonoff POWR320D</div>
+            <div style="font-size: 10px; color: #64748B; font-family: monospace;">${d.device_id}</div>
           </td>
-          <td style="text-align: right; font-weight: 800; color: #38BDF8;">
+          <td style="text-align: right; font-weight: 800; color: #0284C7;">
             ${d.energy_kwh.toFixed(3)} kWh
           </td>
           <td style="text-align: center;">
@@ -5559,20 +5572,21 @@
               ₹ ${d.billing_rate.toFixed(1)} ✏️
             </span>
           </td>
-          <td style="text-align: right; font-weight: 900; color: #34D399; font-size: 13px;">
+          <td style="text-align: right; font-weight: 900; color: #059669; font-size: 13px;">
             ₹ ${d.cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </td>
           <td style="text-align: center;">
             <div class="mc-progress-track">
               <div class="mc-progress-fill" style="width: ${pct}%; background: ${color};"></div>
             </div>
-            <span style="font-weight: 700; color: #E2E8F0; font-size: 11.5px;">${pct.toFixed(1)}%</span>
+            <span style="font-weight: 700; color: #1E293B; font-size: 11.5px;">${pct.toFixed(1)}%</span>
           </td>
-          <td style="text-align: right; color: #94A3B8;">
+          <td style="text-align: right; color: #475569; font-weight: 600;">
             ₹ ${d.daily_avg_cost.toFixed(2)}/d
           </td>
-          <td style="text-align: right; font-weight: 700; color: ${d.latest_power_w > 1.0 ? '#FBBF24' : '#64748B'};">
-            ${d.latest_power_w.toFixed(1)} W
+          <td style="text-align: right;">
+            <div style="font-weight: 800; color: ${d.latest_power_w > 1.0 ? '#D97706' : '#64748B'};">${d.latest_power_w.toFixed(1)} W</div>
+            <div style="font-size: 10px; color: #64748B; font-weight: 600;">${(d.current_a != null ? d.current_a : 0).toFixed(2)} A · ${(d.voltage_v != null ? d.voltage_v : 230).toFixed(0)} V</div>
           </td>
           <td style="text-align: center;">
             ${statusBadge}

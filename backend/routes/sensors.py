@@ -1340,18 +1340,18 @@ async def get_live_ewelink_power_telemetry() -> dict:
                 elif "switch" in params and params["switch"] is not None:
                     sw_state = str(params["switch"]).lower()
 
-                p_val = float(p_raw) / 100.0 if p_raw and float(p_raw) > 1000 else float(p_raw or 0)
-                v_val = float(v_raw) / 100.0 if v_raw and float(v_raw) > 1000 else float(v_raw or 0)
-                c_val = float(c_raw) / 100.0 if c_raw and float(c_raw) > 25 else float(c_raw or 0)
-                m_kwh = round(float(m_raw) / 100.0, 3) if m_raw else 0.0
-                d_kwh = round(float(d_raw) / 100.0, 3) if d_raw else 0.0
+                p_val = round(float(p_raw) / 100.0, 2) if p_raw is not None else 0.0
+                v_val = round(float(v_raw) / 100.0, 1) if v_raw is not None else 230.0
+                c_val = round(float(c_raw) / 100.0, 2) if c_raw is not None else 0.0
+                m_kwh = round(float(m_raw) / 100.0, 3) if m_raw is not None else 0.0
+                d_kwh = round(float(d_raw) / 100.0, 3) if d_raw is not None else 0.0
 
                 live_map[dev_id] = {
                     "month_kwh": m_kwh,
                     "today_kwh": d_kwh,
-                    "power_w": round(p_val, 1),
-                    "voltage_v": round(v_val, 1),
-                    "current_a": round(c_val, 3),
+                    "power_w": p_val,
+                    "voltage_v": v_val,
+                    "current_a": c_val,
                     "state": sw_state,
                     "online": item.get("online", True)
                 }
@@ -1383,6 +1383,19 @@ async def get_plugs_monthly_summary(month: Optional[str] = None, db: Session = D
     current_month_str = datetime.utcnow().strftime("%Y-%m")
     if current_month_str not in available_months:
         available_months.insert(0, current_month_str)
+
+    # Ensure all past 12 calendar months are selectable in the month dropdown
+    now_dt = datetime.utcnow()
+    for i in range(12):
+        m_idx = now_dt.month - i
+        y_idx = now_dt.year
+        while m_idx <= 0:
+            m_idx += 12
+            y_idx -= 1
+        m_cand = f"{y_idx:04d}-{m_idx:02d}"
+        if m_cand not in available_months:
+            available_months.append(m_cand)
+    available_months.sort(reverse=True)
 
     # 2. Determine target month and date boundaries (default to current month!)
     target_month = month.strip() if (month and month.strip()) else current_month_str
@@ -1460,6 +1473,8 @@ async def get_plugs_monthly_summary(month: Optional[str] = None, db: Session = D
         if live_data and live_data.get("month_kwh") is not None and live_data["month_kwh"] > 0:
             energy_kwh = float(live_data["month_kwh"])
             latest_power_w = float(live_data.get("power_w") or 0.0)
+            latest_voltage_v = float(live_data.get("voltage_v") or 230.0)
+            latest_current_a = float(live_data.get("current_a") or 0.0)
             status = "online" if live_data.get("online") and latest_power_w > 1.0 else ("idle" if live_data.get("online") else "offline")
 
             # Persist live record if latest DB record is older than 5 minutes
@@ -1510,6 +1525,8 @@ async def get_plugs_monthly_summary(month: Optional[str] = None, db: Session = D
             ).order_by(PlugTelemetry.timestamp.desc()).first()
 
             latest_power_w = float(latest_tel.apower or 0.0) if latest_tel else 0.0
+            latest_voltage_v = float(latest_tel.voltage or 230.0) if latest_tel and latest_tel.voltage else 230.0
+            latest_current_a = float(latest_tel.current or 0.0) if latest_tel and latest_tel.current else 0.0
             is_recent = latest_tel and (now_utc - latest_tel.timestamp).total_seconds() < 1800
             if is_recent and latest_power_w > 1.0:
                 status = "online"
@@ -1576,6 +1593,8 @@ async def get_plugs_monthly_summary(month: Optional[str] = None, db: Session = D
             "daily_avg_kwh": daily_avg_kwh,
             "daily_avg_cost": daily_avg_cost,
             "latest_power_w": round(latest_power_w, 1),
+            "voltage_v": round(latest_voltage_v, 1),
+            "current_a": round(latest_current_a, 2),
             "status": status,
             "mom_kwh_delta_pct": mom_kwh_delta_pct,
             "mom_cost_delta": mom_cost_delta

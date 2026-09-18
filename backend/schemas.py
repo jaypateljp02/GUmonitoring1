@@ -199,6 +199,8 @@ class MonthlyDeviceBreakdown(BaseModel):
     daily_avg_kwh: float
     daily_avg_cost: float
     latest_power_w: float
+    voltage_v: Optional[float] = None
+    current_a: Optional[float] = None
     status: str  # "online", "idle", "offline"
     mom_kwh_delta_pct: Optional[float] = None
     mom_cost_delta: Optional[float] = None
