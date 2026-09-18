@@ -386,6 +386,480 @@
     .modal-buttons button {
       flex: 1;
     }
+
+    /* ==========================================================================
+       SONOFF MONTHLY POWER & COST ANALYTICS SPACE (SLEEK FULL-SCREEN MODAL)
+       ========================================================================== */
+    .monthly-cost-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(11, 19, 41, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 1200;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 14px;
+      overflow-y: auto;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .monthly-cost-modal {
+      background: #0F172A;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 1100px;
+      margin: 10px auto 40px auto;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      color: #F8FAFC;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .monthly-cost-modal::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #3B82F6, #10B981, #8B5CF6, #F59E0B);
+    }
+    .mc-header {
+      padding: 22px 24px 16px 24px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .mc-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .mc-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mc-badge-sonoff {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60A5FA;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .mc-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .mc-month-picker {
+      display: flex;
+      align-items: center;
+      background: #1E293B;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 12px;
+      padding: 3px;
+    }
+    .mc-month-nav-btn {
+      background: transparent;
+      border: none;
+      color: #94A3B8;
+      font-size: 14px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .mc-month-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #FFFFFF;
+    }
+    .mc-month-select {
+      background: transparent;
+      border: none;
+      color: #F8FAFC;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 12px;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .mc-month-select option {
+      background: #0F172A;
+      color: #F8FAFC;
+    }
+    .mc-action-btn {
+      background: #1E293B;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: #E2E8F0;
+      padding: 7px 13px;
+      border-radius: 11px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .mc-action-btn:hover {
+      background: #334155;
+      color: #FFFFFF;
+      border-color: rgba(148, 163, 184, 0.4);
+    }
+    .mc-action-btn.green {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34D399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .mc-action-btn.green:hover {
+      background: rgba(16, 185, 129, 0.22);
+      color: #6EE7B7;
+    }
+    .mc-action-btn.blue {
+      background: rgba(37, 99, 235, 0.15);
+      color: #60A5FA;
+      border-color: rgba(37, 99, 235, 0.35);
+    }
+    .mc-action-btn.blue:hover {
+      background: rgba(37, 99, 235, 0.25);
+    }
+    .mc-close-btn {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #F87171;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .mc-close-btn:hover {
+      background: rgba(239, 68, 68, 0.22);
+      color: #FECACA;
+    }
+    .mc-content {
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    /* Toolbar / Tariff Strip */
+    .mc-tariff-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #182234;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      padding: 10px 16px;
+      border-radius: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .mc-tariff-info {
+      font-size: 13px;
+      color: #94A3B8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mc-tariff-val {
+      color: #38BDF8;
+      font-weight: 800;
+    }
+    /* Hero KPI Cards */
+    .mc-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .mc-kpi-card {
+      background: #182234;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 16px;
+      padding: 16px 18px;
+      position: relative;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .mc-kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+    .mc-kpi-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mc-kpi-value {
+      font-size: 26px;
+      font-weight: 900;
+      color: #F8FAFC;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    .mc-kpi-sub {
+      font-size: 11.5px;
+      color: #64748B;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .mc-badge-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .mc-badge-pill.green {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+    }
+    .mc-badge-pill.orange {
+      background: rgba(245, 158, 11, 0.15);
+      color: #FBBF24;
+    }
+    .mc-badge-pill.red {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+    }
+    /* Distribution Bar */
+    .mc-distribution-card {
+      background: #182234;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+    .mc-dist-bar-wrapper {
+      height: 18px;
+      border-radius: 9px;
+      overflow: hidden;
+      display: flex;
+      background: #334155;
+      margin: 10px 0 12px 0;
+    }
+    .mc-dist-segment {
+      height: 100%;
+      transition: width 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .mc-dist-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      font-size: 11.5px;
+    }
+    .mc-dist-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #CBD5E1;
+    }
+    .mc-dist-color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+    /* Categories Grid */
+    .mc-categories-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .mc-cat-card {
+      background: #182234;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .mc-cat-icon {
+      font-size: 26px;
+    }
+    .mc-cat-name {
+      font-size: 13px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+    .mc-cat-sub {
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 2px;
+    }
+    .mc-cat-cost {
+      margin-left: auto;
+      text-align: right;
+    }
+    .mc-cat-cost-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: #10B981;
+    }
+    .mc-cat-cost-pct {
+      font-size: 11px;
+      color: #64748B;
+    }
+    /* What-If Drawer */
+    .mc-whatif-drawer {
+      display: none;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px dashed rgba(59, 130, 246, 0.4);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 4px;
+      animation: fadeIn 0.2s ease-in;
+    }
+    .mc-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .mc-slider {
+      flex: 1;
+      accent-color: #38BDF8;
+      cursor: pointer;
+    }
+    /* Ledger Table */
+    .mc-table-card {
+      background: #182234;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 16px;
+      padding: 16px 18px;
+      overflow-x: auto;
+    }
+    .mc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      color: #E2E8F0;
+    }
+    .mc-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    }
+    .mc-table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      vertical-align: middle;
+    }
+    .mc-table tr:last-child td {
+      border-bottom: none;
+    }
+    .mc-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .mc-rate-pill {
+      background: rgba(56, 189, 248, 0.12);
+      color: #38BDF8;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 3px 8px;
+      border-radius: 7px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .mc-rate-pill:hover {
+      background: rgba(56, 189, 248, 0.25);
+      transform: scale(1.03);
+    }
+    .mc-progress-track {
+      width: 80px;
+      height: 6px;
+      background: #334155;
+      border-radius: 3px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .mc-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3B82F6, #10B981);
+      border-radius: 3px;
+    }
+    /* Rate Edit Mini Modal */
+    .mc-rate-edit-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 1300;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+    .mc-rate-edit-content {
+      background: #1E293B;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 18px;
+      padding: 22px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      color: #F8FAFC;
+    }
+    /* Insights Card */
+    .mc-insights-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 14px;
+      padding: 14px 18px;
+    }
+    .mc-insights-list {
+      margin: 8px 0 0 16px;
+      font-size: 12px;
+      color: #CBD5E1;
+      line-height: 1.6;
+    }
+    @media (max-width: 900px) {
+      .mc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .mc-categories-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .mc-kpi-grid { grid-template-columns: 1fr; }
+      .mc-header { flex-direction: column; align-items: flex-start; }
+    }
+
     @media (max-width: 600px) {
       .map-view {
         aspect-ratio: 1 / 1.693 !important;
@@ -739,9 +1213,14 @@
 
     <!-- Plugs Section -->
     <div id="tapoPlugsWrapper" style="display: none; margin-bottom: 20px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div class="section-title" style="margin-bottom: 0;">Plugs Dashboard</div>
-        <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 6px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Plug</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div class="section-title" style="margin-bottom: 0;">Sonoff Plugs Dashboard</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="btnMonthlyCostOverview" class="action-btn" onclick="openMonthlyCostModal()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); color: #FFF; font-weight: 800; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12px; border: none; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+            <span class="material-icons" style="font-size: 15px;">insights</span> 📊 Monthly Energy & Cost
+          </button>
+          <button id="addTapoPlugBtn" class="action-btn blue" style="margin-bottom: 0; padding: 7px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; display: inline-block;" onclick="openAddTapoModal()">+ Add Plug</button>
+        </div>
       </div>
       <div id="tapoPlugsList"></div>
     </div>
@@ -845,6 +1324,225 @@
         <div style="display: flex; gap: 8px;">
           <button class="action-btn" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; margin-bottom: 0; flex: 1;" onclick="closeWhatsappGroupsModal()">Cancel</button>
           <button class="action-btn green" style="margin-bottom: 0; flex: 1.5; background: #059669; color: white;" onclick="saveWhatsappGroups()">Save Alert Groups</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================
+         SONOFF MONTHLY POWER & ELECTRICITY COST MODAL (SLEEK FULL-SCREEN SPACE)
+         ======================================================================== -->
+    <div id="monthlyCostModal" class="monthly-cost-overlay">
+      <div class="monthly-cost-modal">
+        <!-- HEADER -->
+        <div class="mc-header">
+          <div class="mc-title-group">
+            <div class="mc-title">
+              ⚡ Sonoff Factory Power & Cost Analytics
+            </div>
+            <span class="mc-badge-sonoff">Sonoff POWR320D</span>
+          </div>
+          <div class="mc-controls">
+            <!-- Month Picker -->
+            <div class="mc-month-picker">
+              <button class="mc-month-nav-btn" onclick="navigateMonth(-1)" title="Previous Month">◀</button>
+              <select id="mcMonthSelect" class="mc-month-select" onchange="onSelectMonthChange(this)">
+                <option value="">Loading months...</option>
+              </select>
+              <button class="mc-month-nav-btn" onclick="navigateMonth(1)" title="Next Month">▶</button>
+            </div>
+            <!-- What-If Toggle -->
+            <button class="mc-action-btn" id="btnWhatIfToggle" onclick="toggleWhatIfSimulator()" title="Simulate Tariff Increases">
+              🔮 What-If
+            </button>
+            <!-- Export CSV -->
+            <button class="mc-action-btn blue" onclick="exportCurrentMonthCsv()" title="Download CSV Report">
+              <span class="material-icons" style="font-size: 15px;">download</span> CSV
+            </button>
+            <!-- Send WhatsApp -->
+            <button class="mc-action-btn green" onclick="sendMonthlyWhatsApp()" title="Send Report to WhatsApp">
+              <span class="material-icons" style="font-size: 15px;">send</span> WhatsApp
+            </button>
+            <!-- Close -->
+            <button class="mc-close-btn" onclick="closeMonthlyCostModal()" title="Close">✕</button>
+          </div>
+        </div>
+
+        <!-- WHAT-IF SIMULATOR DRAWER -->
+        <div id="mcWhatIfDrawer" class="mc-whatif-drawer">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 6px;">
+              🔮 Electricity Tariff Stress-Test Simulator
+            </div>
+            <div style="font-size: 12px; color: #94A3B8;">
+              Simulated Tariff: <span id="mcSimulatedRateDisplay" style="color: #F8FAFC; font-weight: 800; font-size: 14px;">₹ 10.00</span> / kWh
+            </div>
+          </div>
+          <div class="mc-slider-row">
+            <span style="font-size: 11px; color: #64748B;">₹ 5</span>
+            <input type="range" min="5" max="30" step="0.5" value="10" id="mcWhatIfSlider" class="mc-slider" oninput="onWhatIfSliderChange(this.value)" />
+            <span style="font-size: 11px; color: #64748B;">₹ 30</span>
+            <div style="font-size: 12px; font-weight: 700; color: #F8FAFC; min-width: 140px; text-align: right;">
+              Simulated Total: <span id="mcSimulatedTotalDisplay" style="color: #34D399; font-weight: 900;">₹ --</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- BODY CONTENT -->
+        <div class="mc-content">
+          <!-- TARIFF STRIP -->
+          <div class="mc-tariff-strip">
+            <div class="mc-tariff-info">
+              <span class="material-icons" style="font-size: 16px; color: #38BDF8;">bolt</span>
+              Standard Factory Tariff: <span class="mc-tariff-val" id="mcDefaultTariffDisplay">₹ 10.00 / kWh</span>
+              <span style="font-size: 11px; color: #64748B;">(MSEDCL commercial rate)</span>
+            </div>
+            <button class="mc-action-btn" onclick="openRateEditor(null, 'All Appliances (Factory Default)', 10.0)" style="font-size: 11px; padding: 5px 10px;">
+              ✏️ Edit Factory Tariff
+            </button>
+          </div>
+
+          <!-- 4 HERO KPI CARDS -->
+          <div class="mc-kpi-grid">
+            <!-- 1. Total Bill -->
+            <div class="mc-kpi-card">
+              <div class="mc-kpi-label">
+                <span>Total Electricity Bill</span>
+                <span id="mcMoMBadge" class="mc-badge-pill green">--</span>
+              </div>
+              <div class="mc-kpi-value" id="mcTotalBill" style="color: #34D399;">₹ --</div>
+              <div class="mc-kpi-sub" id="mcPrevMonthSub">vs Previous Month: --</div>
+            </div>
+
+            <!-- 2. Total Energy -->
+            <div class="mc-kpi-card">
+              <div class="mc-kpi-label">
+                <span>Total Energy Consumed</span>
+                <span class="material-icons" style="font-size: 14px; color: #38BDF8;">electric_meter</span>
+              </div>
+              <div class="mc-kpi-value" id="mcTotalEnergy">-- kWh</div>
+              <div class="mc-kpi-sub" id="mcDailyAvgSub">Daily Avg: -- kWh/day</div>
+            </div>
+
+            <!-- 3. Projected Month-End -->
+            <div class="mc-kpi-card">
+              <div class="mc-kpi-label">
+                <span>Projected Month-End</span>
+                <span class="material-icons" style="font-size: 14px; color: #F59E0B;">trending_up</span>
+              </div>
+              <div class="mc-kpi-value" id="mcProjectedBill" style="color: #FBBF24;">₹ --</div>
+              <div class="mc-kpi-sub" id="mcProjectionSub">Based on daily run rate</div>
+            </div>
+
+            <!-- 4. Combined Live Power Load -->
+            <div class="mc-kpi-card">
+              <div class="mc-kpi-label">
+                <span>Live Factory Load</span>
+                <span id="mcLiveActiveBadge" class="mc-badge-pill green">-- Online</span>
+              </div>
+              <div class="mc-kpi-value" id="mcLiveLoad">-- W</div>
+              <div class="mc-kpi-sub" id="mcLiveLoadSub">Real-time combined active draw</div>
+            </div>
+          </div>
+
+          <!-- PROPORTIONAL LOAD DISTRIBUTION BAR -->
+          <div class="mc-distribution-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;">Factory Load Distribution (%)</span>
+              <span style="font-size: 11px; color: #64748B;">Proportional share of total electricity expense</span>
+            </div>
+            <div class="mc-dist-bar-wrapper" id="mcDistBarWrapper"></div>
+            <div class="mc-dist-legend" id="mcDistLegend"></div>
+          </div>
+
+          <!-- CATEGORY ROLL-UP CARDS -->
+          <div class="mc-categories-grid" id="mcCategoriesGrid"></div>
+
+          <!-- DAILY CUMULATIVE GROWTH CHART -->
+          <div class="mc-distribution-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 12px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;">Daily Power & Cost Growth</span>
+              <span style="font-size: 11px; color: #64748B;">Cumulative progression through the month</span>
+            </div>
+            <div style="height: 180px; position: relative;">
+              <canvas id="mcDailyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- RANKED DEVICE LEDGER TABLE -->
+          <div class="mc-table-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <span style="font-size: 13px; font-weight: 800; color: #FFFFFF;">📋 Individual Appliance Ledger</span>
+                <span style="font-size: 11.5px; color: #64748B; margin-left: 8px;">(Ranked by Power & Cost)</span>
+              </div>
+              <div style="font-size: 11px; color: #38BDF8;">
+                💡 Tip: Click any <strong>₹ / kWh</strong> badge to adjust tariff rate
+              </div>
+            </div>
+            <table class="mc-table">
+              <thead>
+                <tr>
+                  <th style="width: 36px;">#</th>
+                  <th>Appliance / Room</th>
+                  <th>Hardware & ID</th>
+                  <th style="text-align: right;">Monthly Energy</th>
+                  <th style="text-align: center;">Tariff Rate</th>
+                  <th style="text-align: right;">Total Cost</th>
+                  <th style="text-align: center;">Share of Bill</th>
+                  <th style="text-align: right;">Daily Avg</th>
+                  <th style="text-align: right;">Live Load</th>
+                  <th style="text-align: center;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="mcDeviceTableBody">
+                <tr><td colspan="10" style="text-align: center; color: #64748B; padding: 20px;">Loading devices...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- SMART INSIGHTS & ANOMALIES -->
+          <div class="mc-insights-card">
+            <div style="font-size: 13px; font-weight: 800; color: #F59E0B; display: flex; align-items: center; gap: 6px;">
+              <span class="material-icons" style="font-size: 16px;">lightbulb</span> Automated Power Insights & Anomaly Alerts
+            </div>
+            <ul class="mc-insights-list" id="mcInsightsList">
+              <li>Analyzing telemetry patterns...</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RATE EDIT QUICK MODAL -->
+    <div id="rateEditModal" class="mc-rate-edit-modal">
+      <div class="mc-rate-edit-content">
+        <div style="font-size: 16px; font-weight: 800; color: #FFFFFF; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          ⚙️ Edit Electricity Tariff
+        </div>
+        <div style="font-size: 12px; color: #94A3B8; margin-bottom: 14px;" id="rateEditDeviceName">
+          Updating rate for appliance
+        </div>
+        <input type="hidden" id="rateEditDeviceId" />
+        
+        <div style="margin-bottom: 14px;">
+          <span style="font-size: 11px; font-weight: 800; color: #CBD5E1; display: block; margin-bottom: 6px; text-transform: uppercase;">Tariff Rate (₹ / kWh)</span>
+          <input type="number" step="0.1" id="rateEditInput" class="input-field" style="background: #0F172A; border-color: #334155; color: #FFF; font-size: 15px; font-weight: 800; padding: 10px; margin-top: 0;" placeholder="e.g. 10.0" />
+        </div>
+
+        <div style="margin-bottom: 18px; background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 10px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #E2E8F0; cursor: pointer; margin-bottom: 8px;">
+            <input type="radio" name="rateApplyScope" id="rateScopeSingle" value="single" checked style="accent-color: #3B82F6;" />
+            <span>Apply only to this appliance</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #E2E8F0; cursor: pointer;">
+            <input type="radio" name="rateApplyScope" id="rateScopeAll" value="all" style="accent-color: #3B82F6;" />
+            <span>Set as default for <strong>ALL</strong> factory appliances</span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button class="action-btn" style="flex: 1; background: #334155; color: #E2E8F0; border: none; margin: 0;" onclick="closeRateEditor()">Cancel</button>
+          <button class="action-btn blue" style="flex: 1.5; margin: 0;" onclick="saveRateEdit()">Save & Recompute</button>
         </div>
       </div>
     </div>
@@ -2915,7 +3613,8 @@
       if (freezerSensor && freezerSensor.min_threshold !== null && liveData[freezerSensor.device_id] && parseFloat(liveData[freezerSensor.device_id].temperature) < freezerSensor.min_threshold) isAlert = true;
       if (freezerSensor && freezerSensor.max_threshold !== null && liveData[freezerSensor.device_id] && parseFloat(liveData[freezerSensor.device_id].temperature) > freezerSensor.max_threshold) isAlert = true;
 
-      if (room.under_maintenance) {
+      const isRoomUnderMaint = room.is_under_maintenance || room.under_maintenance || false;
+      if (isRoomUnderMaint) {
         badgeClass = 'badge-maintenance';
         badgeText = '🧹 CLEANING';
         cardClass = 'sensor-card maintenance-border';
@@ -3951,9 +4650,10 @@
         `;
       }
       
+      const isMaintActive = room.is_under_maintenance || room.under_maintenance || false;
       const maintenanceBtnHtml = `
-        <button onclick="toggleMaintenance('${room.id}', ${room.under_maintenance || false})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${room.under_maintenance ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-          ${room.under_maintenance ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
+        <button onclick="toggleMaintenance('${room.id}', ${isMaintActive})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${isMaintActive ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+          ${isMaintActive ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
         </button>
       `;
 
@@ -4040,9 +4740,10 @@
             </div>
           `;
         }
+        const isCurrRoomMaint = currentRoomObj.is_under_maintenance || currentRoomObj.under_maintenance || false;
         const maintenanceBtnHtml = `
-          <button onclick="toggleMaintenance('${currentRoomObj.id}', ${currentRoomObj.under_maintenance || false})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${currentRoomObj.under_maintenance ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-            ${currentRoomObj.under_maintenance ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
+          <button onclick="toggleMaintenance('${currentRoomObj.id}', ${isCurrRoomMaint})" class="action-btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11.5px; border-radius: 6px; font-weight: 800; background: ${isCurrRoomMaint ? '#ef4444' : '#8b5cf6'}; color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+            ${isCurrRoomMaint ? '🧹 Stop Cleaning' : '🧼 Start Cleaning'}
           </button>
         `;
 
@@ -4464,6 +5165,566 @@
         detailPlugToggling = false;
         btn.disabled = false;
         await pollDetail();
+      }
+    }
+
+    // ==========================================================================
+    // SONOFF MONTHLY POWER & ELECTRICITY COST ANALYTICS CONTROLLER
+    // ==========================================================================
+    let currentMonthlyData = null;
+    let mcDailyChartInstance = null;
+    let isWhatIfActive = false;
+    let selectedMonthlyCostMonth = '';
+    const MC_DEVICE_COLORS = [
+      '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', 
+      '#06B6D4', '#EAB308', '#6366F1', '#14B8A6', '#F97316'
+    ];
+
+    async function openMonthlyCostModal(month = '') {
+      const modal = document.getElementById('monthlyCostModal');
+      if (modal) modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      isWhatIfActive = false;
+      const drawer = document.getElementById('mcWhatIfDrawer');
+      if (drawer) drawer.style.display = 'none';
+      await fetchAndRenderMonthlyCost(month);
+    }
+
+    function closeMonthlyCostModal() {
+      const modal = document.getElementById('monthlyCostModal');
+      if (modal) modal.style.display = 'none';
+      document.body.style.overflow = '';
+      if (mcDailyChartInstance) {
+        mcDailyChartInstance.destroy();
+        mcDailyChartInstance = null;
+      }
+    }
+
+    async function navigateMonth(dir) {
+      if (!currentMonthlyData || !currentMonthlyData.available_months) return;
+      const months = currentMonthlyData.available_months;
+      const currIdx = months.indexOf(currentMonthlyData.selected_month);
+      if (currIdx === -1) return;
+      
+      // months is sorted desc (e.g. ['2026-09', '2026-08', '2026-07'])
+      // dir -1 means previous (older) month -> index + 1
+      // dir +1 means next (newer) month -> index - 1
+      const newIdx = dir < 0 ? currIdx + 1 : currIdx - 1;
+      if (newIdx >= 0 && newIdx < months.length) {
+        await fetchAndRenderMonthlyCost(months[newIdx]);
+      }
+    }
+
+    async function onSelectMonthChange(selectEl) {
+      if (selectEl && selectEl.value) {
+        await fetchAndRenderMonthlyCost(selectEl.value);
+      }
+    }
+
+    async function fetchAndRenderMonthlyCost(month = '') {
+      try {
+        const tableBody = document.getElementById('mcDeviceTableBody');
+        if (tableBody) {
+          tableBody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #94A3B8; padding: 24px;">🔄 Fetching Sonoff power telemetry & billing records...</td></tr>';
+        }
+
+        const url = `${API}/sensors/plugs/monthly-summary${month ? `?month=${encodeURIComponent(month)}` : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: Failed to load monthly summary.`);
+        }
+        const data = await res.json();
+        currentMonthlyData = data;
+        renderMonthlyCostUI(data);
+      } catch (err) {
+        console.error('Error fetching monthly cost data:', err);
+        const tableBody = document.getElementById('mcDeviceTableBody');
+        if (tableBody) {
+          tableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #F87171; padding: 24px;">⚠️ Error loading monthly cost data: ${err.message}</td></tr>`;
+        }
+      }
+    }
+
+    function renderMonthlyCostUI(data) {
+      if (!data) return;
+
+      // 1. Populate Month Dropdown
+      const select = document.getElementById('mcMonthSelect');
+      if (select && data.available_months) {
+        select.innerHTML = '';
+        data.available_months.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          const isCurr = (m === data.selected_month);
+          opt.textContent = `${m}${isCurr && data.is_current_month ? ' (Current)' : ''}`;
+          if (m === data.selected_month) opt.selected = true;
+          select.appendChild(opt);
+        });
+      }
+
+      // 2. Populate 4 Hero KPI Cards
+      const totalBillEl = document.getElementById('mcTotalBill');
+      if (totalBillEl) {
+        totalBillEl.textContent = `₹ ${data.summary.total_cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
+      const momBadge = document.getElementById('mcMoMBadge');
+      if (momBadge) {
+        if (data.summary.mom_cost_change_pct !== null && data.summary.mom_cost_change_pct !== undefined) {
+          const isUp = data.summary.mom_cost_change_pct > 0;
+          momBadge.textContent = `${isUp ? '▲ +' : '▼ '}${Math.abs(data.summary.mom_cost_change_pct)}%`;
+          momBadge.className = `mc-badge-pill ${isUp ? 'orange' : 'green'}`;
+        } else {
+          momBadge.textContent = 'Active Baseline';
+          momBadge.className = 'mc-badge-pill green';
+        }
+      }
+
+      const prevSub = document.getElementById('mcPrevMonthSub');
+      if (prevSub) {
+        prevSub.textContent = data.summary.prev_month_cost 
+          ? `vs Prev Month: ₹ ${data.summary.prev_month_cost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` 
+          : 'First recorded billing cycle';
+      }
+
+      const energyEl = document.getElementById('mcTotalEnergy');
+      if (energyEl) {
+        energyEl.textContent = `${data.summary.total_energy_kwh.toFixed(2)} kWh`;
+      }
+
+      const dailyAvgSub = document.getElementById('mcDailyAvgSub');
+      if (dailyAvgSub) {
+        dailyAvgSub.textContent = `Daily Avg: ${data.summary.daily_avg_kwh.toFixed(2)} kWh/day (₹ ${data.summary.daily_avg_cost.toFixed(2)})`;
+      }
+
+      const projBillEl = document.getElementById('mcProjectedBill');
+      if (projBillEl) {
+        projBillEl.textContent = `₹ ${data.summary.projected_month_end_cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
+      const projSub = document.getElementById('mcProjectionSub');
+      if (projSub) {
+        projSub.textContent = data.is_current_month ? 'Pro-rated 30-day run rate projection' : 'Billing month finalized';
+      }
+
+      const liveLoadEl = document.getElementById('mcLiveLoad');
+      if (liveLoadEl) {
+        liveLoadEl.textContent = `${data.summary.combined_live_power_w.toFixed(1)} W`;
+      }
+
+      const liveBadge = document.getElementById('mcLiveActiveBadge');
+      if (liveBadge) {
+        liveBadge.textContent = `${data.summary.active_device_count} of ${data.summary.device_count} Active`;
+      }
+
+      // 3. Tariff Strip default
+      const tariffVal = document.getElementById('mcDefaultTariffDisplay');
+      if (tariffVal) {
+        const avgRate = data.summary.total_energy_kwh > 0 
+          ? (data.summary.total_cost / data.summary.total_energy_kwh) 
+          : 10.0;
+        tariffVal.textContent = `₹ ${avgRate.toFixed(2)} / kWh`;
+      }
+
+      // 4. Proportional Load Distribution Bar
+      renderMonthlyDistributionBar(data.devices, data.summary.total_cost);
+
+      // 5. Category Roll-up Cards
+      renderMonthlyCategories(data.categories);
+
+      // 6. Daily Cumulative Growth Chart
+      renderMonthlyTrendsChart(data.daily_trends, data.month_name);
+
+      // 7. Device Ledger Table
+      renderMonthlyDeviceTable(data.devices, data.summary.total_cost);
+
+      // 8. Automated Insights
+      renderMonthlyInsights(data.insights);
+
+      // 9. Reset What-If slider default
+      const slider = document.getElementById('mcWhatIfSlider');
+      if (slider) {
+        slider.value = '10';
+        onWhatIfSliderChange('10');
+      }
+    }
+
+    function renderMonthlyDistributionBar(devices, totalCost) {
+      const barWrapper = document.getElementById('mcDistBarWrapper');
+      const legend = document.getElementById('mcDistLegend');
+      if (!barWrapper || !legend) return;
+
+      barWrapper.innerHTML = '';
+      legend.innerHTML = '';
+
+      if (!devices || devices.length === 0 || totalCost <= 0) {
+        barWrapper.innerHTML = '<div style="width: 100%; height: 100%; background: #334155;"></div>';
+        legend.innerHTML = '<div style="color: #64748B;">No device energy recorded for this month.</div>';
+        return;
+      }
+
+      devices.forEach((d, idx) => {
+        const color = MC_DEVICE_COLORS[idx % MC_DEVICE_COLORS.length];
+        const pct = d.cost_percentage || 0;
+        if (pct > 0) {
+          const seg = document.createElement('div');
+          seg.className = 'mc-dist-segment';
+          seg.style.width = `${pct}%`;
+          seg.style.backgroundColor = color;
+          seg.title = `${d.device_name}: ₹ ${d.cost.toFixed(2)} (${pct.toFixed(1)}%)`;
+          barWrapper.appendChild(seg);
+
+          const legItem = document.createElement('div');
+          legItem.className = 'mc-dist-item';
+          legItem.innerHTML = `
+            <span class="mc-dist-color-dot" style="background: ${color};"></span>
+            <span><strong>${d.device_name}</strong> (${pct.toFixed(1)}% · ₹ ${d.cost.toFixed(0)})</span>
+          `;
+          legend.appendChild(legItem);
+        }
+      });
+    }
+
+    function renderMonthlyCategories(categories) {
+      const grid = document.getElementById('mcCategoriesGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      if (!categories || categories.length === 0) return;
+
+      const icons = {
+        'Freezer': '🧊',
+        'Fridge': '❄️',
+        'Fermentation': '🍶',
+        'General': '⚡'
+      };
+
+      categories.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'mc-cat-card';
+        const icon = icons[cat.category] || '🔌';
+        card.innerHTML = `
+          <div class="mc-cat-icon">${icon}</div>
+          <div>
+            <div class="mc-cat-name">${cat.category} Cold Storage</div>
+            <div class="mc-cat-sub">${cat.device_count} appliance(s) · ${cat.energy_kwh.toFixed(1)} kWh</div>
+          </div>
+          <div class="mc-cat-cost">
+            <div class="mc-cat-cost-val">₹ ${cat.cost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            <div class="mc-cat-cost-pct">${cat.percentage.toFixed(1)}% of total bill</div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderMonthlyTrendsChart(trends, monthName) {
+      const canvas = document.getElementById('mcDailyChart');
+      if (!canvas) return;
+
+      if (mcDailyChartInstance) {
+        mcDailyChartInstance.destroy();
+        mcDailyChartInstance = null;
+      }
+
+      if (!trends || trends.length === 0) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+      }
+
+      const labels = trends.map(t => `Day ${t.day}`);
+      const energyData = trends.map(t => t.cumulative_kwh);
+      const costData = trends.map(t => t.cumulative_cost);
+
+      const ctx = canvas.getContext('2d');
+      mcDailyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Cumulative Energy (kWh)',
+              data: energyData,
+              borderColor: '#38BDF8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.35,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Cumulative Cost (₹)',
+              data: costData,
+              borderColor: '#10B981',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.35,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color: '#94A3B8', font: { size: 11, weight: '600' }, boxWidth: 12 }
+            },
+            tooltip: {
+              backgroundColor: '#0F172A',
+              borderColor: 'rgba(148, 163, 184, 0.3)',
+              borderWidth: 1,
+              titleColor: '#F8FAFC',
+              bodyColor: '#CBD5E1',
+              callbacks: {
+                label: function(ctx) {
+                  const val = ctx.raw || 0;
+                  if (ctx.datasetIndex === 0) return ` Energy: ${val.toFixed(2)} kWh`;
+                  return ` Cost: ₹ ${val.toFixed(2)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(148, 163, 184, 0.08)' },
+              ticks: { color: '#64748B', font: { size: 10 } }
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              grid: { color: 'rgba(148, 163, 184, 0.08)' },
+              ticks: { color: '#38BDF8', font: { size: 10 } }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#10B981', font: { size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    function renderMonthlyDeviceTable(devices, totalCost) {
+      const tableBody = document.getElementById('mcDeviceTableBody');
+      if (!tableBody) return;
+      tableBody.innerHTML = '';
+
+      if (!devices || devices.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #64748B; padding: 20px;">No plug devices found.</td></tr>';
+        return;
+      }
+
+      devices.forEach((d, idx) => {
+        const tr = document.createElement('tr');
+        const color = MC_DEVICE_COLORS[idx % MC_DEVICE_COLORS.length];
+        const pct = d.cost_percentage || 0;
+
+        let statusBadge = '<span class="mc-badge-pill red">Offline</span>';
+        if (d.status === 'online') {
+          statusBadge = '<span class="mc-badge-pill green">🟢 Live</span>';
+        } else if (d.status === 'idle') {
+          statusBadge = '<span class="mc-badge-pill orange">⚪ Idle</span>';
+        }
+
+        const icon = d.category === 'Freezer' ? '🧊' : (d.category === 'Fermentation' ? '🍶' : '❄️');
+
+        tr.innerHTML = `
+          <td style="color: #64748B; font-weight: 800;">${idx + 1}</td>
+          <td>
+            <div style="font-weight: 800; color: #FFFFFF; display: flex; align-items: center; gap: 6px;">
+              <span>${icon}</span>
+              <span>${d.device_name}</span>
+            </div>
+            <div style="font-size: 11px; color: #64748B;">${d.category}</div>
+          </td>
+          <td>
+            <div style="font-size: 11px; font-weight: 700; color: #94A3B8;">Sonoff POWR320D</div>
+            <div style="font-size: 10px; color: #475569; font-family: monospace;">${d.device_id}</div>
+          </td>
+          <td style="text-align: right; font-weight: 800; color: #38BDF8;">
+            ${d.energy_kwh.toFixed(3)} kWh
+          </td>
+          <td style="text-align: center;">
+            <span class="mc-rate-pill" onclick="openRateEditor('${d.device_id}', '${d.device_name.replace(/'/g, "\\'")}', ${d.billing_rate})" title="Click to edit tariff rate">
+              ₹ ${d.billing_rate.toFixed(1)} ✏️
+            </span>
+          </td>
+          <td style="text-align: right; font-weight: 900; color: #34D399; font-size: 13px;">
+            ₹ ${d.cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </td>
+          <td style="text-align: center;">
+            <div class="mc-progress-track">
+              <div class="mc-progress-fill" style="width: ${pct}%; background: ${color};"></div>
+            </div>
+            <span style="font-weight: 700; color: #E2E8F0; font-size: 11.5px;">${pct.toFixed(1)}%</span>
+          </td>
+          <td style="text-align: right; color: #94A3B8;">
+            ₹ ${d.daily_avg_cost.toFixed(2)}/d
+          </td>
+          <td style="text-align: right; font-weight: 700; color: ${d.latest_power_w > 1.0 ? '#FBBF24' : '#64748B'};">
+            ${d.latest_power_w.toFixed(1)} W
+          </td>
+          <td style="text-align: center;">
+            ${statusBadge}
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    function renderMonthlyInsights(insights) {
+      const list = document.getElementById('mcInsightsList');
+      if (!list) return;
+      list.innerHTML = '';
+
+      if (!insights || insights.length === 0) {
+        list.innerHTML = '<li>All power readings and cycle variations are within normal operating thresholds.</li>';
+        return;
+      }
+
+      insights.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        list.appendChild(li);
+      });
+    }
+
+    function toggleWhatIfSimulator() {
+      const drawer = document.getElementById('mcWhatIfDrawer');
+      const btn = document.getElementById('btnWhatIfToggle');
+      if (!drawer) return;
+
+      isWhatIfActive = !isWhatIfActive;
+      drawer.style.display = isWhatIfActive ? 'block' : 'none';
+      if (btn) {
+        btn.style.background = isWhatIfActive ? 'rgba(56, 189, 248, 0.25)' : '#1E293B';
+        btn.style.borderColor = isWhatIfActive ? '#38BDF8' : 'rgba(148, 163, 184, 0.2)';
+      }
+    }
+
+    function onWhatIfSliderChange(rateVal) {
+      const rate = parseFloat(rateVal) || 10.0;
+      const rateDisplay = document.getElementById('mcSimulatedRateDisplay');
+      if (rateDisplay) rateDisplay.textContent = `₹ ${rate.toFixed(2)}`;
+
+      if (!currentMonthlyData || !currentMonthlyData.devices) return;
+
+      let simulatedTotal = 0.0;
+      currentMonthlyData.devices.forEach(d => {
+        simulatedTotal += d.energy_kwh * rate;
+      });
+
+      const totalDisplay = document.getElementById('mcSimulatedTotalDisplay');
+      if (totalDisplay) {
+        totalDisplay.textContent = `₹ ${simulatedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
+      const mainTotalEl = document.getElementById('mcTotalBill');
+      if (mainTotalEl) {
+        mainTotalEl.textContent = `₹ ${simulatedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    }
+
+    function openRateEditor(deviceId, devName, currentRate) {
+      const modal = document.getElementById('rateEditModal');
+      const nameEl = document.getElementById('rateEditDeviceName');
+      const idInput = document.getElementById('rateEditDeviceId');
+      const rateInput = document.getElementById('rateEditInput');
+      const scopeSingle = document.getElementById('rateScopeSingle');
+      const scopeAll = document.getElementById('rateScopeAll');
+
+      if (idInput) idInput.value = deviceId || '';
+      if (nameEl) nameEl.textContent = `Appliance: ${devName || 'All Factory Appliances'}`;
+      if (rateInput) rateInput.value = currentRate || '10.0';
+
+      if (!deviceId) {
+        if (scopeAll) scopeAll.checked = true;
+      } else {
+        if (scopeSingle) scopeSingle.checked = true;
+      }
+
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeRateEditor() {
+      const modal = document.getElementById('rateEditModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function saveRateEdit() {
+      const rateInput = document.getElementById('rateEditInput');
+      const idInput = document.getElementById('rateEditDeviceId');
+      const scopeAll = document.getElementById('rateScopeAll');
+
+      const rateVal = parseFloat(rateInput?.value);
+      if (isNaN(rateVal) || rateVal <= 0) {
+        alert('Please enter a valid tariff rate greater than 0.');
+        return;
+      }
+
+      const applyToAll = scopeAll ? scopeAll.checked : false;
+      const deviceId = idInput?.value || null;
+
+      try {
+        const payload = {
+          device_id: applyToAll ? null : deviceId,
+          billing_rate: rateVal,
+          apply_to_all: applyToAll
+        };
+
+        const res = await fetch(`${API}/sensors/plugs/billing-rate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to update billing rate.');
+        }
+
+        closeRateEditor();
+        // Re-fetch and re-render with updated rate!
+        await fetchAndRenderMonthlyCost(currentMonthlyData?.selected_month || '');
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    }
+
+    function exportCurrentMonthCsv() {
+      const month = currentMonthlyData?.selected_month || '';
+      window.open(`${API}/sensors/plugs/monthly-summary/export?month=${encodeURIComponent(month)}`, '_blank');
+    }
+
+    async function sendMonthlyWhatsApp() {
+      if (!currentMonthlyData) return;
+      const monthName = currentMonthlyData.month_name || currentMonthlyData.selected_month;
+      const confirmSend = confirm(`Send monthly power & electricity cost report for ${monthName} to factory WhatsApp recipients?`);
+      if (!confirmSend) return;
+
+      try {
+        const res = await fetch(`${API}/sensors/plugs/monthly-summary/whatsapp?month=${encodeURIComponent(currentMonthlyData.selected_month)}`, {
+          method: 'POST'
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert(`✅ ${json.message}`);
+        } else {
+          // Open WhatsApp link as fallback
+          if (json.wa_link) window.open(json.wa_link, '_blank');
+        }
+      } catch (err) {
+        alert(`Failed to send WhatsApp message: ${err.message}`);
       }
     }
 

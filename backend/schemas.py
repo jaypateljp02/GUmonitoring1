@@ -181,3 +181,71 @@ class LoginResponse(BaseModel):
     access_token: str
     user: UserResponseModel
 
+# --- Sonoff Monthly Energy & Cost Analytics Schemas ---
+
+class MonthlyDeviceBreakdown(BaseModel):
+    device_id: str
+    device_name: str
+    sensor_name: Optional[str] = None
+    room_id: Optional[str] = None
+    room_name: str
+    category: str  # "Freezer", "Fridge", "Fermentation", "General"
+    hardware_model: str = "Sonoff POWR320D"
+    billing_rate: float
+    energy_kwh: float
+    cost: float
+    cost_percentage: float
+    energy_percentage: float
+    daily_avg_kwh: float
+    daily_avg_cost: float
+    latest_power_w: float
+    status: str  # "online", "idle", "offline"
+    mom_kwh_delta_pct: Optional[float] = None
+    mom_cost_delta: Optional[float] = None
+
+class MonthlyCategoryRollup(BaseModel):
+    category: str
+    device_count: int
+    energy_kwh: float
+    cost: float
+    percentage: float
+
+class DailyTrendPoint(BaseModel):
+    day: str
+    date: str
+    energy_kwh: float
+    cost: float
+    cumulative_kwh: float
+    cumulative_cost: float
+
+class MonthlySummaryAggregate(BaseModel):
+    total_energy_kwh: float
+    total_cost: float
+    prev_month_cost: Optional[float] = None
+    mom_cost_change_pct: Optional[float] = None
+    projected_month_end_cost: float
+    projected_month_end_kwh: float
+    daily_avg_cost: float
+    daily_avg_kwh: float
+    combined_live_power_w: float
+    device_count: int
+    active_device_count: int
+    highest_consumer: Optional[dict] = None
+    currency: str = "₹"
+
+class MonthlyCostSummaryResponse(BaseModel):
+    selected_month: str
+    month_name: str
+    available_months: List[str]
+    is_current_month: bool
+    summary: MonthlySummaryAggregate
+    categories: List[MonthlyCategoryRollup]
+    daily_trends: List[DailyTrendPoint]
+    devices: List[MonthlyDeviceBreakdown]
+    insights: List[str]
+
+class BillingRateUpdateRequest(BaseModel):
+    device_id: Optional[str] = None
+    billing_rate: float
+    apply_to_all: bool = False
+

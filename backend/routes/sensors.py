@@ -20,8 +20,11 @@ from backend.models.sensor import Sensor
 from backend.models.reading import SensorReading
 from backend.models.alert import Alert
 from backend.middleware.jwt_verify import get_current_user, require_admin, TokenUser
-from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest, DeviceMetrics24hResponse, MonthlyAnalyticsResponse, DailyMetric, BatchContextResponse, DeviceTelemetryHistoryResponse, PlugMetrics24hResponse
+from backend.schemas import ReadingCreate, ReadingResponse, SensorThresholdUpdate, MessageResponse, DeviceTelemetryResponse, MockControlRequest, DeviceMetrics24hResponse, MonthlyAnalyticsResponse, DailyMetric, BatchContextResponse, DeviceTelemetryHistoryResponse, PlugMetrics24hResponse, MonthlyCostSummaryResponse, BillingRateUpdateRequest, MonthlyDeviceBreakdown, MonthlyCategoryRollup, DailyTrendPoint, MonthlySummaryAggregate
 from backend.models.device_telemetry import DeviceTelemetry
+from backend.models.room import Room
+from backend.models.plug_telemetry import PlugTelemetry
+from sqlalchemy import text
 from fastapi.responses import StreamingResponse
 import csv
 from io import StringIO
@@ -1291,6 +1294,554 @@ def export_plug_telemetry(
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
+
+
+# ==============================================================================
+# ==============================================================================
+# SONOFF MONTHLY POWER & ELECTRICITY COST ANALYTICS
+# ==============================================================================
+
+async def get_live_ewelink_power_telemetry() -> dict:
+    """Query live Sonoff telemetry directly from eWeLink cloud for current month."""
+    import os
+    import asyncio
+    from dotenv import load_dotenv
+    load_dotenv()
+    if not os.getenv("EWELINK_EMAIL"):
+        load_dotenv("backend/.env")
+
+    email = os.getenv("EWELINK_EMAIL")
+    password = os.getenv("EWELINK_PASSWORD")
+    region = os.getenv("EWELINK_REGION", "as")
+    if not email or not password:
+        return {}
+
+    try:
+        from backend.services.ewelink import EwelinkClient
+        client = EwelinkClient(email=email, password=password, region=region)
+        ok = await asyncio.wait_for(client.login(), timeout=5.0)
+        if not ok:
+            return {}
+        devices = await asyncio.wait_for(client.get_all_devices(), timeout=6.0)
+        live_map = {}
+        for d in devices:
+            item = d.get("itemData", {})
+            params = item.get("params", {})
+            if EwelinkClient.is_power_device(params):
+                dev_id = item.get("deviceid")
+                m_raw = params.get("monthKwh")
+                d_raw = params.get("dayKwh") or params.get("todayKwh")
+                p_raw = params.get("power")
+                v_raw = params.get("voltage")
+                c_raw = params.get("current")
+                sw_state = "off"
+                if "switches" in params and isinstance(params["switches"], list) and len(params["switches"]) > 0:
+                    sw_state = str(params["switches"][0].get("switch", "off")).lower()
+                elif "switch" in params and params["switch"] is not None:
+                    sw_state = str(params["switch"]).lower()
+
+                p_val = float(p_raw) / 100.0 if p_raw and float(p_raw) > 1000 else float(p_raw or 0)
+                v_val = float(v_raw) / 100.0 if v_raw and float(v_raw) > 1000 else float(v_raw or 0)
+                c_val = float(c_raw) / 100.0 if c_raw and float(c_raw) > 25 else float(c_raw or 0)
+                m_kwh = round(float(m_raw) / 100.0, 3) if m_raw else 0.0
+                d_kwh = round(float(d_raw) / 100.0, 3) if d_raw else 0.0
+
+                live_map[dev_id] = {
+                    "month_kwh": m_kwh,
+                    "today_kwh": d_kwh,
+                    "power_w": round(p_val, 1),
+                    "voltage_v": round(v_val, 1),
+                    "current_a": round(c_val, 3),
+                    "state": sw_state,
+                    "online": item.get("online", True)
+                }
+        return live_map
+    except Exception as e:
+        logger.error(f"Error fetching live eWeLink power map: {e}")
+        return {}
+
+
+@router.get("/plugs/monthly-summary", response_model=MonthlyCostSummaryResponse)
+async def get_plugs_monthly_summary(month: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Get full factory power and electricity cost summary for Sonoff devices:
+    - Combined factory total cost (INR) and energy (kWh)
+    - Projected month-end utility forecast
+    - Month-over-Month comparison
+    - Category / department roll-up (Freezers, Fridges, Fermentation)
+    - Daily cumulative energy and cost curve
+    - Ranked individual device ledger with live status and tariffs
+    - Smart anomaly and power hog insights
+    """
+    # 1. Discover available months with recorded telemetry
+    months_query = db.execute(text("""
+        SELECT DISTINCT to_char(timestamp, 'YYYY-MM') as month_str
+        FROM monitoring.plug_telemetry
+        ORDER BY month_str DESC
+    """)).fetchall()
+    available_months = [r[0] for r in months_query if r[0]]
+    current_month_str = datetime.utcnow().strftime("%Y-%m")
+    if current_month_str not in available_months:
+        available_months.insert(0, current_month_str)
+
+    # 2. Determine target month and date boundaries (default to current month!)
+    target_month = month.strip() if (month and month.strip()) else current_month_str
+    if target_month not in available_months and len(target_month) == 7:
+        available_months.append(target_month)
+        available_months.sort(reverse=True)
+
+    try:
+        year, month_int = map(int, target_month.split("-"))
+    except Exception:
+        target_month = current_month_str
+        year, month_int = map(int, target_month.split("-"))
+
+    days_in_month = calendar.monthrange(year, month_int)[1]
+    start_dt = datetime(year, month_int, 1, 0, 0, 0)
+    end_dt = datetime(year, month_int, days_in_month, 23, 59, 59, 999999)
+    month_name = datetime(year, month_int, 1).strftime("%B %Y")
+    is_current_month = (target_month == current_month_str)
+    days_elapsed = min(days_in_month, max(1, datetime.utcnow().day)) if is_current_month else days_in_month
+
+    # 3. Calculate previous month boundaries for Month-over-Month delta
+    if month_int == 1:
+        prev_year, prev_month_int = year - 1, 12
+    else:
+        prev_year, prev_month_int = year, month_int - 1
+    prev_days = calendar.monthrange(prev_year, prev_month_int)[1]
+    prev_start_dt = datetime(prev_year, prev_month_int, 1, 0, 0, 0)
+    prev_end_dt = datetime(prev_year, prev_month_int, prev_days, 23, 59, 59, 999999)
+
+    # 4. Fetch live Sonoff eWeLink cloud telemetry if viewing current active month
+    live_ewelink_map = {}
+    if is_current_month:
+        try:
+            live_ewelink_map = await get_live_ewelink_power_telemetry()
+        except Exception as e:
+            logger.error(f"Live eWeLink telemetry fetch failed: {e}")
+
+    # 5. Fetch all active plug sensors and linked rooms
+    plug_sensors = db.query(Sensor).filter(
+        Sensor.type == "plug",
+        Sensor.active == True
+    ).all()
+
+    devices_list = []
+    total_factory_energy = 0.0
+    total_factory_cost = 0.0
+    prev_total_cost = 0.0
+    combined_live_power_w = 0.0
+    active_device_count = 0
+    now_utc = datetime.utcnow()
+
+    rooms = {str(r.id): r for r in db.query(Room).all()}
+
+    for s in plug_sensors:
+        dev_id = s.device_id
+        rate = float(s.tapo_billing_rate) if s.tapo_billing_rate is not None else 10.0
+        room = rooms.get(str(s.room_id)) if s.room_id else None
+        room_name = room.name.strip() if room else (s.name.strip() if s.name else dev_id)
+
+        # Categorization
+        r_lower = room_name.lower()
+        if "freezer" in r_lower:
+            cat = "Freezer"
+        elif "fridge" in r_lower:
+            cat = "Fridge"
+        elif "miso" in r_lower or "vinager" in r_lower or "vinegar" in r_lower or "ferment" in r_lower:
+            cat = "Fermentation"
+        else:
+            cat = "General"
+
+        # Check live eWeLink cloud data first for current month
+        live_data = live_ewelink_map.get(dev_id) if is_current_month else None
+        energy_kwh = 0.0
+
+        if live_data and live_data.get("month_kwh") is not None and live_data["month_kwh"] > 0:
+            energy_kwh = float(live_data["month_kwh"])
+            latest_power_w = float(live_data.get("power_w") or 0.0)
+            status = "online" if live_data.get("online") and latest_power_w > 1.0 else ("idle" if live_data.get("online") else "offline")
+
+            # Persist live record if latest DB record is older than 5 minutes
+            try:
+                last_rec = db.query(PlugTelemetry).filter(
+                    PlugTelemetry.device_id == dev_id
+                ).order_by(PlugTelemetry.timestamp.desc()).first()
+                if not last_rec or (now_utc - last_rec.timestamp).total_seconds() > 300:
+                    new_pt = PlugTelemetry(
+                        device_id=dev_id,
+                        apower=latest_power_w,
+                        voltage=float(live_data.get("voltage_v") or 230.0),
+                        current=float(live_data.get("current_a") or 0.0),
+                        today_energy=float(live_data.get("today_kwh") or 0.0),
+                        month_energy=energy_kwh,
+                        timestamp=now_utc
+                    )
+                    db.add(new_pt)
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error persisting live telemetry for {dev_id}: {e}")
+        else:
+            # Fallback to database records
+            row = db.query(
+                func.max(PlugTelemetry.month_energy).label("max_m"),
+                func.max(PlugTelemetry.today_energy).label("max_t")
+            ).filter(
+                PlugTelemetry.device_id == dev_id,
+                PlugTelemetry.timestamp >= start_dt,
+                PlugTelemetry.timestamp <= end_dt
+            ).first()
+
+            energy_kwh = float(row.max_m or 0.0) if row else 0.0
+            if energy_kwh <= 0.0:
+                d_sum = db.execute(text("""
+                    SELECT sum(day_max) FROM (
+                        SELECT max(today_energy) as day_max
+                        FROM monitoring.plug_telemetry
+                        WHERE device_id = :dev_id AND timestamp >= :s_dt AND timestamp <= :e_dt
+                        GROUP BY timestamp::date
+                    ) sub
+                """), {"dev_id": dev_id, "s_dt": start_dt, "e_dt": end_dt}).scalar()
+                energy_kwh = float(d_sum or 0.0)
+
+            latest_tel = db.query(PlugTelemetry).filter(
+                PlugTelemetry.device_id == dev_id
+            ).order_by(PlugTelemetry.timestamp.desc()).first()
+
+            latest_power_w = float(latest_tel.apower or 0.0) if latest_tel else 0.0
+            is_recent = latest_tel and (now_utc - latest_tel.timestamp).total_seconds() < 1800
+            if is_recent and latest_power_w > 1.0:
+                status = "online"
+            elif is_recent:
+                status = "idle"
+            else:
+                status = "offline"
+
+        if status == "online":
+            active_device_count += 1
+            combined_live_power_w += latest_power_w
+
+        # Query previous month energy for MoM delta
+        prev_row = db.query(
+            func.max(PlugTelemetry.month_energy).label("max_m")
+        ).filter(
+            PlugTelemetry.device_id == dev_id,
+            PlugTelemetry.timestamp >= prev_start_dt,
+            PlugTelemetry.timestamp <= prev_end_dt
+        ).first()
+        prev_dev_energy = float(prev_row.max_m or 0.0) if prev_row else 0.0
+        if prev_dev_energy <= 0.0:
+            prev_d_sum = db.execute(text("""
+                SELECT sum(day_max) FROM (
+                    SELECT max(today_energy) as day_max
+                    FROM monitoring.plug_telemetry
+                    WHERE device_id = :dev_id AND timestamp >= :s_dt AND timestamp <= :e_dt
+                    GROUP BY timestamp::date
+                ) sub
+            """), {"dev_id": dev_id, "s_dt": prev_start_dt, "e_dt": prev_end_dt}).scalar()
+            prev_dev_energy = float(prev_d_sum or 0.0)
+
+        prev_dev_cost = round(prev_dev_energy * rate, 2)
+        prev_total_cost += prev_dev_cost
+
+        # Calculate MoM deltas for this device
+        if prev_dev_energy > 0.0:
+            mom_kwh_delta_pct = round(((energy_kwh - prev_dev_energy) / prev_dev_energy) * 100.0, 1)
+            mom_cost_delta = round((energy_kwh * rate) - prev_dev_cost, 2)
+        else:
+            mom_kwh_delta_pct = None
+            mom_cost_delta = None
+
+        dev_cost = round(energy_kwh * rate, 2)
+        total_factory_energy += energy_kwh
+        total_factory_cost += dev_cost
+
+        daily_avg_kwh = round(energy_kwh / days_elapsed, 3)
+        daily_avg_cost = round(dev_cost / days_elapsed, 2)
+
+        devices_list.append({
+            "device_id": dev_id,
+            "device_name": room_name,
+            "sensor_name": s.name,
+            "room_id": str(s.room_id) if s.room_id else None,
+            "room_name": room_name,
+            "category": cat,
+            "hardware_model": "Sonoff POWR320D",
+            "billing_rate": rate,
+            "energy_kwh": round(energy_kwh, 3),
+            "cost": dev_cost,
+            "cost_percentage": 0.0,
+            "energy_percentage": 0.0,
+            "daily_avg_kwh": daily_avg_kwh,
+            "daily_avg_cost": daily_avg_cost,
+            "latest_power_w": round(latest_power_w, 1),
+            "status": status,
+            "mom_kwh_delta_pct": mom_kwh_delta_pct,
+            "mom_cost_delta": mom_cost_delta
+        })
+
+    # Fill percentage shares & sort descending by cost
+    for d in devices_list:
+        d["cost_percentage"] = round((d["cost"] / total_factory_cost * 100.0), 1) if total_factory_cost > 0 else 0.0
+        d["energy_percentage"] = round((d["energy_kwh"] / total_factory_energy * 100.0), 1) if total_factory_energy > 0 else 0.0
+
+    devices_list.sort(key=lambda x: x["cost"], reverse=True)
+
+    # 5. Category Roll-up Aggregation
+    cat_map = {}
+    for d in devices_list:
+        c = d["category"]
+        if c not in cat_map:
+            cat_map[c] = {"category": c, "device_count": 0, "energy_kwh": 0.0, "cost": 0.0}
+        cat_map[c]["device_count"] += 1
+        cat_map[c]["energy_kwh"] += d["energy_kwh"]
+        cat_map[c]["cost"] += d["cost"]
+
+    categories_list = []
+    for c_name, c_data in cat_map.items():
+        pct = round((c_data["cost"] / total_factory_cost * 100.0), 1) if total_factory_cost > 0 else 0.0
+        categories_list.append(MonthlyCategoryRollup(
+            category=c_name,
+            device_count=c_data["device_count"],
+            energy_kwh=round(c_data["energy_kwh"], 2),
+            cost=round(c_data["cost"], 2),
+            percentage=pct
+        ))
+    categories_list.sort(key=lambda x: x.cost, reverse=True)
+
+    # 6. Daily cumulative trend points
+    daily_rows = db.execute(text("""
+        SELECT d.day::date as date_val, sum(d.day_energy) as total_kwh
+        FROM (
+            SELECT device_id, timestamp::date as day, max(today_energy) as day_energy
+            FROM monitoring.plug_telemetry
+            WHERE timestamp >= :s_dt AND timestamp <= :e_dt
+            GROUP BY device_id, timestamp::date
+        ) d
+        GROUP BY d.day
+        ORDER BY d.day ASC
+    """), {"s_dt": start_dt, "e_dt": end_dt}).fetchall()
+
+    daily_trends = []
+    running_kwh = 0.0
+    running_cost = 0.0
+    for r in daily_rows:
+        day_kwh = float(r.total_kwh or 0.0)
+        avg_rate = (total_factory_cost / total_factory_energy) if total_factory_energy > 0 else 10.0
+        day_cost = round(day_kwh * avg_rate, 2)
+        running_kwh += day_kwh
+        running_cost += day_cost
+        d_str = r.date_val.strftime("%Y-%m-%d")
+        daily_trends.append(DailyTrendPoint(
+            day=r.date_val.strftime("%d"),
+            date=d_str,
+            energy_kwh=round(day_kwh, 2),
+            cost=day_cost,
+            cumulative_kwh=round(running_kwh, 2),
+            cumulative_cost=round(running_cost, 2)
+        ))
+
+    # 7. Projected Month-End Forecast
+    if is_current_month:
+        projected_cost = round((total_factory_cost / days_elapsed) * days_in_month, 2) if days_elapsed > 0 else total_factory_cost
+        projected_kwh = round((total_factory_energy / days_elapsed) * days_in_month, 2) if days_elapsed > 0 else total_factory_energy
+    else:
+        projected_cost = total_factory_cost
+        projected_kwh = total_factory_energy
+
+    # 8. MoM total cost comparison
+    mom_cost_change_pct = None
+    if prev_total_cost > 0.0:
+        mom_cost_change_pct = round(((total_factory_cost - prev_total_cost) / prev_total_cost) * 100.0, 1)
+
+    # 9. Highest consumer highlight
+    highest_consumer = None
+    if devices_list and devices_list[0]["cost"] > 0:
+        h = devices_list[0]
+        highest_consumer = {
+            "device_id": h["device_id"],
+            "device_name": h["device_name"],
+            "cost": h["cost"],
+            "energy_kwh": h["energy_kwh"],
+            "percentage": h["cost_percentage"]
+        }
+
+    # 10. Smart Anomaly & Insight Generation
+    insights = []
+    if highest_consumer and highest_consumer["percentage"] >= 25.0:
+        insights.append(
+            f"⚠️ Heavy Consumer: {highest_consumer['device_name']} accounts for {highest_consumer['percentage']}% of the total factory power bill (₹ {highest_consumer['cost']:.2f})."
+        )
+
+    for d in devices_list:
+        if d.get("mom_kwh_delta_pct") and d["mom_kwh_delta_pct"] >= 30.0:
+            insights.append(
+                f"📈 Consumption Surge: {d['device_name']} power usage increased by {d['mom_kwh_delta_pct']}% compared to {datetime(prev_year, prev_month_int, 1).strftime('%B')}. Inspect door seal gasket or compressor cycling."
+            )
+
+    if total_factory_cost > 0:
+        savings_potential = round(total_factory_cost * 0.08, 2)
+        insights.append(
+            f"💡 Efficiency Opportunity: Optimizing defrost timers and thermostat setpoints could reduce factory expenses by ~₹ {savings_potential:.2f}/month."
+        )
+
+    summary_obj = MonthlySummaryAggregate(
+        total_energy_kwh=round(total_factory_energy, 2),
+        total_cost=round(total_factory_cost, 2),
+        prev_month_cost=round(prev_total_cost, 2) if prev_total_cost > 0 else None,
+        mom_cost_change_pct=mom_cost_change_pct,
+        projected_month_end_cost=projected_cost,
+        projected_month_end_kwh=projected_kwh,
+        daily_avg_cost=round(total_factory_cost / days_elapsed, 2),
+        daily_avg_kwh=round(total_factory_energy / days_elapsed, 2),
+        combined_live_power_w=round(combined_live_power_w, 1),
+        device_count=len(devices_list),
+        active_device_count=active_device_count,
+        highest_consumer=highest_consumer,
+        currency="₹"
+    )
+
+    return MonthlyCostSummaryResponse(
+        selected_month=target_month,
+        month_name=month_name,
+        available_months=available_months,
+        is_current_month=is_current_month,
+        summary=summary_obj,
+        categories=categories_list,
+        daily_trends=daily_trends,
+        devices=[MonthlyDeviceBreakdown(**d) for d in devices_list],
+        insights=insights
+    )
+
+
+@router.post("/plugs/billing-rate")
+def update_plug_billing_rate(req: BillingRateUpdateRequest, db: Session = Depends(get_db)):
+    """Update electricity billing rate (₹/kWh) for a specific Sonoff device or all devices."""
+    if req.billing_rate <= 0:
+        raise HTTPException(status_code=400, detail="Billing rate must be greater than 0.")
+
+    if req.apply_to_all:
+        sensors = db.query(Sensor).filter(Sensor.type == "plug").all()
+        for s in sensors:
+            s.tapo_billing_rate = req.billing_rate
+        db.commit()
+        return {"message": f"Updated billing rate to ₹{req.billing_rate}/kWh for all {len(sensors)} appliances."}
+    elif req.device_id:
+        sensor = db.query(Sensor).filter(Sensor.device_id == req.device_id, Sensor.type == "plug").first()
+        if not sensor:
+            sensor = db.query(Sensor).filter(Sensor.device_id == req.device_id).first()
+        if not sensor:
+            raise HTTPException(status_code=404, detail="Device not found.")
+        sensor.tapo_billing_rate = req.billing_rate
+        db.commit()
+        return {"message": f"Updated billing rate for {sensor.name or req.device_id} to ₹{req.billing_rate}/kWh."}
+    else:
+        raise HTTPException(status_code=400, detail="Specify device_id or set apply_to_all=True.")
+
+
+@router.get("/plugs/monthly-summary/export")
+async def export_monthly_cost_csv(month: Optional[str] = None, db: Session = Depends(get_db)):
+    """Export the full monthly power and electricity cost summary as a structured CSV."""
+    data = await get_plugs_monthly_summary(month=month, db=db)
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([f"Ground Up Factory — Monthly Power & Cost Ledger ({data.month_name})"])
+    writer.writerow([])
+    writer.writerow(["Total Factory Electricity Bill (₹)", f"₹ {data.summary.total_cost:.2f}"])
+    writer.writerow(["Total Energy Consumed (kWh)", f"{data.summary.total_energy_kwh:.2f} kWh"])
+    writer.writerow(["Daily Average Cost (₹)", f"₹ {data.summary.daily_avg_cost:.2f}"])
+    writer.writerow(["Daily Average Energy (kWh)", f"{data.summary.daily_avg_kwh:.2f} kWh"])
+    writer.writerow(["Combined Live Load (W)", f"{data.summary.combined_live_power_w:.1f} W"])
+    writer.writerow(["Monitored Devices", str(data.summary.device_count)])
+    writer.writerow([])
+    writer.writerow(["Rank", "Appliance / Room", "Sonoff Device ID", "Category", "Monthly Energy (kWh)", "Tariff Rate (₹/kWh)", "Total Cost (₹)", "Share (%)", "Daily Avg (₹)", "Live Power (W)", "Status"])
+
+    for idx, d in enumerate(data.devices, start=1):
+        writer.writerow([
+            idx,
+            d.device_name,
+            d.device_id,
+            d.category,
+            f"{d.energy_kwh:.3f}",
+            f"{d.billing_rate:.2f}",
+            f"{d.cost:.2f}",
+            f"{d.cost_percentage:.1f}%",
+            f"{d.daily_avg_cost:.2f}",
+            f"{d.latest_power_w:.1f}",
+            d.status.upper()
+        ])
+
+    writer.writerow([])
+    writer.writerow(["Department Roll-Up", "Device Count", "Total Energy (kWh)", "Total Cost (₹)", "Share (%)"])
+    for cat in data.categories:
+        writer.writerow([cat.category, cat.device_count, f"{cat.energy_kwh:.2f}", f"{cat.cost:.2f}", f"{cat.percentage:.1f}%"])
+
+    output.seek(0)
+    filename = f"Sonoff_Monthly_Power_Report_{data.selected_month}.csv"
+    response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
+@router.post("/plugs/monthly-summary/whatsapp")
+async def dispatch_monthly_cost_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)):
+    """Format and dispatch the monthly electricity cost summary via WhatsApp."""
+    import urllib.parse
+    data = await get_plugs_monthly_summary(month=month, db=db)
+
+    top_devices = [d for d in data.devices if d.cost > 0][:5]
+    top_lines = []
+    for idx, d in enumerate(top_devices, 1):
+        top_lines.append(f"{idx}. *{d.device_name.strip()}*: ₹ {d.cost:,.2f} ({d.energy_kwh:,.1f} kWh · {d.cost_percentage:.1f}%)")
+
+    now_day = datetime.utcnow().day
+    period_title = f"{data.month_name} (MTD · Day {now_day})" if data.is_current_month else data.month_name
+
+    msg_body = (
+        f"⚡ *GROUND UP FACTORY — MONTHLY POWER REPORT*\n"
+        f"📅 *Period*: {period_title}\n"
+        + (
+            f"💰 *Current Bill (MTD)*: ₹ {data.summary.total_cost:,.2f}\n"
+            f"🔮 *Projected Month-End*: ₹ {data.summary.projected_month_end_cost:,.2f}\n"
+            f"⚡ *Energy Consumed (MTD)*: {data.summary.total_energy_kwh:,.2f} kWh\n"
+            f"📊 *Daily Run Rate*: ₹ {data.summary.daily_avg_cost:.2f} / day ({data.summary.daily_avg_kwh:.1f} kWh/day)\n"
+            if data.is_current_month else
+            f"💰 *Total Electricity Bill*: ₹ {data.summary.total_cost:,.2f}\n"
+            f"⚡ *Total Energy Consumed*: {data.summary.total_energy_kwh:,.2f} kWh\n"
+            f"📊 *Daily Avg Expense*: ₹ {data.summary.daily_avg_cost:.2f} / day\n"
+        )
+        + (f"⚡ *Live Factory Load*: {data.summary.combined_live_power_w:,.0f} W\n" if (data.is_current_month and data.summary.combined_live_power_w > 0) else "")
+        + f"🔌 *Appliances Monitored*: {data.summary.device_count} (Sonoff POWR320D)\n\n"
+        + "*Top Power Consumers:*\n"
+        + "\n".join(top_lines)
+        + "\n\n_Generated from Ground Up Monitoring Platform._"
+    )
+
+    dispatched = False
+    recipients_count = 0
+    try:
+        from groundup_webhooks.recipient_resolver import resolve_monitoring_recipients
+        from groundup_webhooks.whatsapp_client import send_whatsapp_text_sync
+        recipients = resolve_monitoring_recipients(db, target_groups=[1, 2])
+        for r in recipients:
+            phone = r.get("phone_number")
+            if phone:
+                res = send_whatsapp_text_sync(phone, msg_body, db, sender_name="GroundUp Bot")
+                if res:
+                    recipients_count += 1
+                    dispatched = True
+    except Exception as e:
+        logger.error(f"Error dispatching WhatsApp monthly summary: {e}")
+
+    encoded_msg = urllib.parse.quote(msg_body)
+    return {
+        "success": True,
+        "message": f"Monthly report dispatched to {recipients_count} recipient(s)." if dispatched else "Monthly summary formatted.",
+        "whatsapp_text": msg_body,
+        "wa_link": f"https://wa.me/?text={encoded_msg}"
+    }
 
 
 @router.post("/device/{device_id}/plug/toggle")
